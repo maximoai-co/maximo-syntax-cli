@@ -1,9 +1,9 @@
-import { isAutoMemoryEnabled } from '../../memdir/paths.js'
-import { registerBundledSkill } from '../bundledSkills.js'
+import { isAutoMemoryEnabled } from "../../memdir/paths.js";
+import { registerBundledSkill } from "../bundledSkills.js";
 
 export function registerRememberSkill(): void {
-  if (process.env.USER_TYPE !== 'ant') {
-    return
+  if (process.env.USER_TYPE !== "ant") {
+    return;
   }
 
   const SKILL_PROMPT = `# Memory Review
@@ -23,13 +23,13 @@ For each substantive entry in auto-memory, determine the best destination:
 
 | Destination | What belongs there | Examples |
 |---|---|---|
-| **CLAUDE.md** | Project conventions and instructions for Claude that all contributors should follow | "use bun not npm", "API routes use kebab-case", "test command is bun test", "prefer functional style" |
-| **CLAUDE.local.md** | Personal instructions for Claude specific to this user, not applicable to other contributors | "I prefer concise responses", "always explain trade-offs", "don't auto-commit", "run tests before committing" |
+| **CLAUDE.md** | Project conventions and instructions for Maximo that all contributors should follow | "use bun not npm", "API routes use kebab-case", "test command is bun test", "prefer functional style" |
+| **CLAUDE.local.md** | Personal instructions for Maximo specific to this user, not applicable to other contributors | "I prefer concise responses", "always explain trade-offs", "don't auto-commit", "run tests before committing" |
 | **Team memory** | Org-wide knowledge that applies across repositories (only if team memory is configured) | "deploy PRs go through #deploy-queue", "staging is at staging.internal", "platform team owns infra" |
 | **Stay in auto-memory** | Working notes, temporary context, or entries that don't clearly fit elsewhere | Session-specific observations, uncertain patterns |
 
 **Important distinctions:**
-- CLAUDE.md and CLAUDE.local.md contain instructions for Claude, not user preferences for external tools (editor theme, IDE keybindings, etc. don't belong in either)
+- CLAUDE.md and CLAUDE.local.md contain instructions for Maximo, not user preferences for external tools (editor theme, IDE keybindings, etc. don't belong in either)
 - Workflow practices (PR conventions, merge strategies, branch naming) are ambiguous — ask the user whether they're personal or team-wide
 - When unsure, ask rather than guess
 
@@ -59,24 +59,24 @@ If auto-memory is empty, say so and offer to review CLAUDE.md for cleanup.
 - Do NOT modify files without explicit user approval
 - Do NOT create new files unless the target doesn't exist yet
 - Ask about ambiguous entries — don't guess
-`
+`;
 
   registerBundledSkill({
-    name: 'remember',
+    name: "remember",
     description:
-      'Review auto-memory entries and propose promotions to CLAUDE.md, CLAUDE.local.md, or shared memory. Also detects outdated, conflicting, and duplicate entries across memory layers.',
+      "Review auto-memory entries and propose promotions to CLAUDE.md, CLAUDE.local.md, or shared memory. Also detects outdated, conflicting, and duplicate entries across memory layers.",
     whenToUse:
-      'Use when the user wants to review, organize, or promote their auto-memory entries. Also useful for cleaning up outdated or conflicting entries across CLAUDE.md, CLAUDE.local.md, and auto-memory.',
+      "Use when the user wants to review, organize, or promote their auto-memory entries. Also useful for cleaning up outdated or conflicting entries across CLAUDE.md, CLAUDE.local.md, and auto-memory.",
     userInvocable: true,
     isEnabled: () => isAutoMemoryEnabled(),
     async getPromptForCommand(args) {
-      let prompt = SKILL_PROMPT
+      let prompt = SKILL_PROMPT;
 
       if (args) {
-        prompt += `\n## Additional context from user\n\n${args}`
+        prompt += `\n## Additional context from user\n\n${args}`;
       }
 
-      return [{ type: 'text', text: prompt }]
+      return [{ type: "text", text: prompt }];
     },
-  })
+  });
 }

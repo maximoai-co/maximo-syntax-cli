@@ -1,27 +1,27 @@
-import { execFile } from 'child_process'
-import { execa } from 'execa'
-import { mkdir, stat } from 'fs/promises'
-import * as os from 'os'
-import { join } from 'path'
-import { logEvent } from 'src/services/analytics/index.js'
-import { registerCleanup } from '../cleanupRegistry.js'
-import { getCwd } from '../cwd.js'
-import { logForDebugging } from '../debug.js'
+import { execFile } from "child_process";
+import { execa } from "execa";
+import { mkdir, stat } from "fs/promises";
+import * as os from "os";
+import { join } from "path";
+import { logEvent } from "src/services/analytics/index.js";
+import { registerCleanup } from "../cleanupRegistry.js";
+import { getCwd } from "../cwd.js";
+import { logForDebugging } from "../debug.js";
 import {
   embeddedSearchToolsBinaryPath,
   hasEmbeddedSearchTools,
-} from '../embeddedTools.js'
-import { getClaudeConfigHomeDir } from '../envUtils.js'
-import { pathExists } from '../file.js'
-import { getFsImplementation } from '../fsOperations.js'
-import { logError } from '../log.js'
-import { getPlatform } from '../platform.js'
-import { ripgrepCommand } from '../ripgrep.js'
-import { subprocessEnv } from '../subprocessEnv.js'
-import { quote } from './shellQuote.js'
+} from "../embeddedTools.js";
+import { getMaximoConfigHomeDir } from "../envUtils.js";
+import { pathExists } from "../file.js";
+import { getFsImplementation } from "../fsOperations.js";
+import { logError } from "../log.js";
+import { getPlatform } from "../platform.js";
+import { ripgrepCommand } from "../ripgrep.js";
+import { subprocessEnv } from "../subprocessEnv.js";
+import { quote } from "./shellQuote.js";
 
-const LITERAL_BACKSLASH = '\\'
-const SNAPSHOT_CREATION_TIMEOUT = 10000 // 10 seconds
+const LITERAL_BACKSLASH = "\\";
+const SNAPSHOT_CREATION_TIMEOUT = 10000; // 10 seconds
 
 /**
  * Creates a shell function that invokes `binaryPath` with a specific argv[0].
@@ -36,26 +36,26 @@ function createArgv0ShellFunction(
   funcName: string,
   argv0: string,
   binaryPath: string,
-  prependArgs: string[] = [],
+  prependArgs: string[] = []
 ): string {
-  const quotedPath = quote([binaryPath])
+  const quotedPath = quote([binaryPath]);
   const argSuffix =
-    prependArgs.length > 0 ? `${prependArgs.join(' ')} "$@"` : '"$@"'
+    prependArgs.length > 0 ? `${prependArgs.join(" ")} "$@"` : '"$@"';
   return [
     `function ${funcName} {`,
-    '  if [[ -n $ZSH_VERSION ]]; then',
+    "  if [[ -n $ZSH_VERSION ]]; then",
     `    ARGV0=${argv0} ${quotedPath} ${argSuffix}`,
     '  elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then',
     // On Windows (git bash), exec -a does not work, so use ARGV0 env var instead
     // The bun binary reads from ARGV0 natively to set argv[0]
     `    ARGV0=${argv0} ${quotedPath} ${argSuffix}`,
-    '  elif [[ $BASHPID != $$ ]]; then',
+    "  elif [[ $BASHPID != $$ ]]; then",
     `    exec -a ${argv0} ${quotedPath} ${argSuffix}`,
-    '  else',
+    "  else",
     `    (exec -a ${argv0} ${quotedPath} ${argSuffix})`,
-    '  fi',
-    '}',
-  ].join('\n')
+    "  fi",
+    "}",
+  ].join("\n");
 }
 
 /**
@@ -63,32 +63,32 @@ function createArgv0ShellFunction(
  * @returns Object with type and the shell snippet to use
  */
 export function createRipgrepShellIntegration(): {
-  type: 'alias' | 'function'
-  snippet: string
+  type: "alias" | "function";
+  snippet: string;
 } {
-  const rgCommand = ripgrepCommand()
+  const rgCommand = ripgrepCommand();
 
   // For embedded ripgrep (bun-internal), we need a shell function that sets argv0
   if (rgCommand.argv0) {
     return {
-      type: 'function',
+      type: "function",
       snippet: createArgv0ShellFunction(
-        'rg',
+        "rg",
         rgCommand.argv0,
-        rgCommand.rgPath,
+        rgCommand.rgPath
       ),
-    }
+    };
   }
 
   // For regular ripgrep, use a simple alias target
-  const quotedPath = quote([rgCommand.rgPath])
-  const quotedArgs = rgCommand.rgArgs.map(arg => quote([arg]))
+  const quotedPath = quote([rgCommand.rgPath]);
+  const quotedArgs = rgCommand.rgArgs.map((arg) => quote([arg]));
   const aliasTarget =
     rgCommand.rgArgs.length > 0
-      ? `${quotedPath} ${quotedArgs.join(' ')}`
-      : quotedPath
+      ? `${quotedPath} ${quotedArgs.join(" ")}`
+      : quotedPath;
 
-  return { type: 'alias', snippet: aliasTarget }
+  return { type: "alias", snippet: aliasTarget };
 }
 
 /**
@@ -96,13 +96,13 @@ export function createRipgrepShellIntegration(): {
  * GrepTool (see GrepTool.ts: VCS_DIRECTORIES_TO_EXCLUDE).
  */
 const VCS_DIRECTORIES_TO_EXCLUDE = [
-  '.git',
-  '.svn',
-  '.hg',
-  '.bzr',
-  '.jj',
-  '.sl',
-] as const
+  ".git",
+  ".svn",
+  ".hg",
+  ".bzr",
+  ".jj",
+  ".sl",
+] as const;
 
 /**
  * Creates shell integration for `find` and `grep`, backed by bfs and ugrep
@@ -152,9 +152,9 @@ const VCS_DIRECTORIES_TO_EXCLUDE = [
  */
 export function createFindGrepShellIntegration(): string | null {
   if (!hasEmbeddedSearchTools()) {
-    return null
+    return null;
   }
-  const binaryPath = embeddedSearchToolsBinaryPath()
+  const binaryPath = embeddedSearchToolsBinaryPath();
   return [
     // User shell configs may define aliases like `alias find=gfind` or
     // `alias grep=ggrep` (common on macOS with Homebrew GNU tools). The
@@ -162,32 +162,32 @@ export function createFindGrepShellIntegration(): string | null {
     // bash expands aliases before function lookup — so a renaming alias
     // would silently bypass the embedded bfs/ugrep dispatch. Clear them first
     // (same fix the rg integration uses).
-    'unalias find 2>/dev/null || true',
-    'unalias grep 2>/dev/null || true',
-    createArgv0ShellFunction('find', 'bfs', binaryPath, [
-      '-regextype',
-      'findutils-default',
+    "unalias find 2>/dev/null || true",
+    "unalias grep 2>/dev/null || true",
+    createArgv0ShellFunction("find", "bfs", binaryPath, [
+      "-regextype",
+      "findutils-default",
     ]),
-    createArgv0ShellFunction('grep', 'ugrep', binaryPath, [
-      '-G',
-      '--ignore-files',
-      '--hidden',
-      '-I',
-      ...VCS_DIRECTORIES_TO_EXCLUDE.map(d => `--exclude-dir=${d}`),
+    createArgv0ShellFunction("grep", "ugrep", binaryPath, [
+      "-G",
+      "--ignore-files",
+      "--hidden",
+      "-I",
+      ...VCS_DIRECTORIES_TO_EXCLUDE.map((d) => `--exclude-dir=${d}`),
     ]),
-  ].join('\n')
+  ].join("\n");
 }
 
 function getConfigFile(shellPath: string): string {
-  const fileName = shellPath.includes('zsh')
-    ? '.zshrc'
-    : shellPath.includes('bash')
-      ? '.bashrc'
-      : '.profile'
+  const fileName = shellPath.includes("zsh")
+    ? ".zshrc"
+    : shellPath.includes("bash")
+    ? ".bashrc"
+    : ".profile";
 
-  const configPath = join(os.homedir(), fileName)
+  const configPath = join(os.homedir(), fileName);
 
-  return configPath
+  return configPath;
 }
 
 /**
@@ -195,9 +195,9 @@ function getConfigFile(shellPath: string): string {
  * This content is derived from the user's shell configuration file
  */
 function getUserSnapshotContent(configFile: string): string {
-  const isZsh = configFile.endsWith('.zshrc')
+  const isZsh = configFile.endsWith(".zshrc");
 
-  let content = ''
+  let content = "";
 
   // User functions
   if (isZsh) {
@@ -212,7 +212,7 @@ function getUserSnapshotContent(configFile: string): string {
       typeset +f | grep -vE '^_[^_]' | while read func; do
         typeset -f "$func" >> "$SNAPSHOT_FILE"
       done
-    `
+    `;
   } else {
     content += `
       echo "# Functions" >> "$SNAPSHOT_FILE"
@@ -228,7 +228,7 @@ function getUserSnapshotContent(configFile: string): string {
         # Write the function definition to the snapshot
         echo "eval ${LITERAL_BACKSLASH}"${LITERAL_BACKSLASH}$(echo '$encoded_func' | base64 -d)${LITERAL_BACKSLASH}" > /dev/null 2>&1" >> "$SNAPSHOT_FILE"
       done
-    `
+    `;
   }
 
   // Shell options
@@ -236,14 +236,14 @@ function getUserSnapshotContent(configFile: string): string {
     content += `
       echo "# Shell Options" >> "$SNAPSHOT_FILE"
       setopt | sed 's/^/setopt /' | head -n 1000 >> "$SNAPSHOT_FILE"
-    `
+    `;
   } else {
     content += `
       echo "# Shell Options" >> "$SNAPSHOT_FILE"
       shopt -p | head -n 1000 >> "$SNAPSHOT_FILE"
       set -o | grep "on" | awk '{print "set -o " $1}' | head -n 1000 >> "$SNAPSHOT_FILE"
       echo "shopt -s expand_aliases" >> "$SNAPSHOT_FILE"
-    `
+    `;
   }
 
   // User aliases
@@ -257,33 +257,33 @@ function getUserSnapshotContent(configFile: string): string {
       else
         alias | sed 's/^alias //g' | sed 's/^/alias -- /' | head -n 1000 >> "$SNAPSHOT_FILE"
       fi
-  `
+  `;
 
-  return content
+  return content;
 }
 
 /**
- * Generates Claude Code specific snapshot content
+ * Generates Maximo Syntax specific snapshot content
  * This content is always included regardless of user configuration
  */
-async function getClaudeCodeSnapshotContent(): Promise<string> {
+async function getMaximoCodeSnapshotContent(): Promise<string> {
   // Get the appropriate PATH based on platform
-  let pathValue = process.env.PATH
-  if (getPlatform() === 'windows') {
+  let pathValue = process.env.PATH;
+  if (getPlatform() === "windows") {
     // On Windows with git-bash, read the Cygwin PATH
-    const cygwinResult = await execa('echo $PATH', {
+    const cygwinResult = await execa("echo $PATH", {
       shell: true,
       reject: false,
-    })
+    });
     if (cygwinResult.exitCode === 0 && cygwinResult.stdout) {
-      pathValue = cygwinResult.stdout.trim()
+      pathValue = cygwinResult.stdout.trim();
     }
     // Fall back to process.env.PATH if we can't get Cygwin PATH
   }
 
-  const rgIntegration = createRipgrepShellIntegration()
+  const rgIntegration = createRipgrepShellIntegration();
 
-  let content = ''
+  let content = "";
 
   // Check if rg is available, if not create an alias/function to bundled ripgrep
   // We use a subshell to unalias rg before checking, so that user aliases like
@@ -293,32 +293,32 @@ async function getClaudeCodeSnapshotContent(): Promise<string> {
       # Check for rg availability
       echo "# Check for rg availability" >> "$SNAPSHOT_FILE"
       echo "if ! (unalias rg 2>/dev/null; command -v rg) >/dev/null 2>&1; then" >> "$SNAPSHOT_FILE"
-  `
+  `;
 
-  if (rgIntegration.type === 'function') {
+  if (rgIntegration.type === "function") {
     // For embedded ripgrep, write the function definition using heredoc
     content += `
       cat >> "$SNAPSHOT_FILE" << 'RIPGREP_FUNC_END'
   ${rgIntegration.snippet}
 RIPGREP_FUNC_END
-    `
+    `;
   } else {
     // For regular ripgrep, write a simple alias
-    const escapedSnippet = rgIntegration.snippet.replace(/'/g, "'\\''")
+    const escapedSnippet = rgIntegration.snippet.replace(/'/g, "'\\''");
     content += `
       echo '  alias rg='"'${escapedSnippet}'" >> "$SNAPSHOT_FILE"
-    `
+    `;
   }
 
   content += `
       echo "fi" >> "$SNAPSHOT_FILE"
-  `
+  `;
 
   // For ant-native builds, shadow find/grep with bfs/ugrep embedded in the bun
   // binary. Unlike rg (which only activates if system rg is absent), we always
   // shadow find/grep since bfs/ugrep are drop-in replacements and we want
-  // consistent fast behavior in Claude's shell.
-  const findGrepIntegration = createFindGrepShellIntegration()
+  // consistent fast behavior in Maximo's shell.
+  const findGrepIntegration = createFindGrepShellIntegration();
   if (findGrepIntegration !== null) {
     content += `
       # Shadow find/grep with embedded bfs/ugrep (ant-native only)
@@ -326,17 +326,17 @@ RIPGREP_FUNC_END
       cat >> "$SNAPSHOT_FILE" << 'FIND_GREP_FUNC_END'
 ${findGrepIntegration}
 FIND_GREP_FUNC_END
-    `
+    `;
   }
 
   // Add PATH to the file
   content += `
 
       # Add PATH to the file
-      echo "export PATH=${quote([pathValue || ''])}" >> "$SNAPSHOT_FILE"
-  `
+      echo "export PATH=${quote([pathValue || ""])}" >> "$SNAPSHOT_FILE"
+  `;
 
-  return content
+  return content;
 }
 
 /**
@@ -345,22 +345,26 @@ FIND_GREP_FUNC_END
 async function getSnapshotScript(
   shellPath: string,
   snapshotFilePath: string,
-  configFileExists: boolean,
+  configFileExists: boolean
 ): Promise<string> {
-  const configFile = getConfigFile(shellPath)
-  const isZsh = configFile.endsWith('.zshrc')
+  const configFile = getConfigFile(shellPath);
+  const isZsh = configFile.endsWith(".zshrc");
 
-  // Generate the user content and Claude Code content
+  // Generate the user content and Maximo Syntax content
   const userContent = configFileExists
     ? getUserSnapshotContent(configFile)
     : !isZsh
-      ? // we need to manually force alias expansion in bash - normally `getUserSnapshotContent` takes care of this
-        'echo "shopt -s expand_aliases" >> "$SNAPSHOT_FILE"'
-      : ''
-  const claudeCodeContent = await getClaudeCodeSnapshotContent()
+    ? // we need to manually force alias expansion in bash - normally `getUserSnapshotContent` takes care of this
+      'echo "shopt -s expand_aliases" >> "$SNAPSHOT_FILE"'
+    : "";
+  const claudeCodeContent = await getMaximoCodeSnapshotContent();
 
   const script = `SNAPSHOT_FILE=${quote([snapshotFilePath])}
-      ${configFileExists ? `source "${configFile}" < /dev/null` : '# No user config file to source'}
+      ${
+        configFileExists
+          ? `source "${configFile}" < /dev/null`
+          : "# No user config file to source"
+      }
 
       # First, create/clear the snapshot file
       echo "# Snapshot file" >| "$SNAPSHOT_FILE"
@@ -380,15 +384,15 @@ async function getSnapshotScript(
         echo "Error: Snapshot file was not created at $SNAPSHOT_FILE" >&2
         exit 1
       fi
-    `
+    `;
 
-  return script
+  return script;
 }
 
 /**
  * Creates and saves the shell environment snapshot by loading the user's shell configuration
  *
- * This function is a critical part of Claude CLI's shell integration strategy. It:
+ * This function is a critical part of Maximo CLI's shell integration strategy. It:
  *
  * 1. Identifies the user's shell config file (.zshrc, .bashrc, etc.)
  * 2. Creates a temporary script that sources this configuration file
@@ -400,7 +404,7 @@ async function getSnapshotScript(
  * The snapshot is saved to a temporary file that can be sourced by subsequent shell
  * commands, ensuring they run with the user's expected environment, aliases, and functions.
  *
- * This approach allows Claude CLI to execute commands as if they were run in the user's
+ * This approach allows Maximo CLI to execute commands as if they were run in the user's
  * interactive shell, while avoiding the overhead of creating a new login shell for each command.
  * It handles both Bash and Zsh shells with their different syntax for functions, options, and aliases.
  *
@@ -411,172 +415,173 @@ async function getSnapshotScript(
  * @returns Promise that resolves to the snapshot file path or undefined if creation failed
  */
 export const createAndSaveSnapshot = async (
-  binShell: string,
+  binShell: string
 ): Promise<string | undefined> => {
-  const shellType = binShell.includes('zsh')
-    ? 'zsh'
-    : binShell.includes('bash')
-      ? 'bash'
-      : 'sh'
+  const shellType = binShell.includes("zsh")
+    ? "zsh"
+    : binShell.includes("bash")
+    ? "bash"
+    : "sh";
 
-  logForDebugging(`Creating shell snapshot for ${shellType} (${binShell})`)
+  logForDebugging(`Creating shell snapshot for ${shellType} (${binShell})`);
 
-  return new Promise(async resolve => {
+  return new Promise(async (resolve) => {
     try {
-      const configFile = getConfigFile(binShell)
-      logForDebugging(`Looking for shell config file: ${configFile}`)
-      const configFileExists = await pathExists(configFile)
+      const configFile = getConfigFile(binShell);
+      logForDebugging(`Looking for shell config file: ${configFile}`);
+      const configFileExists = await pathExists(configFile);
 
       if (!configFileExists) {
         logForDebugging(
-          `Shell config file not found: ${configFile}, creating snapshot with Claude Code defaults only`,
-        )
+          `Shell config file not found: ${configFile}, creating snapshot with Maximo Syntax defaults only`
+        );
       }
 
       // Create unique snapshot path with timestamp and random ID
-      const timestamp = Date.now()
-      const randomId = Math.random().toString(36).substring(2, 8)
-      const snapshotsDir = join(getClaudeConfigHomeDir(), 'shell-snapshots')
-      logForDebugging(`Snapshots directory: ${snapshotsDir}`)
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 8);
+      const snapshotsDir = join(getMaximoConfigHomeDir(), "shell-snapshots");
+      logForDebugging(`Snapshots directory: ${snapshotsDir}`);
       const shellSnapshotPath = join(
         snapshotsDir,
-        `snapshot-${shellType}-${timestamp}-${randomId}.sh`,
-      )
+        `snapshot-${shellType}-${timestamp}-${randomId}.sh`
+      );
 
       // Ensure snapshots directory exists
-      await mkdir(snapshotsDir, { recursive: true })
+      await mkdir(snapshotsDir, { recursive: true });
 
       const snapshotScript = await getSnapshotScript(
         binShell,
         shellSnapshotPath,
-        configFileExists,
-      )
-      logForDebugging(`Creating snapshot at: ${shellSnapshotPath}`)
-      logForDebugging(`Execution timeout: ${SNAPSHOT_CREATION_TIMEOUT}ms`)
+        configFileExists
+      );
+      logForDebugging(`Creating snapshot at: ${shellSnapshotPath}`);
+      logForDebugging(`Execution timeout: ${SNAPSHOT_CREATION_TIMEOUT}ms`);
       execFile(
         binShell,
-        ['-c', '-l', snapshotScript],
+        ["-c", "-l", snapshotScript],
         {
           env: {
             ...((process.env.CLAUDE_CODE_DONT_INHERIT_ENV
               ? {}
               : subprocessEnv()) as typeof process.env),
             SHELL: binShell,
-            GIT_EDITOR: 'true',
-            CLAUDECODE: '1',
+            GIT_EDITOR: "true",
+            CLAUDECODE: "1",
           },
           timeout: SNAPSHOT_CREATION_TIMEOUT,
           maxBuffer: 1024 * 1024, // 1MB buffer
-          encoding: 'utf8',
+          encoding: "utf8",
         },
         async (error, stdout, stderr) => {
           if (error) {
             const execError = error as Error & {
-              killed?: boolean
-              signal?: string
-              code?: number
-            }
-            logForDebugging(`Shell snapshot creation failed: ${error.message}`)
-            logForDebugging(`Error details:`)
-            logForDebugging(`  - Error code: ${execError?.code}`)
-            logForDebugging(`  - Error signal: ${execError?.signal}`)
-            logForDebugging(`  - Error killed: ${execError?.killed}`)
-            logForDebugging(`  - Shell path: ${binShell}`)
-            logForDebugging(`  - Config file: ${getConfigFile(binShell)}`)
-            logForDebugging(`  - Config file exists: ${configFileExists}`)
-            logForDebugging(`  - Working directory: ${getCwd()}`)
-            logForDebugging(`  - Claude home: ${getClaudeConfigHomeDir()}`)
-            logForDebugging(`Full snapshot script:\n${snapshotScript}`)
+              killed?: boolean;
+              signal?: string;
+              code?: number;
+            };
+            logForDebugging(`Shell snapshot creation failed: ${error.message}`);
+            logForDebugging(`Error details:`);
+            logForDebugging(`  - Error code: ${execError?.code}`);
+            logForDebugging(`  - Error signal: ${execError?.signal}`);
+            logForDebugging(`  - Error killed: ${execError?.killed}`);
+            logForDebugging(`  - Shell path: ${binShell}`);
+            logForDebugging(`  - Config file: ${getConfigFile(binShell)}`);
+            logForDebugging(`  - Config file exists: ${configFileExists}`);
+            logForDebugging(`  - Working directory: ${getCwd()}`);
+            logForDebugging(`  - Maximo home: ${getMaximoConfigHomeDir()}`);
+            logForDebugging(`Full snapshot script:\n${snapshotScript}`);
             if (stdout) {
               logForDebugging(
-                `stdout output (${stdout.length} chars):\n${stdout}`,
-              )
+                `stdout output (${stdout.length} chars):\n${stdout}`
+              );
             } else {
-              logForDebugging(`No stdout output captured`)
+              logForDebugging(`No stdout output captured`);
             }
             if (stderr) {
               logForDebugging(
-                `stderr output (${stderr.length} chars): ${stderr}`,
-              )
+                `stderr output (${stderr.length} chars): ${stderr}`
+              );
             } else {
-              logForDebugging(`No stderr output captured`)
+              logForDebugging(`No stderr output captured`);
             }
             logError(
-              new Error(`Failed to create shell snapshot: ${error.message}`),
-            )
+              new Error(`Failed to create shell snapshot: ${error.message}`)
+            );
             // Convert signal name to number if present
             const signalNumber = execError?.signal
               ? os.constants.signals[
                   execError.signal as keyof typeof os.constants.signals
                 ]
-              : undefined
-            logEvent('tengu_shell_snapshot_failed', {
+              : undefined;
+            logEvent("tengu_shell_snapshot_failed", {
               stderr_length: stderr?.length || 0,
               has_error_code: !!execError?.code,
               error_signal_number: signalNumber,
               error_killed: execError?.killed,
-            })
-            resolve(undefined)
+            });
+            resolve(undefined);
           } else {
-            let snapshotSize: number | undefined
+            let snapshotSize: number | undefined;
             try {
-              snapshotSize = (await stat(shellSnapshotPath)).size
+              snapshotSize = (await stat(shellSnapshotPath)).size;
             } catch {
               // Snapshot file not found
             }
 
             if (snapshotSize !== undefined) {
               logForDebugging(
-                `Shell snapshot created successfully (${snapshotSize} bytes)`,
-              )
+                `Shell snapshot created successfully (${snapshotSize} bytes)`
+              );
 
               // Register cleanup to remove snapshot on graceful shutdown
               registerCleanup(async () => {
                 try {
-                  await getFsImplementation().unlink(shellSnapshotPath)
+                  await getFsImplementation().unlink(shellSnapshotPath);
                   logForDebugging(
-                    `Cleaned up session snapshot: ${shellSnapshotPath}`,
-                  )
+                    `Cleaned up session snapshot: ${shellSnapshotPath}`
+                  );
                 } catch (error) {
                   logForDebugging(
-                    `Error cleaning up session snapshot: ${error}`,
-                  )
+                    `Error cleaning up session snapshot: ${error}`
+                  );
                 }
-              })
+              });
 
-              resolve(shellSnapshotPath)
+              resolve(shellSnapshotPath);
             } else {
               logForDebugging(
-                `Shell snapshot file not found after creation: ${shellSnapshotPath}`,
-              )
+                `Shell snapshot file not found after creation: ${shellSnapshotPath}`
+              );
               logForDebugging(
-                `Checking if parent directory still exists: ${snapshotsDir}`,
-              )
+                `Checking if parent directory still exists: ${snapshotsDir}`
+              );
               try {
-                const dirContents =
-                  await getFsImplementation().readdir(snapshotsDir)
+                const dirContents = await getFsImplementation().readdir(
+                  snapshotsDir
+                );
                 logForDebugging(
-                  `Directory contains ${dirContents.length} files`,
-                )
+                  `Directory contains ${dirContents.length} files`
+                );
               } catch {
                 logForDebugging(
-                  `Parent directory does not exist or is not accessible: ${snapshotsDir}`,
-                )
+                  `Parent directory does not exist or is not accessible: ${snapshotsDir}`
+                );
               }
-              logEvent('tengu_shell_unknown_error', {})
-              resolve(undefined)
+              logEvent("tengu_shell_unknown_error", {});
+              resolve(undefined);
             }
           }
-        },
-      )
+        }
+      );
     } catch (error) {
-      logForDebugging(`Unexpected error during snapshot creation: ${error}`)
+      logForDebugging(`Unexpected error during snapshot creation: ${error}`);
       if (error instanceof Error) {
-        logForDebugging(`Error stack trace: ${error.stack}`)
+        logForDebugging(`Error stack trace: ${error.stack}`);
       }
-      logError(error)
-      logEvent('tengu_shell_snapshot_error', {})
-      resolve(undefined)
+      logError(error);
+      logEvent("tengu_shell_snapshot_error", {});
+      resolve(undefined);
     }
-  })
-}
+  });
+};

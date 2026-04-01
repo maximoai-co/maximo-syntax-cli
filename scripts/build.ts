@@ -1,5 +1,5 @@
 /**
- * OpenClaude build script — bundles the TypeScript source into a single
+ * OpenMaximo build script — bundles the TypeScript source into a single
  * distributable JS file using Bun's bundler.
  *
  * Handles:
@@ -8,10 +8,10 @@
  * - src/ path aliases
  */
 
-import { readFileSync } from 'fs'
+import { readFileSync } from "fs";
 
-const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
-const version = pkg.version
+const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
+const version = pkg.version;
 
 // Feature flags — all disabled for the open build.
 // These gate Anthropic-internal features (voice, proactive, kairos, etc.)
@@ -39,43 +39,44 @@ const featureFlags: Record<string, boolean> = {
   BUDDY: false,
   CHICAGO_MCP: false,
   COWORKER_TYPE_TELEMETRY: false,
-}
+};
 
 const result = await Bun.build({
-  entrypoints: ['./src/entrypoints/cli.tsx'],
-  outdir: './dist',
-  target: 'node',
-  format: 'esm',
+  entrypoints: ["./src/entrypoints/cli.tsx"],
+  outdir: "./dist",
+  target: "node",
+  format: "esm",
   splitting: false,
-  sourcemap: 'external',
+  sourcemap: "external",
   minify: false,
-  naming: 'cli.mjs',
+  naming: "cli.mjs",
   define: {
     // MACRO.* build-time constants
     // Keep the internal compatibility version high enough to pass
     // first-party minimum-version guards, but expose the real package
-    // version separately in Open Claude branding.
-    'MACRO.VERSION': JSON.stringify('99.0.0'),
-    'MACRO.DISPLAY_VERSION': JSON.stringify(version),
-    'MACRO.BUILD_TIME': JSON.stringify(new Date().toISOString()),
-    'MACRO.ISSUES_EXPLAINER':
-      JSON.stringify('report the issue at https://github.com/anthropics/claude-code/issues'),
+    // version separately in Maximo Syntax branding.
+    "MACRO.VERSION": JSON.stringify("99.0.0"),
+    "MACRO.DISPLAY_VERSION": JSON.stringify(version),
+    "MACRO.BUILD_TIME": JSON.stringify(new Date().toISOString()),
+    "MACRO.ISSUES_EXPLAINER": JSON.stringify(
+      "report the issue at https://github.com/anthropics/claude-code/issues"
+    ),
   },
   plugins: [
     {
-      name: 'bun-bundle-shim',
+      name: "bun-bundle-shim",
       setup(build) {
         const internalFeatureStubModules = new Map([
           [
-            '../daemon/workerRegistry.js',
+            "../daemon/workerRegistry.js",
             'export async function runDaemonWorker() { throw new Error("Daemon worker is unavailable in the open build."); }',
           ],
           [
-            '../daemon/main.js',
+            "../daemon/main.js",
             'export async function daemonMain() { throw new Error("Daemon mode is unavailable in the open build."); }',
           ],
           [
-            '../cli/bg.js',
+            "../cli/bg.js",
             `
 export async function psHandler() { throw new Error("Background sessions are unavailable in the open build."); }
 export async function logsHandler() { throw new Error("Background sessions are unavailable in the open build."); }
@@ -85,96 +86,92 @@ export async function handleBgFlag() { throw new Error("Background sessions are 
 `,
           ],
           [
-            '../cli/handlers/templateJobs.js',
+            "../cli/handlers/templateJobs.js",
             'export async function templatesMain() { throw new Error("Template jobs are unavailable in the open build."); }',
           ],
           [
-            '../environment-runner/main.js',
+            "../environment-runner/main.js",
             'export async function environmentRunnerMain() { throw new Error("Environment runner is unavailable in the open build."); }',
           ],
           [
-            '../self-hosted-runner/main.js',
+            "../self-hosted-runner/main.js",
             'export async function selfHostedRunnerMain() { throw new Error("Self-hosted runner is unavailable in the open build."); }',
           ],
-        ] as const)
+        ] as const);
 
         // Resolve `import { feature } from 'bun:bundle'` to a shim
         build.onResolve({ filter: /^bun:bundle$/ }, () => ({
-          path: 'bun:bundle',
-          namespace: 'bun-bundle-shim',
-        }))
-        build.onLoad(
-          { filter: /.*/, namespace: 'bun-bundle-shim' },
-          () => ({
-            contents: `export function feature(name) { return false; }`,
-            loader: 'js',
-          }),
-        )
+          path: "bun:bundle",
+          namespace: "bun-bundle-shim",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "bun-bundle-shim" }, () => ({
+          contents: `export function feature(name) { return false; }`,
+          loader: "js",
+        }));
 
         build.onResolve(
-          { filter: /^\.\.\/(daemon\/workerRegistry|daemon\/main|cli\/bg|cli\/handlers\/templateJobs|environment-runner\/main|self-hosted-runner\/main)\.js$/ },
-          args => {
-            if (!internalFeatureStubModules.has(args.path)) return null
+          {
+            filter:
+              /^\.\.\/(daemon\/workerRegistry|daemon\/main|cli\/bg|cli\/handlers\/templateJobs|environment-runner\/main|self-hosted-runner\/main)\.js$/,
+          },
+          (args) => {
+            if (!internalFeatureStubModules.has(args.path)) return null;
             return {
               path: args.path,
-              namespace: 'internal-feature-stub',
-            }
-          },
-        )
+              namespace: "internal-feature-stub",
+            };
+          }
+        );
         build.onLoad(
-          { filter: /.*/, namespace: 'internal-feature-stub' },
-          args => ({
-            contents:
-              internalFeatureStubModules.get(args.path) ??
-              'export {}',
-            loader: 'js',
-          }),
-        )
+          { filter: /.*/, namespace: "internal-feature-stub" },
+          (args) => ({
+            contents: internalFeatureStubModules.get(args.path) ?? "export {}",
+            loader: "js",
+          })
+        );
 
         // Resolve react/compiler-runtime to the standalone package
         build.onResolve({ filter: /^react\/compiler-runtime$/ }, () => ({
-          path: 'react/compiler-runtime',
-          namespace: 'react-compiler-shim',
-        }))
+          path: "react/compiler-runtime",
+          namespace: "react-compiler-shim",
+        }));
         build.onLoad(
-          { filter: /.*/, namespace: 'react-compiler-shim' },
+          { filter: /.*/, namespace: "react-compiler-shim" },
           () => ({
             contents: `export function c(size) { return new Array(size).fill(Symbol.for('react.memo_cache_sentinel')); }`,
-            loader: 'js',
-          }),
-        )
+            loader: "js",
+          })
+        );
 
         // NOTE: @opentelemetry/* kept as external deps (too many named exports to stub)
 
         // Resolve native addon and missing snapshot imports to stubs
         for (const mod of [
-          'audio-capture-napi',
-          'audio-capture.node',
-          'image-processor-napi',
-          'modifiers-napi',
-          'url-handler-napi',
-          'color-diff-napi',
-          'sharp',
-          '@anthropic-ai/mcpb',
-          '@ant/claude-for-chrome-mcp',
-          '@anthropic-ai/sandbox-runtime',
-          'asciichart',
-          'plist',
-          'cacache',
-          'fuse',
-          'code-excerpt',
-          'stack-utils',
+          "audio-capture-napi",
+          "audio-capture.node",
+          "image-processor-napi",
+          "modifiers-napi",
+          "url-handler-napi",
+          "color-diff-napi",
+          "sharp",
+          "@anthropic-ai/mcpb",
+          "@ant/claude-for-chrome-mcp",
+          "@anthropic-ai/sandbox-runtime",
+          "asciichart",
+          "plist",
+          "cacache",
+          "fuse",
+          "code-excerpt",
+          "stack-utils",
         ]) {
           build.onResolve({ filter: new RegExp(`^${mod}$`) }, () => ({
             path: mod,
-            namespace: 'native-stub',
-          }))
+            namespace: "native-stub",
+          }));
         }
-        build.onLoad(
-          { filter: /.*/, namespace: 'native-stub' },
-          () => ({
-            // Comprehensive stub that handles any named export via Proxy
-            contents: `
+        build.onLoad({ filter: /.*/, namespace: "native-stub" }, () => ({
+          // Comprehensive stub that handles any named export via Proxy
+          contents: `
 const noop = () => null;
 const noopClass = class {};
 const handler = {
@@ -200,7 +197,7 @@ export const ColorDiff = null;
 export const ColorFile = null;
 export const getSyntaxTheme = noop;
 export const plot = noop;
-export const createClaudeForChromeMcpServer = noop;
+export const createMaximoForChromeMcpServer = noop;
 // OpenTelemetry exports
 export const ExportResultCode = { SUCCESS: 0, FAILED: 1 };
 export const resourceFromAttributes = noop;
@@ -231,62 +228,58 @@ export const InstrumentType = { COUNTER: 0, HISTOGRAM: 1, UP_DOWN_COUNTER: 2 };
 export const PushMetricExporter = noopClass;
 export const SeverityNumber = {};
 `,
-            loader: 'js',
-          }),
-        )
+          loader: "js",
+        }));
 
         // Resolve .md and .txt file imports to empty string stubs
         build.onResolve({ filter: /\.(md|txt)$/ }, (args) => ({
           path: args.path,
-          namespace: 'text-stub',
-        }))
-        build.onLoad(
-          { filter: /.*/, namespace: 'text-stub' },
-          () => ({
-            contents: `export default '';`,
-            loader: 'js',
-          }),
-        )
+          namespace: "text-stub",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "text-stub" }, () => ({
+          contents: `export default '';`,
+          loader: "js",
+        }));
       },
     },
   ],
   external: [
     // OpenTelemetry — too many named exports to stub, kept external
-    '@opentelemetry/api',
-    '@opentelemetry/api-logs',
-    '@opentelemetry/core',
-    '@opentelemetry/exporter-trace-otlp-grpc',
-    '@opentelemetry/exporter-trace-otlp-http',
-    '@opentelemetry/exporter-trace-otlp-proto',
-    '@opentelemetry/exporter-logs-otlp-http',
-    '@opentelemetry/exporter-logs-otlp-proto',
-    '@opentelemetry/exporter-logs-otlp-grpc',
-    '@opentelemetry/exporter-metrics-otlp-proto',
-    '@opentelemetry/exporter-metrics-otlp-grpc',
-    '@opentelemetry/exporter-metrics-otlp-http',
-    '@opentelemetry/exporter-prometheus',
-    '@opentelemetry/resources',
-    '@opentelemetry/sdk-trace-base',
-    '@opentelemetry/sdk-trace-node',
-    '@opentelemetry/sdk-logs',
-    '@opentelemetry/sdk-metrics',
-    '@opentelemetry/semantic-conventions',
+    "@opentelemetry/api",
+    "@opentelemetry/api-logs",
+    "@opentelemetry/core",
+    "@opentelemetry/exporter-trace-otlp-grpc",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/exporter-trace-otlp-proto",
+    "@opentelemetry/exporter-logs-otlp-http",
+    "@opentelemetry/exporter-logs-otlp-proto",
+    "@opentelemetry/exporter-logs-otlp-grpc",
+    "@opentelemetry/exporter-metrics-otlp-proto",
+    "@opentelemetry/exporter-metrics-otlp-grpc",
+    "@opentelemetry/exporter-metrics-otlp-http",
+    "@opentelemetry/exporter-prometheus",
+    "@opentelemetry/resources",
+    "@opentelemetry/sdk-trace-base",
+    "@opentelemetry/sdk-trace-node",
+    "@opentelemetry/sdk-logs",
+    "@opentelemetry/sdk-metrics",
+    "@opentelemetry/semantic-conventions",
     // Cloud provider SDKs
-    '@aws-sdk/client-bedrock',
-    '@aws-sdk/client-bedrock-runtime',
-    '@aws-sdk/client-sts',
-    '@aws-sdk/credential-providers',
-    '@azure/identity',
-    'google-auth-library',
+    "@aws-sdk/client-bedrock",
+    "@aws-sdk/client-bedrock-runtime",
+    "@aws-sdk/client-sts",
+    "@aws-sdk/credential-providers",
+    "@azure/identity",
+    "google-auth-library",
   ],
-})
+});
 
 if (!result.success) {
-  console.error('Build failed:')
+  console.error("Build failed:");
   for (const log of result.logs) {
-    console.error(log)
+    console.error(log);
   }
-  process.exit(1)
+  process.exit(1);
 }
 
-console.log(`✓ Built openclaude v${version} → dist/cli.mjs`)
+console.log(`✓ Built maximo-syntax-cli v${version} → dist/cli.mjs`);

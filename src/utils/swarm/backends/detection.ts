@@ -1,13 +1,13 @@
-import { env } from '../../../utils/env.js'
-import { execFileNoThrow } from '../../../utils/execFileNoThrow.js'
-import { TMUX_COMMAND } from '../constants.js'
+import { env } from "../../../utils/env.js";
+import { execFileNoThrow } from "../../../utils/execFileNoThrow.js";
+import { TMUX_COMMAND } from "../constants.js";
 
 /**
- * Captured at module load time to detect if the user started Claude from within tmux.
+ * Captured at module load time to detect if the user started Maximo from within tmux.
  * Shell.ts may override TMUX env var later, so we capture the original value.
  */
 // eslint-disable-next-line custom-rules/no-process-env-top-level
-const ORIGINAL_USER_TMUX = process.env.TMUX
+const ORIGINAL_USER_TMUX = process.env.TMUX;
 
 /**
  * Captured at module load time to get the leader's tmux pane ID.
@@ -16,31 +16,31 @@ const ORIGINAL_USER_TMUX = process.env.TMUX
  * the user switches to a different pane later.
  */
 // eslint-disable-next-line custom-rules/no-process-env-top-level
-const ORIGINAL_TMUX_PANE = process.env.TMUX_PANE
+const ORIGINAL_TMUX_PANE = process.env.TMUX_PANE;
 
 /** Cached result for isInsideTmux */
-let isInsideTmuxCached: boolean | null = null
+let isInsideTmuxCached: boolean | null = null;
 
 /** Cached result for isInITerm2 */
-let isInITerm2Cached: boolean | null = null
+let isInITerm2Cached: boolean | null = null;
 
 /**
  * Checks if we're currently running inside a tmux session (synchronous version).
  * Uses the original TMUX value captured at module load, not process.env.TMUX,
- * because Shell.ts overrides TMUX when Claude's socket is initialized.
+ * because Shell.ts overrides TMUX when Maximo's socket is initialized.
  *
  * IMPORTANT: We ONLY check the TMUX env var. We do NOT run `tmux display-message`
  * as a fallback because that command will succeed if ANY tmux server is running
  * on the system, not just if THIS process is inside tmux.
  */
 export function isInsideTmuxSync(): boolean {
-  return !!ORIGINAL_USER_TMUX
+  return !!ORIGINAL_USER_TMUX;
 }
 
 /**
  * Checks if we're currently running inside a tmux session.
  * Uses the original TMUX value captured at module load, not process.env.TMUX,
- * because Shell.ts overrides TMUX when Claude's socket is initialized.
+ * because Shell.ts overrides TMUX when Maximo's socket is initialized.
  * Caches the result since this won't change during the process lifetime.
  *
  * IMPORTANT: We ONLY check the TMUX env var. We do NOT run `tmux display-message`
@@ -49,14 +49,14 @@ export function isInsideTmuxSync(): boolean {
  */
 export async function isInsideTmux(): Promise<boolean> {
   if (isInsideTmuxCached !== null) {
-    return isInsideTmuxCached
+    return isInsideTmuxCached;
   }
 
   // Check the original TMUX env var (captured at module load)
-  // This tells us if the user started Claude from within their tmux session
+  // This tells us if the user started Maximo from within their tmux session
   // If TMUX is not set, we are NOT inside tmux - period.
-  isInsideTmuxCached = !!ORIGINAL_USER_TMUX
-  return isInsideTmuxCached
+  isInsideTmuxCached = !!ORIGINAL_USER_TMUX;
+  return isInsideTmuxCached;
 }
 
 /**
@@ -64,15 +64,15 @@ export async function isInsideTmux(): Promise<boolean> {
  * Returns null if not running inside tmux.
  */
 export function getLeaderPaneId(): string | null {
-  return ORIGINAL_TMUX_PANE || null
+  return ORIGINAL_TMUX_PANE || null;
 }
 
 /**
  * Checks if tmux is available on the system (installed and in PATH).
  */
 export async function isTmuxAvailable(): Promise<boolean> {
-  const result = await execFileNoThrow(TMUX_COMMAND, ['-V'])
-  return result.code === 0
+  const result = await execFileNoThrow(TMUX_COMMAND, ["-V"]);
+  return result.code === 0;
 }
 
 /**
@@ -89,24 +89,24 @@ export async function isTmuxAvailable(): Promise<boolean> {
  */
 export function isInITerm2(): boolean {
   if (isInITerm2Cached !== null) {
-    return isInITerm2Cached
+    return isInITerm2Cached;
   }
 
   // Check multiple indicators for iTerm2
-  const termProgram = process.env.TERM_PROGRAM
-  const hasItermSessionId = !!process.env.ITERM_SESSION_ID
-  const terminalIsITerm = env.terminal === 'iTerm.app'
+  const termProgram = process.env.TERM_PROGRAM;
+  const hasItermSessionId = !!process.env.ITERM_SESSION_ID;
+  const terminalIsITerm = env.terminal === "iTerm.app";
 
   isInITerm2Cached =
-    termProgram === 'iTerm.app' || hasItermSessionId || terminalIsITerm
+    termProgram === "iTerm.app" || hasItermSessionId || terminalIsITerm;
 
-  return isInITerm2Cached
+  return isInITerm2Cached;
 }
 
 /**
  * The it2 CLI command name.
  */
-export const IT2_COMMAND = 'it2'
+export const IT2_COMMAND = "it2";
 
 /**
  * Checks if the it2 CLI tool is available AND can reach the iTerm2 Python API.
@@ -115,14 +115,14 @@ export const IT2_COMMAND = 'it2'
  * 'session split' to fail later with no fallback.
  */
 export async function isIt2CliAvailable(): Promise<boolean> {
-  const result = await execFileNoThrow(IT2_COMMAND, ['session', 'list'])
-  return result.code === 0
+  const result = await execFileNoThrow(IT2_COMMAND, ["session", "list"]);
+  return result.code === 0;
 }
 
 /**
  * Resets all cached detection results. Used for testing.
  */
 export function resetDetectionCache(): void {
-  isInsideTmuxCached = null
-  isInITerm2Cached = null
+  isInsideTmuxCached = null;
+  isInITerm2Cached = null;
 }

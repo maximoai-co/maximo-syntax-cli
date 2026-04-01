@@ -126,7 +126,7 @@ def build_default_providers() -> list[Provider]:
 
 class SmartRouter:
     """
-    Intelligently routes Claude Code API requests to the best
+    Intelligently routes Maximo Syntax API requests to the best
     available LLM provider based on latency, cost, and health.
     """
 
@@ -221,7 +221,7 @@ class SmartRouter:
     def get_model_for_provider(
         self, provider: Provider, claude_model: str
     ) -> str:
-        """Map a Claude model name to the provider's actual model."""
+        """Map a Maximo model name to the provider's actual model."""
         is_large = any(
             keyword in claude_model.lower()
             for keyword in ["opus", "sonnet", "large", "big"]

@@ -1,9 +1,13 @@
-import { POWERSHELL_TOOL_NAME } from '../../../tools/PowerShellTool/toolName.js';
-import type { PermissionUpdate } from '../../../utils/permissions/PermissionUpdateSchema.js';
-import { shouldShowAlwaysAllowOptions } from '../../../utils/permissions/permissionsLoader.js';
-import type { OptionWithDescription } from '../../CustomSelect/select.js';
-import { generateShellSuggestionsLabel } from '../shellPermissionHelpers.js';
-export type PowerShellToolUseOption = 'yes' | 'yes-apply-suggestions' | 'yes-prefix-edited' | 'no';
+import { POWERSHELL_TOOL_NAME } from "../../../tools/PowerShellTool/toolName.js";
+import type { PermissionUpdate } from "../../../utils/permissions/PermissionUpdateSchema.js";
+import { shouldShowAlwaysAllowOptions } from "../../../utils/permissions/permissionsLoader.js";
+import type { OptionWithDescription } from "../../CustomSelect/select.js";
+import { generateShellSuggestionsLabel } from "../shellPermissionHelpers.js";
+export type PowerShellToolUseOption =
+  | "yes"
+  | "yes-apply-suggestions"
+  | "yes-prefix-edited"
+  | "no";
 export function powershellToolUseOptions({
   suggestions = [],
   onRejectFeedbackChange,
@@ -11,7 +15,7 @@ export function powershellToolUseOptions({
   yesInputMode = false,
   noInputMode = false,
   editablePrefix,
-  onEditablePrefixChange
+  onEditablePrefixChange,
 }: {
   suggestions?: PermissionUpdate[];
   onRejectFeedbackChange: (value: string) => void;
@@ -24,17 +28,17 @@ export function powershellToolUseOptions({
   const options: OptionWithDescription<PowerShellToolUseOption>[] = [];
   if (yesInputMode) {
     options.push({
-      type: 'input',
-      label: 'Yes',
-      value: 'yes',
-      placeholder: 'and tell Claude what to do next',
+      type: "input",
+      label: "Yes",
+      value: "yes",
+      placeholder: "and tell Maximo what to do next",
       onChange: onAcceptFeedbackChange,
-      allowEmptySubmitToCancel: true
+      allowEmptySubmitToCancel: true,
     });
   } else {
     options.push({
-      label: 'Yes',
-      value: 'yes'
+      label: "Yes",
+      value: "yes",
     });
   }
 
@@ -47,43 +51,55 @@ export function powershellToolUseOptions({
   // directory permissions or Read-tool rules, so fall back to the label when
   // those are present.
   if (shouldShowAlwaysAllowOptions() && suggestions.length > 0) {
-    const hasNonPowerShellSuggestions = suggestions.some(s => s.type === 'addDirectories' || s.type === 'addRules' && s.rules?.some(r => r.toolName !== POWERSHELL_TOOL_NAME));
-    if (editablePrefix !== undefined && onEditablePrefixChange && !hasNonPowerShellSuggestions) {
+    const hasNonPowerShellSuggestions = suggestions.some(
+      (s) =>
+        s.type === "addDirectories" ||
+        (s.type === "addRules" &&
+          s.rules?.some((r) => r.toolName !== POWERSHELL_TOOL_NAME))
+    );
+    if (
+      editablePrefix !== undefined &&
+      onEditablePrefixChange &&
+      !hasNonPowerShellSuggestions
+    ) {
       options.push({
-        type: 'input',
-        label: 'Yes, and don\u2019t ask again for',
-        value: 'yes-prefix-edited',
-        placeholder: 'command prefix (e.g., Get-Process:*)',
+        type: "input",
+        label: "Yes, and don\u2019t ask again for",
+        value: "yes-prefix-edited",
+        placeholder: "command prefix (e.g., Get-Process:*)",
         initialValue: editablePrefix,
         onChange: onEditablePrefixChange,
         allowEmptySubmitToCancel: true,
         showLabelWithValue: true,
-        labelValueSeparator: ': ',
-        resetCursorOnUpdate: true
+        labelValueSeparator: ": ",
+        resetCursorOnUpdate: true,
       });
     } else {
-      const label = generateShellSuggestionsLabel(suggestions, POWERSHELL_TOOL_NAME);
+      const label = generateShellSuggestionsLabel(
+        suggestions,
+        POWERSHELL_TOOL_NAME
+      );
       if (label) {
         options.push({
           label,
-          value: 'yes-apply-suggestions'
+          value: "yes-apply-suggestions",
         });
       }
     }
   }
   if (noInputMode) {
     options.push({
-      type: 'input',
-      label: 'No',
-      value: 'no',
-      placeholder: 'and tell Claude what to do differently',
+      type: "input",
+      label: "No",
+      value: "no",
+      placeholder: "and tell Maximo what to do differently",
       onChange: onRejectFeedbackChange,
-      allowEmptySubmitToCancel: true
+      allowEmptySubmitToCancel: true,
     });
   } else {
     options.push({
-      label: 'No',
-      value: 'no'
+      label: "No",
+      value: "no",
     });
   }
   return options;

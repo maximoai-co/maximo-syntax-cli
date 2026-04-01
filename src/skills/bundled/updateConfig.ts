@@ -1,15 +1,15 @@
-import { toJSONSchema } from 'zod/v4'
-import { SettingsSchema } from '../../utils/settings/types.js'
-import { jsonStringify } from '../../utils/slowOperations.js'
-import { registerBundledSkill } from '../bundledSkills.js'
+import { toJSONSchema } from "zod/v4";
+import { SettingsSchema } from "../../utils/settings/types.js";
+import { jsonStringify } from "../../utils/slowOperations.js";
+import { registerBundledSkill } from "../bundledSkills.js";
 
 /**
  * Generate JSON Schema from the settings Zod schema.
  * This keeps the skill prompt in sync with the actual types.
  */
 function generateSettingsSchema(): string {
-  const jsonSchema = toJSONSchema(SettingsSchema(), { io: 'input' })
-  return jsonStringify(jsonSchema, null, 2)
+  const jsonSchema = toJSONSchema(SettingsSchema(), { io: "input" });
+  return jsonStringify(jsonSchema, null, 2);
 }
 
 const SETTINGS_EXAMPLES_DOCS = `## Settings File Locations
@@ -101,7 +101,7 @@ Plugin syntax: \`plugin-name@source\` where source is \`claude-code-marketplace\
 - \`spinnerVerbs\`: Customize spinner verbs (\`{ "mode": "append" | "replace", "verbs": [...] }\`)
 - \`spinnerTipsOverride\`: Override spinner tips (\`{ "excludeDefault": true, "tips": ["Custom tip"] }\`)
 - \`syntaxHighlightingDisabled\`: Disable diff highlighting
-`
+`;
 
 // Note: We keep hand-written examples for common patterns since they're more
 // actionable than auto-generated schema docs. The generated schema list
@@ -109,7 +109,7 @@ Plugin syntax: \`plugin-name@source\` where source is \`claude-code-marketplace\
 
 const HOOKS_DOCS = `## Hooks Configuration
 
-Hooks run commands at specific points in Claude Code's lifecycle.
+Hooks run commands at specific points in Maximo Syntax's lifecycle.
 
 ### Hook Structure
 \`\`\`json
@@ -141,7 +141,7 @@ Hooks run commands at specific points in Claude Code's lifecycle.
 | PostToolUse | Tool name | Run after successful tool |
 | PostToolUseFailure | Tool name | Run after tool fails |
 | Notification | Notification type | Run on notifications |
-| Stop | - | Run when Claude stops (including clear, resume, compact) |
+| Stop | - | Run when Maximo stops (including clear, resume, compact) |
 | PreCompact | "manual"/"auto" | Before compaction |
 | PostCompact | "manual"/"auto" | After compaction (receives summary) |
 | UserPromptSubmit | - | When user submits |
@@ -264,7 +264,7 @@ echo '{"systemMessage": "Session complete!"}'
   }
 }
 \`\`\`
-`
+`;
 
 const HOOK_VERIFICATION_FLOW = `## Constructing a Hook (with verification)
 
@@ -302,11 +302,11 @@ Given an event, matcher, target file, and desired behavior, follow this flow. Ea
    **If proof fails but pipe-test passed and \`jq -e\` passed**: the settings watcher isn't watching \`.claude/\` — it only watches directories that had a settings file when this session started. The hook is written correctly. Tell the user to open \`/hooks\` once (reloads config) or restart — you can't do this yourself; \`/hooks\` is a user UI menu and opening it ends this turn.
 
 7. **Handoff.** Tell the user the hook is live (or needs \`/hooks\`/restart per the watcher caveat). Point them at \`/hooks\` to review, edit, or disable it later. The UI only shows "Ran N hooks" if a hook errors or is slow — silent success is invisible by design.
-`
+`;
 
 const UPDATE_CONFIG_PROMPT = `# Update Config Skill
 
-Modify Claude Code configuration by updating settings.json files.
+Modify Maximo Syntax configuration by updating settings.json files.
 
 ## When Hooks Are Required (Not Memory)
 
@@ -385,7 +385,7 @@ ${HOOK_VERIFICATION_FLOW}
 
 ### Adding a Hook
 
-User: "Format my code after Claude writes it"
+User: "Format my code after Maximo writes it"
 
 1. **Clarify**: Which formatter? (prettier, gofmt, etc.)
 2. **Read**: \`.claude/settings.json\` (or create if missing)
@@ -440,36 +440,36 @@ If a hook isn't running:
 4. **Check hook type** - Is it "command", "prompt", or "agent"?
 5. **Test the command** - Run the hook command manually to see if it works
 6. **Use --debug** - Run \`claude --debug\` to see hook execution logs
-`
+`;
 
 export function registerUpdateConfigSkill(): void {
   registerBundledSkill({
-    name: 'update-config',
+    name: "update-config",
     description:
-      'Use this skill to configure the Claude Code harness via settings.json. Automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions ("allow X", "add permission", "move permission to"), env vars ("set X=Y"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: "allow npm commands", "add bq permission to global settings", "move permission to user settings", "set DEBUG=true", "when claude stops show X". For simple settings like theme/model, use Config tool.',
-    allowedTools: ['Read'],
+      'Use this skill to configure the Maximo Syntax harness via settings.json. Automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") require hooks configured in settings.json - the harness executes these, not Maximo, so memory/preferences cannot fulfill them. Also use for: permissions ("allow X", "add permission", "move permission to"), env vars ("set X=Y"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: "allow npm commands", "add bq permission to global settings", "move permission to user settings", "set DEBUG=true", "when claude stops show X". For simple settings like theme/model, use Config tool.',
+    allowedTools: ["Read"],
     userInvocable: true,
     async getPromptForCommand(args) {
-      if (args.startsWith('[hooks-only]')) {
-        const req = args.slice('[hooks-only]'.length).trim()
-        let prompt = HOOKS_DOCS + '\n\n' + HOOK_VERIFICATION_FLOW
+      if (args.startsWith("[hooks-only]")) {
+        const req = args.slice("[hooks-only]".length).trim();
+        let prompt = HOOKS_DOCS + "\n\n" + HOOK_VERIFICATION_FLOW;
         if (req) {
-          prompt += `\n\n## Task\n\n${req}`
+          prompt += `\n\n## Task\n\n${req}`;
         }
-        return [{ type: 'text', text: prompt }]
+        return [{ type: "text", text: prompt }];
       }
 
       // Generate schema dynamically to stay in sync with types
-      const jsonSchema = generateSettingsSchema()
+      const jsonSchema = generateSettingsSchema();
 
-      let prompt = UPDATE_CONFIG_PROMPT
-      prompt += `\n\n## Full Settings JSON Schema\n\n\`\`\`json\n${jsonSchema}\n\`\`\``
+      let prompt = UPDATE_CONFIG_PROMPT;
+      prompt += `\n\n## Full Settings JSON Schema\n\n\`\`\`json\n${jsonSchema}\n\`\`\``;
 
       if (args) {
-        prompt += `\n\n## User Request\n\n${args}`
+        prompt += `\n\n## User Request\n\n${args}`;
       }
 
-      return [{ type: 'text', text: prompt }]
+      return [{ type: "text", text: prompt }];
     },
-  })
+  });
 }

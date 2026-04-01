@@ -1,10 +1,10 @@
-import * as React from 'react';
-import { getOauthProfileFromApiKey } from 'src/services/oauth/getOauthProfile.js';
-import { isClaudeAISubscriber } from 'src/utils/auth.js';
-import { Text } from '../../ink.js';
-import { logEvent } from '../../services/analytics/index.js';
-import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
-import { useStartupNotification } from './useStartupNotification.js';
+import * as React from "react";
+import { getOauthProfileFromApiKey } from "src/services/oauth/getOauthProfile.js";
+import { isMaximoAISubscriber } from "src/utils/auth.js";
+import { Text } from "../../ink.js";
+import { logEvent } from "../../services/analytics/index.js";
+import { getGlobalConfig, saveGlobalConfig } from "../../utils/config.js";
+import { useStartupNotification } from "./useStartupNotification.js";
 const MAX_SHOW_COUNT = 3;
 
 /**
@@ -22,7 +22,7 @@ async function _temp2() {
   if ((getGlobalConfig().subscriptionNoticeCount ?? 0) >= MAX_SHOW_COUNT) {
     return null;
   }
-  const subscriptionType = await getExistingClaudeSubscription();
+  const subscriptionType = await getExistingMaximoSubscription();
   if (subscriptionType === null) {
     return null;
   }
@@ -30,19 +30,27 @@ async function _temp2() {
   logEvent("tengu_switch_to_subscription_notice_shown", {});
   return {
     key: "switch-to-subscription",
-    jsx: <Text color="suggestion">Use your existing Claude {subscriptionType} plan with Claude Code<Text color="text" dimColor={true}>{" "}· /login to activate</Text></Text>,
-    priority: "low"
+    jsx: (
+      <Text color="suggestion">
+        Use your existing Maximo {subscriptionType} plan with Maximo Syntax
+        <Text color="text" dimColor={true}>
+          {" "}
+          · /login to activate
+        </Text>
+      </Text>
+    ),
+    priority: "low",
   };
 }
 function _temp(current) {
   return {
     ...current,
-    subscriptionNoticeCount: (current.subscriptionNoticeCount ?? 0) + 1
+    subscriptionNoticeCount: (current.subscriptionNoticeCount ?? 0) + 1,
   };
 }
-async function getExistingClaudeSubscription(): Promise<'Max' | 'Pro' | null> {
+async function getExistingMaximoSubscription(): Promise<"Max" | "Pro" | null> {
   // If already using subscription auth, there is nothing to switch to
-  if (isClaudeAISubscriber()) {
+  if (isMaximoAISubscriber()) {
     return null;
   }
   const profile = await getOauthProfileFromApiKey();
@@ -50,10 +58,10 @@ async function getExistingClaudeSubscription(): Promise<'Max' | 'Pro' | null> {
     return null;
   }
   if (profile.account.has_claude_max) {
-    return 'Max';
+    return "Max";
   }
   if (profile.account.has_claude_pro) {
-    return 'Pro';
+    return "Pro";
   }
   return null;
 }

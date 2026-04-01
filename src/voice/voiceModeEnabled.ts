@@ -1,9 +1,9 @@
-import { feature } from 'bun:bundle'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
+import { feature } from "bun:bundle";
+import { getFeatureValue_CACHED_MAY_BE_STALE } from "../services/analytics/growthbook.js";
 import {
-  getClaudeAIOAuthTokens,
+  getMaximoAIOAuthTokens,
   isAnthropicAuthEnabled,
-} from '../utils/auth.js'
+} from "../utils/auth.js";
 
 /**
  * Kill-switch check for voice mode. Returns true unless the
@@ -17,14 +17,14 @@ export function isVoiceGrowthBookEnabled(): boolean {
   // Positive ternary pattern — see docs/feature-gating.md.
   // Negative pattern (if (!feature(...)) return) does not eliminate
   // inline string literals from external builds.
-  return feature('VOICE_MODE')
-    ? !getFeatureValue_CACHED_MAY_BE_STALE('tengu_amber_quartz_disabled', false)
-    : false
+  return feature("VOICE_MODE")
+    ? !getFeatureValue_CACHED_MAY_BE_STALE("tengu_amber_quartz_disabled", false)
+    : false;
 }
 
 /**
  * Auth-only check for voice mode. Returns true when the user has a valid
- * Anthropic OAuth token. Backed by the memoized getClaudeAIOAuthTokens —
+ * Anthropic OAuth token. Backed by the memoized getMaximoAIOAuthTokens —
  * first call spawns `security` on macOS (~20-50ms), subsequent calls are
  * cache hits. The memoize clears on token refresh (~once/hour), so one
  * cold spawn per refresh is expected. Cheap enough for usage-time checks.
@@ -34,13 +34,13 @@ export function hasVoiceAuth(): boolean {
   // endpoint on claude.ai which is not available with API keys,
   // Bedrock, Vertex, or Foundry.
   if (!isAnthropicAuthEnabled()) {
-    return false
+    return false;
   }
   // isAnthropicAuthEnabled only checks the auth *provider*, not whether
   // a token exists. Without this check, the voice UI renders but
   // connectVoiceStream fails silently when the user isn't logged in.
-  const tokens = getClaudeAIOAuthTokens()
-  return Boolean(tokens?.accessToken)
+  const tokens = getMaximoAIOAuthTokens();
+  return Boolean(tokens?.accessToken);
 }
 
 /**
@@ -50,5 +50,5 @@ export function hasVoiceAuth(): boolean {
  * paths use useVoiceEnabled() instead (memoizes the auth half).
  */
 export function isVoiceModeEnabled(): boolean {
-  return hasVoiceAuth() && isVoiceGrowthBookEnabled()
+  return hasVoiceAuth() && isVoiceGrowthBookEnabled();
 }

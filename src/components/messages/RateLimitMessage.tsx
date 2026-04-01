@@ -1,12 +1,16 @@
 import { c as _c } from "react-compiler-runtime";
-import React, { useEffect, useMemo, useState } from 'react';
-import { extraUsage } from 'src/commands/extra-usage/index.js';
-import { Box, Text } from 'src/ink.js';
-import { useClaudeAiLimits } from 'src/services/claudeAiLimitsHook.js';
-import { shouldProcessMockLimits } from 'src/services/rateLimitMocking.js'; // Used for /mock-limits command
-import { getRateLimitTier, getSubscriptionType, isClaudeAISubscriber } from 'src/utils/auth.js';
-import { hasClaudeAiBillingAccess } from 'src/utils/billing.js';
-import { MessageResponse } from '../MessageResponse.js';
+import React, { useEffect, useMemo, useState } from "react";
+import { extraUsage } from "src/commands/extra-usage/index.js";
+import { Box, Text } from "src/ink.js";
+import { useMaximoAiLimits } from "src/services/claudeAiLimitsHook.js";
+import { shouldProcessMockLimits } from "src/services/rateLimitMocking.js"; // Used for /mock-limits command
+import {
+  getRateLimitTier,
+  getSubscriptionType,
+  isMaximoAISubscriber,
+} from "src/utils/auth.js";
+import { hasMaximoAiBillingAccess } from "src/utils/billing.js";
+import { MessageResponse } from "../MessageResponse.js";
 type UpsellParams = {
   shouldShowUpsell: boolean;
   isMax20x: boolean;
@@ -21,29 +25,29 @@ export function getUpsellMessage({
   isExtraUsageCommandEnabled,
   shouldAutoOpenRateLimitOptionsMenu,
   isTeamOrEnterprise,
-  hasBillingAccess
+  hasBillingAccess,
 }: UpsellParams): string | null {
   if (!shouldShowUpsell) return null;
   if (isMax20x) {
     if (isExtraUsageCommandEnabled) {
-      return '/extra-usage to finish what you\u2019re working on.';
+      return "/extra-usage to finish what you\u2019re working on.";
     }
-    return '/login to switch to an API usage-billed account.';
+    return "/login to switch to an API usage-billed account.";
   }
   if (shouldAutoOpenRateLimitOptionsMenu) {
-    return 'Opening your options\u2026';
+    return "Opening your options\u2026";
   }
   if (!isTeamOrEnterprise && !isExtraUsageCommandEnabled) {
-    return '/upgrade to increase your usage limit.';
+    return "/upgrade to increase your usage limit.";
   }
   if (isTeamOrEnterprise) {
     if (!isExtraUsageCommandEnabled) return null;
     if (hasBillingAccess) {
-      return '/extra-usage to finish what you\u2019re working on.';
+      return "/extra-usage to finish what you\u2019re working on.";
     }
-    return '/extra-usage to request more usage from your admin.';
+    return "/extra-usage to request more usage from your admin.";
   }
-  return '/upgrade or /extra-usage to finish what you\u2019re working on.';
+  return "/upgrade or /extra-usage to finish what you\u2019re working on.";
 }
 type RateLimitMessageProps = {
   text: string;
@@ -51,10 +55,7 @@ type RateLimitMessageProps = {
 };
 export function RateLimitMessage(t0) {
   const $ = _c(16);
-  const {
-    text,
-    onOpenRateLimitOptions
-  } = t0;
+  const { text, onOpenRateLimitOptions } = t0;
   let t1;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
     t1 = getSubscriptionType();
@@ -71,24 +72,36 @@ export function RateLimitMessage(t0) {
     t2 = $[1];
   }
   const rateLimitTier = t2;
-  const isTeamOrEnterprise = subscriptionType === "team" || subscriptionType === "enterprise";
+  const isTeamOrEnterprise =
+    subscriptionType === "team" || subscriptionType === "enterprise";
   const isMax20x = rateLimitTier === "default_claude_max_20x";
   let t3;
   if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-    t3 = shouldProcessMockLimits() || isClaudeAISubscriber();
+    t3 = shouldProcessMockLimits() || isMaximoAISubscriber();
     $[2] = t3;
   } else {
     t3 = $[2];
   }
   const shouldShowUpsell = t3;
   const canSeeRateLimitOptionsUpsell = shouldShowUpsell && !isMax20x;
-  const [hasOpenedInteractiveMenu, setHasOpenedInteractiveMenu] = useState(false);
-  const claudeAiLimits = useClaudeAiLimits();
-  const isCurrentlyRateLimited = claudeAiLimits.status === "rejected" && claudeAiLimits.resetsAt !== undefined && !claudeAiLimits.isUsingOverage;
-  const shouldAutoOpenRateLimitOptionsMenu = canSeeRateLimitOptionsUpsell && !hasOpenedInteractiveMenu && isCurrentlyRateLimited && onOpenRateLimitOptions;
+  const [hasOpenedInteractiveMenu, setHasOpenedInteractiveMenu] =
+    useState(false);
+  const claudeAiLimits = useMaximoAiLimits();
+  const isCurrentlyRateLimited =
+    claudeAiLimits.status === "rejected" &&
+    claudeAiLimits.resetsAt !== undefined &&
+    !claudeAiLimits.isUsingOverage;
+  const shouldAutoOpenRateLimitOptionsMenu =
+    canSeeRateLimitOptionsUpsell &&
+    !hasOpenedInteractiveMenu &&
+    isCurrentlyRateLimited &&
+    onOpenRateLimitOptions;
   let t4;
   let t5;
-  if ($[3] !== onOpenRateLimitOptions || $[4] !== shouldAutoOpenRateLimitOptionsMenu) {
+  if (
+    $[3] !== onOpenRateLimitOptions ||
+    $[4] !== shouldAutoOpenRateLimitOptionsMenu
+  ) {
     t4 = () => {
       if (shouldAutoOpenRateLimitOptionsMenu) {
         setHasOpenedInteractiveMenu(true);
@@ -113,9 +126,10 @@ export function RateLimitMessage(t0) {
         shouldShowUpsell,
         isMax20x,
         isExtraUsageCommandEnabled: extraUsage.isEnabled(),
-        shouldAutoOpenRateLimitOptionsMenu: !!shouldAutoOpenRateLimitOptionsMenu,
+        shouldAutoOpenRateLimitOptionsMenu:
+          !!shouldAutoOpenRateLimitOptionsMenu,
         isTeamOrEnterprise,
-        hasBillingAccess: hasClaudeAiBillingAccess()
+        hasBillingAccess: hasMaximoAiBillingAccess(),
       });
       $[7] = shouldAutoOpenRateLimitOptionsMenu;
       $[8] = t7;
@@ -149,7 +163,14 @@ export function RateLimitMessage(t0) {
   const t8 = hasOpenedInteractiveMenu ? null : upsell;
   let t9;
   if ($[13] !== t7 || $[14] !== t8) {
-    t9 = <MessageResponse><Box flexDirection="column">{t7}{t8}</Box></MessageResponse>;
+    t9 = (
+      <MessageResponse>
+        <Box flexDirection="column">
+          {t7}
+          {t8}
+        </Box>
+      </MessageResponse>
+    );
     $[13] = t7;
     $[14] = t8;
     $[15] = t9;

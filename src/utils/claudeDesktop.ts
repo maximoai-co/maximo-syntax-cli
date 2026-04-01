@@ -1,48 +1,48 @@
-import { readdir, readFile, stat } from 'fs/promises'
-import { homedir } from 'os'
-import { join } from 'path'
+import { readdir, readFile, stat } from "fs/promises";
+import { homedir } from "os";
+import { join } from "path";
 import {
   type McpServerConfig,
   McpStdioServerConfigSchema,
-} from '../services/mcp/types.js'
-import { getErrnoCode } from './errors.js'
-import { safeParseJSON } from './json.js'
-import { logError } from './log.js'
-import { getPlatform, SUPPORTED_PLATFORMS } from './platform.js'
+} from "../services/mcp/types.js";
+import { getErrnoCode } from "./errors.js";
+import { safeParseJSON } from "./json.js";
+import { logError } from "./log.js";
+import { getPlatform, SUPPORTED_PLATFORMS } from "./platform.js";
 
-export async function getClaudeDesktopConfigPath(): Promise<string> {
-  const platform = getPlatform()
+export async function getMaximoDesktopConfigPath(): Promise<string> {
+  const platform = getPlatform();
 
   if (!SUPPORTED_PLATFORMS.includes(platform)) {
     throw new Error(
-      `Unsupported platform: ${platform} - Claude Desktop integration only works on macOS and WSL.`,
-    )
+      `Unsupported platform: ${platform} - Maximo Desktop integration only works on macOS and WSL.`
+    );
   }
 
-  if (platform === 'macos') {
+  if (platform === "macos") {
     return join(
       homedir(),
-      'Library',
-      'Application Support',
-      'Claude',
-      'claude_desktop_config.json',
-    )
+      "Library",
+      "Application Support",
+      "Maximo",
+      "claude_desktop_config.json"
+    );
   }
 
   // First, try using USERPROFILE environment variable if available
   const windowsHome = process.env.USERPROFILE
-    ? process.env.USERPROFILE.replace(/\\/g, '/') // Convert Windows backslashes to forward slashes
-    : null
+    ? process.env.USERPROFILE.replace(/\\/g, "/") // Convert Windows backslashes to forward slashes
+    : null;
 
   if (windowsHome) {
     // Remove drive letter and convert to WSL path format
-    const wslPath = windowsHome.replace(/^[A-Z]:/, '')
-    const configPath = `/mnt/c${wslPath}/AppData/Roaming/Claude/claude_desktop_config.json`
+    const wslPath = windowsHome.replace(/^[A-Z]:/, "");
+    const configPath = `/mnt/c${wslPath}/AppData/Roaming/Maximo/claude_desktop_config.json`;
 
     // Check if the file exists
     try {
-      await stat(configPath)
-      return configPath
+      await stat(configPath);
+      return configPath;
     } catch {
       // File doesn't exist, continue
     }
@@ -51,34 +51,34 @@ export async function getClaudeDesktopConfigPath(): Promise<string> {
   // Alternative approach - try to construct path based on typical Windows user location
   try {
     // List the /mnt/c/Users directory to find potential user directories
-    const usersDir = '/mnt/c/Users'
+    const usersDir = "/mnt/c/Users";
 
     try {
-      const userDirs = await readdir(usersDir, { withFileTypes: true })
+      const userDirs = await readdir(usersDir, { withFileTypes: true });
 
-      // Look for Claude Desktop config in each user directory
+      // Look for Maximo Desktop config in each user directory
       for (const user of userDirs) {
         if (
-          user.name === 'Public' ||
-          user.name === 'Default' ||
-          user.name === 'Default User' ||
-          user.name === 'All Users'
+          user.name === "Public" ||
+          user.name === "Default" ||
+          user.name === "Default User" ||
+          user.name === "All Users"
         ) {
-          continue // Skip system directories
+          continue; // Skip system directories
         }
 
         const potentialConfigPath = join(
           usersDir,
           user.name,
-          'AppData',
-          'Roaming',
-          'Claude',
-          'claude_desktop_config.json',
-        )
+          "AppData",
+          "Roaming",
+          "Maximo",
+          "claude_desktop_config.json"
+        );
 
         try {
-          await stat(potentialConfigPath)
-          return potentialConfigPath
+          await stat(potentialConfigPath);
+          return potentialConfigPath;
         } catch {
           // File doesn't exist, continue
         }
@@ -87,66 +87,66 @@ export async function getClaudeDesktopConfigPath(): Promise<string> {
       // usersDir doesn't exist or can't be read
     }
   } catch (dirError) {
-    logError(dirError)
+    logError(dirError);
   }
 
   throw new Error(
-    'Could not find Claude Desktop config file in Windows. Make sure Claude Desktop is installed on Windows.',
-  )
+    "Could not find Maximo Desktop config file in Windows. Make sure Maximo Desktop is installed on Windows."
+  );
 }
 
-export async function readClaudeDesktopMcpServers(): Promise<
+export async function readMaximoDesktopMcpServers(): Promise<
   Record<string, McpServerConfig>
 > {
   if (!SUPPORTED_PLATFORMS.includes(getPlatform())) {
     throw new Error(
-      'Unsupported platform - Claude Desktop integration only works on macOS and WSL.',
-    )
+      "Unsupported platform - Maximo Desktop integration only works on macOS and WSL."
+    );
   }
   try {
-    const configPath = await getClaudeDesktopConfigPath()
+    const configPath = await getMaximoDesktopConfigPath();
 
-    let configContent: string
+    let configContent: string;
     try {
-      configContent = await readFile(configPath, { encoding: 'utf8' })
+      configContent = await readFile(configPath, { encoding: "utf8" });
     } catch (e: unknown) {
-      const code = getErrnoCode(e)
-      if (code === 'ENOENT') {
-        return {}
+      const code = getErrnoCode(e);
+      if (code === "ENOENT") {
+        return {};
       }
-      throw e
+      throw e;
     }
 
-    const config = safeParseJSON(configContent)
+    const config = safeParseJSON(configContent);
 
-    if (!config || typeof config !== 'object') {
-      return {}
+    if (!config || typeof config !== "object") {
+      return {};
     }
 
-    const mcpServers = (config as Record<string, unknown>).mcpServers
-    if (!mcpServers || typeof mcpServers !== 'object') {
-      return {}
+    const mcpServers = (config as Record<string, unknown>).mcpServers;
+    if (!mcpServers || typeof mcpServers !== "object") {
+      return {};
     }
 
-    const servers: Record<string, McpServerConfig> = {}
+    const servers: Record<string, McpServerConfig> = {};
 
     for (const [name, serverConfig] of Object.entries(
-      mcpServers as Record<string, unknown>,
+      mcpServers as Record<string, unknown>
     )) {
-      if (!serverConfig || typeof serverConfig !== 'object') {
-        continue
+      if (!serverConfig || typeof serverConfig !== "object") {
+        continue;
       }
 
-      const result = McpStdioServerConfigSchema().safeParse(serverConfig)
+      const result = McpStdioServerConfigSchema().safeParse(serverConfig);
 
       if (result.success) {
-        servers[name] = result.data
+        servers[name] = result.data;
       }
     }
 
-    return servers
+    return servers;
   } catch (error) {
-    logError(error)
-    return {}
+    logError(error);
+    return {};
   }
 }

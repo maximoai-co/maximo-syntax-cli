@@ -3,26 +3,26 @@
  * for case-insensitive cmdlet matching.
  */
 
-import { resolve } from 'path'
-import type { ToolPermissionContext, ToolUseContext } from '../../Tool.js'
+import { resolve } from "path";
+import type { ToolPermissionContext, ToolUseContext } from "../../Tool.js";
 import type {
   PermissionDecisionReason,
   PermissionResult,
-} from '../../types/permissions.js'
-import { getCwd } from '../../utils/cwd.js'
-import { isCurrentDirectoryBareGitRepo } from '../../utils/git.js'
-import type { PermissionRule } from '../../utils/permissions/PermissionRule.js'
-import type { PermissionUpdate } from '../../utils/permissions/PermissionUpdateSchema.js'
+} from "../../types/permissions.js";
+import { getCwd } from "../../utils/cwd.js";
+import { isCurrentDirectoryBareGitRepo } from "../../utils/git.js";
+import type { PermissionRule } from "../../utils/permissions/PermissionRule.js";
+import type { PermissionUpdate } from "../../utils/permissions/PermissionUpdateSchema.js";
 import {
   createPermissionRequestMessage,
   getRuleByContentsForToolName,
-} from '../../utils/permissions/permissions.js'
+} from "../../utils/permissions/permissions.js";
 import {
   matchWildcardPattern,
   parsePermissionRule,
   type ShellPermissionRule,
   suggestionForExactCommand as sharedSuggestionForExactCommand,
-} from '../../utils/permissions/shellRuleMatching.js'
+} from "../../utils/permissions/shellRuleMatching.js";
 import {
   classifyCommandName,
   deriveSecurityFlags,
@@ -33,19 +33,19 @@ import {
   PS_TOKENIZER_DASH_CHARS,
   parsePowerShellCommand,
   stripModulePrefix,
-} from '../../utils/powershell/parser.js'
-import { containsVulnerableUncPath } from '../../utils/shell/readOnlyCommandValidation.js'
-import { isDotGitPathPS, isGitInternalPathPS } from './gitSafety.js'
+} from "../../utils/powershell/parser.js";
+import { containsVulnerableUncPath } from "../../utils/shell/readOnlyCommandValidation.js";
+import { isDotGitPathPS, isGitInternalPathPS } from "./gitSafety.js";
 import {
   checkPermissionMode,
   isSymlinkCreatingCommand,
-} from './modeValidation.js'
+} from "./modeValidation.js";
 import {
   checkPathConstraints,
   dangerousRemovalDeny,
   isDangerousRemovalRawPath,
-} from './pathValidation.js'
-import { powershellCommandIsSafe } from './powershellSecurity.js'
+} from "./pathValidation.js";
+import { powershellCommandIsSafe } from "./powershellSecurity.js";
 import {
   argLeaksValue,
   isAllowlistedCommand,
@@ -54,12 +54,12 @@ import {
   isReadOnlyCommand,
   isSafeOutputCommand,
   resolveToCanonical,
-} from './readOnlyValidation.js'
-import { POWERSHELL_TOOL_NAME } from './toolName.js'
+} from "./readOnlyValidation.js";
+import { POWERSHELL_TOOL_NAME } from "./toolName.js";
 
 // Matches `$var = `, `$var += `, `$env:X = `, `$x ??= ` etc. Used to strip
 // nested assignment prefixes in the parse-failed fallback path.
-const PS_ASSIGN_PREFIX_RE = /^\$[\w:]+\s*(?:[+\-*/%]|\?\?)?\s*=\s*/
+const PS_ASSIGN_PREFIX_RE = /^\$[\w:]+\s*(?:[+\-*/%]|\?\?)?\s*=\s*/;
 
 /**
  * Cmdlets that can place a file at a caller-specified path. The
@@ -68,20 +68,20 @@ const PS_ASSIGN_PREFIX_RE = /^\$[\w:]+\s*(?:[+\-*/%]|\?\?)?\s*=\s*/
  * clear-content) are intentionally absent — they can't plant new hooks.
  */
 const GIT_SAFETY_WRITE_CMDLETS = new Set([
-  'new-item',
-  'set-content',
-  'add-content',
-  'out-file',
-  'copy-item',
-  'move-item',
-  'rename-item',
-  'expand-archive',
-  'invoke-webrequest',
-  'invoke-restmethod',
-  'tee-object',
-  'export-csv',
-  'export-clixml',
-])
+  "new-item",
+  "set-content",
+  "add-content",
+  "out-file",
+  "copy-item",
+  "move-item",
+  "rename-item",
+  "expand-archive",
+  "invoke-webrequest",
+  "invoke-restmethod",
+  "tee-object",
+  "export-csv",
+  "export-clixml",
+]);
 
 /**
  * External archive-extraction applications that write files to cwd with
@@ -94,35 +94,35 @@ const GIT_SAFETY_WRITE_CMDLETS = new Set([
  * with and without .exe).
  */
 const GIT_SAFETY_ARCHIVE_EXTRACTORS = new Set([
-  'tar',
-  'tar.exe',
-  'bsdtar',
-  'bsdtar.exe',
-  'unzip',
-  'unzip.exe',
-  '7z',
-  '7z.exe',
-  '7za',
-  '7za.exe',
-  'gzip',
-  'gzip.exe',
-  'gunzip',
-  'gunzip.exe',
-  'expand-archive',
-])
+  "tar",
+  "tar.exe",
+  "bsdtar",
+  "bsdtar.exe",
+  "unzip",
+  "unzip.exe",
+  "7z",
+  "7z.exe",
+  "7za",
+  "7za.exe",
+  "gzip",
+  "gzip.exe",
+  "gunzip",
+  "gunzip.exe",
+  "expand-archive",
+]);
 
 /**
  * Extract the command name from a PowerShell command string.
  * Uses the parser to get the first command name from the AST.
  */
 async function extractCommandName(command: string): Promise<string> {
-  const trimmed = command.trim()
+  const trimmed = command.trim();
   if (!trimmed) {
-    return ''
+    return "";
   }
-  const parsed = await parsePowerShellCommand(trimmed)
-  const names = getAllCommandNames(parsed)
-  return names[0] ?? ''
+  const parsed = await parsePowerShellCommand(trimmed);
+  const names = getAllCommandNames(parsed);
+  return names[0] ?? "";
 }
 
 /**
@@ -130,9 +130,9 @@ async function extractCommandName(command: string): Promise<string> {
  * Delegates to shared parsePermissionRule.
  */
 export function powershellPermissionRule(
-  permissionRule: string,
+  permissionRule: string
 ): ShellPermissionRule {
-  return parsePermissionRule(permissionRule)
+  return parsePermissionRule(permissionRule);
 }
 
 /**
@@ -148,19 +148,19 @@ export function powershellPermissionRule(
  *   anyway; prefix suggestion still offered. (finding #12)
  */
 function suggestionForExactCommand(command: string): PermissionUpdate[] {
-  if (command.includes('\n') || command.includes('*')) {
-    return []
+  if (command.includes("\n") || command.includes("*")) {
+    return [];
   }
-  return sharedSuggestionForExactCommand(POWERSHELL_TOOL_NAME, command)
+  return sharedSuggestionForExactCommand(POWERSHELL_TOOL_NAME, command);
 }
 
 /**
  * PowerShell input schema type - simplified for initial implementation
  */
 type PowerShellInput = {
-  command: string
-  timeout?: number
-}
+  command: string;
+  timeout?: number;
+};
 
 /**
  * Filter rules by contents matching an input command.
@@ -170,16 +170,16 @@ type PowerShellInput = {
 function filterRulesByContentsMatchingInput(
   input: PowerShellInput,
   rules: Map<string, PermissionRule>,
-  matchMode: 'exact' | 'prefix',
-  behavior: 'deny' | 'ask' | 'allow',
+  matchMode: "exact" | "prefix",
+  behavior: "deny" | "ask" | "allow"
 ): PermissionRule[] {
-  const command = input.command.trim()
+  const command = input.command.trim();
 
   function strEquals(a: string, b: string): boolean {
-    return a.toLowerCase() === b.toLowerCase()
+    return a.toLowerCase() === b.toLowerCase();
   }
   function strStartsWith(str: string, prefix: string): boolean {
-    return str.toLowerCase().startsWith(prefix.toLowerCase())
+    return str.toLowerCase().startsWith(prefix.toLowerCase());
   }
   // SECURITY: stripModulePrefix on RULE names widens the
   // secondary-canonical match — a deny rule `Module\Remove-Item:*` blocking
@@ -187,10 +187,10 @@ function filterRulesByContentsMatchingInput(
   // `ModuleA\Get-Thing:*` also matching `ModuleB\Get-Thing` is fail-OPEN.
   // Deny/ask over-match is fine; allow must never over-match.
   function stripModulePrefixForRule(name: string): string {
-    if (behavior === 'allow') {
-      return name
+    if (behavior === "allow") {
+      return name;
     }
-    return stripModulePrefix(name)
+    return stripModulePrefix(name);
   }
 
   // Extract the first word (command name) from the input for canonical matching.
@@ -198,9 +198,9 @@ function filterRulesByContentsMatchingInput(
   // (for canonical resolution) versions. For module-qualified inputs like
   // `Microsoft.PowerShell.Utility\Invoke-Expression foo`, rawCmdName holds the
   // full token so `command.slice(rawCmdName.length)` yields the correct rest.
-  const rawCmdName = command.split(/\s+/)[0] ?? ''
-  const inputCmdName = stripModulePrefix(rawCmdName)
-  const inputCanonical = resolveToCanonical(inputCmdName)
+  const rawCmdName = command.split(/\s+/)[0] ?? "";
+  const inputCmdName = stripModulePrefix(rawCmdName);
+  const inputCanonical = resolveToCanonical(inputCmdName);
 
   // Build a version of the command with the canonical name substituted
   // e.g., 'rm foo.txt' -> 'remove-item foo.txt' so deny rules on Remove-Item also block rm.
@@ -211,48 +211,48 @@ function filterRulesByContentsMatchingInput(
   // `Remove-Item:*`, while acceptEdits auto-allow (using AST cmd.name) still
   // matches — a deny-rule bypass. Build unconditionally (not just when the
   // canonical differs) so non-space-separated raw commands are also normalized.
-  const rest = command.slice(rawCmdName.length).replace(/^\s+/, ' ')
-  const canonicalCommand = inputCanonical + rest
+  const rest = command.slice(rawCmdName.length).replace(/^\s+/, " ");
+  const canonicalCommand = inputCanonical + rest;
 
   return Array.from(rules.entries())
     .filter(([ruleContent]) => {
-      const rule = powershellPermissionRule(ruleContent)
+      const rule = powershellPermissionRule(ruleContent);
 
       // Also resolve the rule's command name to canonical for cross-matching
       // e.g., a deny rule for 'rm' should also block 'Remove-Item'
       function matchesCommand(cmd: string): boolean {
         switch (rule.type) {
-          case 'exact':
-            return strEquals(rule.command, cmd)
-          case 'prefix':
+          case "exact":
+            return strEquals(rule.command, cmd);
+          case "prefix":
             switch (matchMode) {
-              case 'exact':
-                return strEquals(rule.prefix, cmd)
-              case 'prefix': {
+              case "exact":
+                return strEquals(rule.prefix, cmd);
+              case "prefix": {
                 if (strEquals(cmd, rule.prefix)) {
-                  return true
+                  return true;
                 }
-                return strStartsWith(cmd, rule.prefix + ' ')
+                return strStartsWith(cmd, rule.prefix + " ");
               }
             }
-            break
-          case 'wildcard':
-            if (matchMode === 'exact') {
-              return false
+            break;
+          case "wildcard":
+            if (matchMode === "exact") {
+              return false;
             }
-            return matchWildcardPattern(rule.pattern, cmd, true)
+            return matchWildcardPattern(rule.pattern, cmd, true);
         }
       }
 
       // Check against the original command
       if (matchesCommand(command)) {
-        return true
+        return true;
       }
 
       // Also check against the canonical form of the command
       // This ensures 'deny Remove-Item' also blocks 'rm', 'del', 'ri', etc.
       if (matchesCommand(canonicalCommand)) {
-        return true
+        return true;
       }
 
       // Also resolve the rule's command name to canonical and compare
@@ -262,11 +262,11 @@ function filterRulesByContentsMatchingInput(
       // `Microsoft.PowerShell.Management\Remove-Item:*` is bypassed by `rm`,
       // `del`, or plain `Remove-Item` — resolveToCanonical won't match the
       // module-qualified form against COMMON_ALIASES.
-      if (rule.type === 'exact') {
-        const rawRuleCmdName = rule.command.split(/\s+/)[0] ?? ''
+      if (rule.type === "exact") {
+        const rawRuleCmdName = rule.command.split(/\s+/)[0] ?? "";
         const ruleCanonical = resolveToCanonical(
-          stripModulePrefixForRule(rawRuleCmdName),
-        )
+          stripModulePrefixForRule(rawRuleCmdName)
+        );
         if (ruleCanonical === inputCanonical) {
           // Rule and input resolve to same canonical cmdlet
           // SECURITY: use normalized `rest` not a raw re-slice
@@ -275,43 +275,43 @@ function filterRulesByContentsMatchingInput(
           // Normalize both sides identically.
           const ruleRest = rule.command
             .slice(rawRuleCmdName.length)
-            .replace(/^\s+/, ' ')
-          const inputRest = rest
+            .replace(/^\s+/, " ");
+          const inputRest = rest;
           if (strEquals(ruleRest, inputRest)) {
-            return true
+            return true;
           }
         }
-      } else if (rule.type === 'prefix') {
-        const rawRuleCmdName = rule.prefix.split(/\s+/)[0] ?? ''
+      } else if (rule.type === "prefix") {
+        const rawRuleCmdName = rule.prefix.split(/\s+/)[0] ?? "";
         const ruleCanonical = resolveToCanonical(
-          stripModulePrefixForRule(rawRuleCmdName),
-        )
+          stripModulePrefixForRule(rawRuleCmdName)
+        );
         if (ruleCanonical === inputCanonical) {
           const ruleRest = rule.prefix
             .slice(rawRuleCmdName.length)
-            .replace(/^\s+/, ' ')
-          const canonicalPrefix = inputCanonical + ruleRest
-          if (matchMode === 'exact') {
+            .replace(/^\s+/, " ");
+          const canonicalPrefix = inputCanonical + ruleRest;
+          if (matchMode === "exact") {
             if (strEquals(canonicalPrefix, canonicalCommand)) {
-              return true
+              return true;
             }
           } else {
             if (
               strEquals(canonicalCommand, canonicalPrefix) ||
-              strStartsWith(canonicalCommand, canonicalPrefix + ' ')
+              strStartsWith(canonicalCommand, canonicalPrefix + " ")
             ) {
-              return true
+              return true;
             }
           }
         }
-      } else if (rule.type === 'wildcard') {
+      } else if (rule.type === "wildcard") {
         // Resolve the wildcard pattern's command name to canonical and re-match
         // This ensures 'deny rm *' also blocks 'Remove-Item secret.txt'
-        const rawRuleCmdName = rule.pattern.split(/\s+/)[0] ?? ''
+        const rawRuleCmdName = rule.pattern.split(/\s+/)[0] ?? "";
         const ruleCanonical = resolveToCanonical(
-          stripModulePrefixForRule(rawRuleCmdName),
-        )
-        if (ruleCanonical === inputCanonical && matchMode !== 'exact') {
+          stripModulePrefixForRule(rawRuleCmdName)
+        );
+        if (ruleCanonical === inputCanonical && matchMode !== "exact") {
           // Rebuild the pattern with the canonical cmdlet name
           // Normalize separator same as exact and prefix branches.
           // Without this, a wildcard rule `rm\t*` produces canonicalPattern
@@ -319,17 +319,17 @@ function filterRulesByContentsMatchingInput(
           // canonicalCommand.
           const ruleRest = rule.pattern
             .slice(rawRuleCmdName.length)
-            .replace(/^\s+/, ' ')
-          const canonicalPattern = inputCanonical + ruleRest
+            .replace(/^\s+/, " ");
+          const canonicalPattern = inputCanonical + ruleRest;
           if (matchWildcardPattern(canonicalPattern, canonicalCommand, true)) {
-            return true
+            return true;
           }
         }
       }
 
-      return false
+      return false;
     })
-    .map(([, rule]) => rule)
+    .map(([, rule]) => rule);
 }
 
 /**
@@ -338,45 +338,45 @@ function filterRulesByContentsMatchingInput(
 function matchingRulesForInput(
   input: PowerShellInput,
   toolPermissionContext: ToolPermissionContext,
-  matchMode: 'exact' | 'prefix',
+  matchMode: "exact" | "prefix"
 ) {
   const denyRuleByContents = getRuleByContentsForToolName(
     toolPermissionContext,
     POWERSHELL_TOOL_NAME,
-    'deny',
-  )
+    "deny"
+  );
   const matchingDenyRules = filterRulesByContentsMatchingInput(
     input,
     denyRuleByContents,
     matchMode,
-    'deny',
-  )
+    "deny"
+  );
 
   const askRuleByContents = getRuleByContentsForToolName(
     toolPermissionContext,
     POWERSHELL_TOOL_NAME,
-    'ask',
-  )
+    "ask"
+  );
   const matchingAskRules = filterRulesByContentsMatchingInput(
     input,
     askRuleByContents,
     matchMode,
-    'ask',
-  )
+    "ask"
+  );
 
   const allowRuleByContents = getRuleByContentsForToolName(
     toolPermissionContext,
     POWERSHELL_TOOL_NAME,
-    'allow',
-  )
+    "allow"
+  );
   const matchingAllowRules = filterRulesByContentsMatchingInput(
     input,
     allowRuleByContents,
     matchMode,
-    'allow',
-  )
+    "allow"
+  );
 
-  return { matchingDenyRules, matchingAskRules, matchingAllowRules }
+  return { matchingDenyRules, matchingAskRules, matchingAllowRules };
 }
 
 /**
@@ -384,49 +384,49 @@ function matchingRulesForInput(
  */
 export function powershellToolCheckExactMatchPermission(
   input: PowerShellInput,
-  toolPermissionContext: ToolPermissionContext,
+  toolPermissionContext: ToolPermissionContext
 ): PermissionResult {
-  const trimmedCommand = input.command.trim()
+  const trimmedCommand = input.command.trim();
   const { matchingDenyRules, matchingAskRules, matchingAllowRules } =
-    matchingRulesForInput(input, toolPermissionContext, 'exact')
+    matchingRulesForInput(input, toolPermissionContext, "exact");
 
   if (matchingDenyRules[0] !== undefined) {
     return {
-      behavior: 'deny',
+      behavior: "deny",
       message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${trimmedCommand} has been denied.`,
-      decisionReason: { type: 'rule', rule: matchingDenyRules[0] },
-    }
+      decisionReason: { type: "rule", rule: matchingDenyRules[0] },
+    };
   }
 
   if (matchingAskRules[0] !== undefined) {
     return {
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME),
-      decisionReason: { type: 'rule', rule: matchingAskRules[0] },
-    }
+      decisionReason: { type: "rule", rule: matchingAskRules[0] },
+    };
   }
 
   if (matchingAllowRules[0] !== undefined) {
     return {
-      behavior: 'allow',
+      behavior: "allow",
       updatedInput: input,
-      decisionReason: { type: 'rule', rule: matchingAllowRules[0] },
-    }
+      decisionReason: { type: "rule", rule: matchingAllowRules[0] },
+    };
   }
 
   const decisionReason: PermissionDecisionReason = {
-    type: 'other' as const,
-    reason: 'This command requires approval',
-  }
+    type: "other" as const,
+    reason: "This command requires approval",
+  };
   return {
-    behavior: 'passthrough',
+    behavior: "passthrough",
     message: createPermissionRequestMessage(
       POWERSHELL_TOOL_NAME,
-      decisionReason,
+      decisionReason
     ),
     decisionReason,
     suggestions: suggestionForExactCommand(trimmedCommand),
-  }
+  };
 }
 
 /**
@@ -434,94 +434,94 @@ export function powershellToolCheckExactMatchPermission(
  */
 export function powershellToolCheckPermission(
   input: PowerShellInput,
-  toolPermissionContext: ToolPermissionContext,
+  toolPermissionContext: ToolPermissionContext
 ): PermissionResult {
-  const command = input.command.trim()
+  const command = input.command.trim();
 
   // 1. Check exact match first
   const exactMatchResult = powershellToolCheckExactMatchPermission(
     input,
-    toolPermissionContext,
-  )
+    toolPermissionContext
+  );
 
   // 1a. Deny/ask if exact command has a rule
   if (
-    exactMatchResult.behavior === 'deny' ||
-    exactMatchResult.behavior === 'ask'
+    exactMatchResult.behavior === "deny" ||
+    exactMatchResult.behavior === "ask"
   ) {
-    return exactMatchResult
+    return exactMatchResult;
   }
 
   // 2. Find all matching rules (prefix or exact)
   const { matchingDenyRules, matchingAskRules, matchingAllowRules } =
-    matchingRulesForInput(input, toolPermissionContext, 'prefix')
+    matchingRulesForInput(input, toolPermissionContext, "prefix");
 
   // 2a. Deny if command has a deny rule
   if (matchingDenyRules[0] !== undefined) {
     return {
-      behavior: 'deny',
+      behavior: "deny",
       message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
       decisionReason: {
-        type: 'rule',
+        type: "rule",
         rule: matchingDenyRules[0],
       },
-    }
+    };
   }
 
   // 2b. Ask if command has an ask rule
   if (matchingAskRules[0] !== undefined) {
     return {
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME),
       decisionReason: {
-        type: 'rule',
+        type: "rule",
         rule: matchingAskRules[0],
       },
-    }
+    };
   }
 
   // 3. Allow if command had an exact match allow
-  if (exactMatchResult.behavior === 'allow') {
-    return exactMatchResult
+  if (exactMatchResult.behavior === "allow") {
+    return exactMatchResult;
   }
 
   // 4. Allow if command has an allow rule
   if (matchingAllowRules[0] !== undefined) {
     return {
-      behavior: 'allow',
+      behavior: "allow",
       updatedInput: input,
       decisionReason: {
-        type: 'rule',
+        type: "rule",
         rule: matchingAllowRules[0],
       },
-    }
+    };
   }
 
   // 5. Passthrough since no rules match, will trigger permission prompt
   const decisionReason = {
-    type: 'other' as const,
-    reason: 'This command requires approval',
-  }
+    type: "other" as const,
+    reason: "This command requires approval",
+  };
   return {
-    behavior: 'passthrough',
+    behavior: "passthrough",
     message: createPermissionRequestMessage(
       POWERSHELL_TOOL_NAME,
-      decisionReason,
+      decisionReason
     ),
     decisionReason,
     suggestions: suggestionForExactCommand(command),
-  }
+  };
 }
 
 /**
  * Information about a sub-command for permission checking.
  */
 type SubCommandInfo = {
-  text: string
-  element: ParsedCommandElement
-  statement: ParsedPowerShellCommand['statements'][number] | null
-  isSafeOutput: boolean
-}
+  text: string;
+  element: ParsedCommandElement;
+  statement: ParsedPowerShellCommand["statements"][number] | null;
+  isSafeOutput: boolean;
+};
 
 /**
  * Extract sub-commands that need independent permission checking from a parsed command.
@@ -538,7 +538,7 @@ type SubCommandInfo = {
  */
 async function getSubCommandsForPermissionCheck(
   parsed: ParsedPowerShellCommand,
-  originalCommand: string,
+  originalCommand: string
 ): Promise<SubCommandInfo[]> {
   if (!parsed.valid) {
     // Return a fallback element for unparsed commands
@@ -547,25 +547,25 @@ async function getSubCommandsForPermissionCheck(
         text: originalCommand,
         element: {
           name: await extractCommandName(originalCommand),
-          nameType: 'unknown',
-          elementType: 'CommandAst',
+          nameType: "unknown",
+          elementType: "CommandAst",
           args: [],
           text: originalCommand,
         },
         statement: null,
         isSafeOutput: false,
       },
-    ]
+    ];
   }
 
-  const subCommands: SubCommandInfo[] = []
+  const subCommands: SubCommandInfo[] = [];
 
   // Check direct commands in pipelines
   for (const statement of parsed.statements) {
     for (const cmd of statement.commands) {
       // Only check actual commands (CommandAst), not expressions
-      if (cmd.elementType !== 'CommandAst') {
-        continue
+      if (cmd.elementType !== "CommandAst") {
+        continue;
       }
       subCommands.push({
         text: cmd.text,
@@ -580,10 +580,10 @@ async function getSubCommandsForPermissionCheck(
         // auto-allow → redirection inside paren writes file. Only zero-arg
         // Out-String/Out-Null/Out-Host invocations are provably safe.
         isSafeOutput:
-          cmd.nameType !== 'application' &&
+          cmd.nameType !== "application" &&
           isSafeOutputCommand(cmd.name) &&
           cmd.args.length === 0,
-      })
+      });
     }
 
     // Also check nested commands from control flow statements
@@ -594,16 +594,16 @@ async function getSubCommandsForPermissionCheck(
           element: cmd,
           statement,
           isSafeOutput:
-            cmd.nameType !== 'application' &&
+            cmd.nameType !== "application" &&
             isSafeOutputCommand(cmd.name) &&
             cmd.args.length === 0,
-        })
+        });
       }
     }
   }
 
   if (subCommands.length > 0) {
-    return subCommands
+    return subCommands;
   }
 
   // Fallback for commands with no sub-commands
@@ -612,15 +612,15 @@ async function getSubCommandsForPermissionCheck(
       text: originalCommand,
       element: {
         name: await extractCommandName(originalCommand),
-        nameType: 'unknown',
-        elementType: 'CommandAst',
+        nameType: "unknown",
+        elementType: "CommandAst",
         args: [],
         text: originalCommand,
       },
       statement: null,
       isSafeOutput: false,
     },
-  ]
+  ];
 }
 
 /**
@@ -638,25 +638,25 @@ async function getSubCommandsForPermissionCheck(
  */
 export async function powershellToolHasPermission(
   input: PowerShellInput,
-  context: ToolUseContext,
+  context: ToolUseContext
 ): Promise<PermissionResult> {
-  const toolPermissionContext = context.getAppState().toolPermissionContext
-  const command = input.command.trim()
+  const toolPermissionContext = context.getAppState().toolPermissionContext;
+  const command = input.command.trim();
 
   // Empty command check
   if (!command) {
     return {
-      behavior: 'allow',
+      behavior: "allow",
       updatedInput: input,
       decisionReason: {
-        type: 'other',
-        reason: 'Empty command is safe',
+        type: "other",
+        reason: "Empty command is safe",
       },
-    }
+    };
   }
 
   // Parse the command once and thread through all sub-functions
-  const parsed = await parsePowerShellCommand(command)
+  const parsed = await parsePowerShellCommand(command);
 
   // SECURITY: Check deny/ask rules BEFORE parse validity check.
   // Deny rules operate on the raw command string and don't need the parsed AST.
@@ -664,31 +664,31 @@ export async function powershellToolHasPermission(
   // 1. Check exact match first
   const exactMatchResult = powershellToolCheckExactMatchPermission(
     input,
-    toolPermissionContext,
-  )
+    toolPermissionContext
+  );
 
   // Exact command was denied
-  if (exactMatchResult.behavior === 'deny') {
-    return exactMatchResult
+  if (exactMatchResult.behavior === "deny") {
+    return exactMatchResult;
   }
 
   // 2. Check prefix/wildcard rules
   const { matchingDenyRules, matchingAskRules } = matchingRulesForInput(
     input,
     toolPermissionContext,
-    'prefix',
-  )
+    "prefix"
+  );
 
   // 2a. Deny if command has a deny rule
   if (matchingDenyRules[0] !== undefined) {
     return {
-      behavior: 'deny',
+      behavior: "deny",
       message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
       decisionReason: {
-        type: 'rule',
+        type: "rule",
         rule: matchingDenyRules[0],
       },
-    }
+    };
   }
 
   // 2b. Ask if command has an ask rule — DEFERRED into decisions[].
@@ -698,16 +698,16 @@ export async function powershellToolHasPermission(
   // fired. Now: store the ask, push into decisions[] after parse succeeds.
   // If parse fails, returned before the parse-error ask (preserves the
   // rule-attributed decisionReason when pwsh is unavailable).
-  let preParseAskDecision: PermissionResult | null = null
+  let preParseAskDecision: PermissionResult | null = null;
   if (matchingAskRules[0] !== undefined) {
     preParseAskDecision = {
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME),
       decisionReason: {
-        type: 'rule',
+        type: "rule",
         rule: matchingAskRules[0],
       },
-    }
+    };
   }
 
   // Block UNC paths — reading from UNC paths can trigger network requests
@@ -716,10 +716,10 @@ export async function powershellToolHasPermission(
   // (step 4+). Same fix as 2b above.
   if (preParseAskDecision === null && containsVulnerableUncPath(command)) {
     preParseAskDecision = {
-      behavior: 'ask',
+      behavior: "ask",
       message:
-        'Command contains a UNC path that could trigger network requests',
-    }
+        "Command contains a UNC path that could trigger network requests",
+    };
   }
 
   // 2c. Exact allow rules short-circuit here ONLY when parsing failed AND
@@ -748,12 +748,12 @@ export async function powershellToolHasPermission(
   // Module-qualified cmdlets (Module\Cmdlet) also classify 'application'
   // (same `\`); same fail-safe over-fire.
   if (
-    exactMatchResult.behavior === 'allow' &&
+    exactMatchResult.behavior === "allow" &&
     !parsed.valid &&
     preParseAskDecision === null &&
-    classifyCommandName(command.split(/\s+/)[0] ?? '') !== 'application'
+    classifyCommandName(command.split(/\s+/)[0] ?? "") !== "application"
   ) {
-    return exactMatchResult
+    return exactMatchResult;
   }
 
   // 0. Check if command can be parsed - if not, require approval but don't suggest persisting
@@ -782,11 +782,11 @@ export async function powershellToolHasPermission(
     // `Invoke-Ex`<nl>pression` rejoins, strip remaining backticks (escape
     // chars — ``x → x), then split on actual statement/grouping separators.
     const backtickStripped = command
-      .replace(/`[\r\n]+\s*/g, '')
-      .replace(/`/g, '')
+      .replace(/`[\r\n]+\s*/g, "")
+      .replace(/`/g, "");
     for (const fragment of backtickStripped.split(/[;|\n\r{}()&]+/)) {
-      const trimmedFrag = fragment.trim()
-      if (!trimmedFrag) continue // skip empty fragments
+      const trimmedFrag = fragment.trim();
+      if (!trimmedFrag) continue; // skip empty fragments
       // Skip the full command ONLY if it starts with a cmdlet name (no
       // assignment prefix). The full command was already checked at 2a, but
       // 2a uses the raw text — $x %= iex as first token `$x` misses the
@@ -798,7 +798,7 @@ export async function powershellToolHasPermission(
         !/^\$[\w:]/.test(trimmedFrag) &&
         !/^[&.]\s/.test(trimmedFrag)
       ) {
-        continue
+        continue;
       }
       // SECURITY: Normalize invocation-operator and assignment prefixes before
       // rule matching (findings #5/#22). The splitter gives us the raw fragment
@@ -813,15 +813,15 @@ export async function powershellToolHasPermission(
       // quotes from rawNameUnstripped; invocation operators are separate AST
       // nodes). This fallback mirrors that normalization.
       // Loop strips nested assignments: $x = $y = iex → $y = iex → iex
-      let normalized = trimmedFrag
-      let m: RegExpMatchArray | null
+      let normalized = trimmedFrag;
+      let m: RegExpMatchArray | null;
       while ((m = normalized.match(PS_ASSIGN_PREFIX_RE))) {
-        normalized = normalized.slice(m[0].length)
+        normalized = normalized.slice(m[0].length);
       }
-      normalized = normalized.replace(/^[&.]\s+/, '') // & cmd, . cmd (dot-source)
-      const rawFirst = normalized.split(/\s+/)[0] ?? ''
-      const firstTok = rawFirst.replace(/^['"]|['"]$/g, '')
-      const normalizedFrag = firstTok + normalized.slice(rawFirst.length)
+      normalized = normalized.replace(/^[&.]\s+/, ""); // & cmd, . cmd (dot-source)
+      const rawFirst = normalized.split(/\s+/)[0] ?? "";
+      const firstTok = rawFirst.replace(/^['"]|['"]$/g, "");
+      const normalizedFrag = firstTok + normalized.slice(rawFirst.length);
       // SECURITY: parse-independent dangerous-removal hard-deny. The
       // isDangerousRemovalPath check in checkPathConstraintsForStatement
       // requires a valid AST; when pwsh times out or is unavailable,
@@ -830,25 +830,25 @@ export async function powershellToolHasPermission(
       // regardless of parser availability. Conservative: only positional
       // args (skip -Param tokens); over-deny in degraded state is safe
       // (same deny-downgrade rationale as the sub-command scan above).
-      if (resolveToCanonical(firstTok) === 'remove-item') {
+      if (resolveToCanonical(firstTok) === "remove-item") {
         for (const arg of normalized.split(/\s+/).slice(1)) {
-          if (PS_TOKENIZER_DASH_CHARS.has(arg[0] ?? '')) continue
+          if (PS_TOKENIZER_DASH_CHARS.has(arg[0] ?? "")) continue;
           if (isDangerousRemovalRawPath(arg)) {
-            return dangerousRemovalDeny(arg)
+            return dangerousRemovalDeny(arg);
           }
         }
       }
       const { matchingDenyRules: fragDenyRules } = matchingRulesForInput(
         { command: normalizedFrag },
         toolPermissionContext,
-        'prefix',
-      )
+        "prefix"
+      );
       if (fragDenyRules[0] !== undefined) {
         return {
-          behavior: 'deny',
+          behavior: "deny",
           message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
-          decisionReason: { type: 'rule', rule: fragDenyRules[0] },
-        }
+          decisionReason: { type: "rule", rule: fragDenyRules[0] },
+        };
       }
     }
     // Preserve pre-parse ask messaging when parse fails. The deferred ask
@@ -856,21 +856,23 @@ export async function powershellToolHasPermission(
     // generic parse-error ask. Sub-command deny can't run the AST loop
     // without a parse, so the fallback scan above is best-effort.
     if (preParseAskDecision !== null) {
-      return preParseAskDecision
+      return preParseAskDecision;
     }
     const decisionReason = {
-      type: 'other' as const,
-      reason: `Command contains malformed syntax that cannot be parsed: ${parsed.errors[0]?.message ?? 'unknown error'}`,
-    }
+      type: "other" as const,
+      reason: `Command contains malformed syntax that cannot be parsed: ${
+        parsed.errors[0]?.message ?? "unknown error"
+      }`,
+    };
     return {
-      behavior: 'ask',
+      behavior: "ask",
       decisionReason,
       message: createPermissionRequestMessage(
         POWERSHELL_TOOL_NAME,
-        decisionReason,
+        decisionReason
       ),
       // No suggestions - don't recommend persisting invalid syntax
-    }
+    };
   }
 
   // ========================================================================
@@ -895,38 +897,41 @@ export async function powershellToolHasPermission(
   // are now deferred here so sub-command deny (step 4) beats them.
 
   // Gather sub-commands once (used by decisions 3, 4, and fallthrough step 5).
-  const allSubCommands = await getSubCommandsForPermissionCheck(parsed, command)
+  const allSubCommands = await getSubCommandsForPermissionCheck(
+    parsed,
+    command
+  );
 
-  const decisions: PermissionResult[] = []
+  const decisions: PermissionResult[] = [];
 
   // Decision: deferred pre-parse ask (2b prefix ask or UNC path).
   // Pushed first so its message wins over later asks (first-of-behavior wins),
   // but the reduce ensures any deny in decisions[] still beats it.
   if (preParseAskDecision !== null) {
-    decisions.push(preParseAskDecision)
+    decisions.push(preParseAskDecision);
   }
 
   // Decision: security check — was step 3 (:630-650).
   // powershellCommandIsSafe returns 'ask' for subexpressions, script blocks,
   // encoded commands, download cradles, etc. Only 'ask' | 'passthrough'.
-  const safetyResult = powershellCommandIsSafe(command, parsed)
-  if (safetyResult.behavior !== 'passthrough') {
+  const safetyResult = powershellCommandIsSafe(command, parsed);
+  if (safetyResult.behavior !== "passthrough") {
     const decisionReason: PermissionDecisionReason = {
-      type: 'other' as const,
+      type: "other" as const,
       reason:
-        safetyResult.behavior === 'ask' && safetyResult.message
+        safetyResult.behavior === "ask" && safetyResult.message
           ? safetyResult.message
-          : 'This command contains patterns that could pose security risks and requires approval',
-    }
+          : "This command contains patterns that could pose security risks and requires approval",
+    };
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(
         POWERSHELL_TOOL_NAME,
-        decisionReason,
+        decisionReason
       ),
       decisionReason,
       suggestions: suggestionForExactCommand(command),
-    })
+    });
   }
 
   // Decision: using statements / script requirements — invisible to AST block walk.
@@ -939,35 +944,35 @@ export async function powershellToolHasPermission(
   // bypassing the empty-statement fallback, and isReadOnlyCommand auto-allows.
   if (parsed.hasUsingStatements) {
     const decisionReason: PermissionDecisionReason = {
-      type: 'other' as const,
+      type: "other" as const,
       reason:
-        'Command contains a `using` statement that may load external code (module or assembly)',
-    }
+        "Command contains a `using` statement that may load external code (module or assembly)",
+    };
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(
         POWERSHELL_TOOL_NAME,
-        decisionReason,
+        decisionReason
       ),
       decisionReason,
       suggestions: suggestionForExactCommand(command),
-    })
+    });
   }
   if (parsed.hasScriptRequirements) {
     const decisionReason: PermissionDecisionReason = {
-      type: 'other' as const,
+      type: "other" as const,
       reason:
-        'Command contains a `#Requires` directive that may trigger module loading',
-    }
+        "Command contains a `#Requires` directive that may trigger module loading",
+    };
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message: createPermissionRequestMessage(
         POWERSHELL_TOOL_NAME,
-        decisionReason,
+        decisionReason
       ),
       decisionReason,
       suggestions: suggestionForExactCommand(command),
-    })
+    });
   }
 
   // Decision: resolved-arg provider/UNC scan — was step 3.5 (:652-709).
@@ -981,59 +986,59 @@ export async function powershellToolHasPermission(
   // The optional `(?:[\w.]+\\)?` handles the module-qualified prefix; `::?`
   // matches either single-colon drive syntax or double-colon provider syntax.
   const NON_FS_PROVIDER_PATTERN =
-    /^(?:[\w.]+\\)?(env|hklm|hkcu|function|alias|variable|cert|wsman|registry)::?/i
+    /^(?:[\w.]+\\)?(env|hklm|hkcu|function|alias|variable|cert|wsman|registry)::?/i;
   function extractProviderPathFromArg(arg: string): string {
     // Handle colon parameter syntax: -Path:env:HOME → extract 'env:HOME'.
     // SECURITY: PowerShell's tokenizer accepts en-dash/em-dash/horizontal-bar
     // (U+2013/2014/2015) as parameter prefixes. `–Path:env:HOME` (en-dash)
     // must also strip the `–Path:` prefix or NON_FS_PROVIDER_PATTERN won't
     // match (pattern is `^(env|...):` which fails on `–Path:env:...`).
-    let s = arg
+    let s = arg;
     if (s.length > 0 && PS_TOKENIZER_DASH_CHARS.has(s[0]!)) {
-      const colonIdx = s.indexOf(':', 1) // skip the leading dash
+      const colonIdx = s.indexOf(":", 1); // skip the leading dash
       if (colonIdx > 0) {
-        s = s.substring(colonIdx + 1)
+        s = s.substring(colonIdx + 1);
       }
     }
     // Strip backtick escapes before matching: `Registry`::HKLM\...` has a
     // backtick before `::` that the PS tokenizer removes at runtime but that
     // would otherwise prevent the ^-anchored pattern from matching.
-    return s.replace(/`/g, '')
+    return s.replace(/`/g, "");
   }
   function providerOrUncDecisionForArg(arg: string): PermissionResult | null {
-    const value = extractProviderPathFromArg(arg)
+    const value = extractProviderPathFromArg(arg);
     if (NON_FS_PROVIDER_PATTERN.test(value)) {
       return {
-        behavior: 'ask',
+        behavior: "ask",
         message: `Command argument '${arg}' uses a non-filesystem provider path and requires approval`,
-      }
+      };
     }
     if (containsVulnerableUncPath(value)) {
       return {
-        behavior: 'ask',
+        behavior: "ask",
         message: `Command argument '${arg}' contains a UNC path that could trigger network requests`,
-      }
+      };
     }
-    return null
+    return null;
   }
   providerScan: for (const statement of parsed.statements) {
     for (const cmd of statement.commands) {
-      if (cmd.elementType !== 'CommandAst') continue
+      if (cmd.elementType !== "CommandAst") continue;
       for (const arg of cmd.args) {
-        const decision = providerOrUncDecisionForArg(arg)
+        const decision = providerOrUncDecisionForArg(arg);
         if (decision !== null) {
-          decisions.push(decision)
-          break providerScan
+          decisions.push(decision);
+          break providerScan;
         }
       }
     }
     if (statement.nestedCommands) {
       for (const cmd of statement.nestedCommands) {
         for (const arg of cmd.args) {
-          const decision = providerOrUncDecisionForArg(arg)
+          const decision = providerOrUncDecisionForArg(arg);
           if (decision !== null) {
-            decisions.push(decision)
-            break providerScan
+            decisions.push(decision);
+            break providerScan;
           }
         }
       }
@@ -1062,13 +1067,13 @@ export async function powershellToolHasPermission(
     // "'Invoke-Expression'". canonicalSubCmd is built from the same stripped
     // name, so deny-rule prefix matching on `Invoke-Expression:*` hits.
     const canonicalSubCmd =
-      element.name !== '' ? [element.name, ...element.args].join(' ') : null
+      element.name !== "" ? [element.name, ...element.args].join(" ") : null;
 
-    const subInput = { command: subCmd }
+    const subInput = { command: subCmd };
     const { matchingDenyRules: subDenyRules, matchingAskRules: subAskRules } =
-      matchingRulesForInput(subInput, toolPermissionContext, 'prefix')
-    let matchedDenyRule = subDenyRules[0]
-    let matchedAskRule = subAskRules[0]
+      matchingRulesForInput(subInput, toolPermissionContext, "prefix");
+    let matchedDenyRule = subDenyRules[0];
+    let matchedAskRule = subAskRules[0];
 
     if (matchedDenyRule === undefined && canonicalSubCmd !== null) {
       const {
@@ -1077,32 +1082,32 @@ export async function powershellToolHasPermission(
       } = matchingRulesForInput(
         { command: canonicalSubCmd },
         toolPermissionContext,
-        'prefix',
-      )
-      matchedDenyRule = canonicalDenyRules[0]
+        "prefix"
+      );
+      matchedDenyRule = canonicalDenyRules[0];
       if (matchedAskRule === undefined) {
-        matchedAskRule = canonicalAskRules[0]
+        matchedAskRule = canonicalAskRules[0];
       }
     }
 
     if (matchedDenyRule !== undefined) {
       decisions.push({
-        behavior: 'deny',
+        behavior: "deny",
         message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
         decisionReason: {
-          type: 'rule',
+          type: "rule",
           rule: matchedDenyRule,
         },
-      })
+      });
     } else if (matchedAskRule !== undefined) {
       decisions.push({
-        behavior: 'ask',
+        behavior: "ask",
         message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME),
         decisionReason: {
-          type: 'rule',
+          type: "rule",
           rule: matchedAskRule,
         },
-      })
+      });
     }
   }
 
@@ -1126,22 +1131,22 @@ export async function powershellToolHasPermission(
   // compound guard, suppressing the per-subcommand auto-allow path. (bug #25)
   const hasCdSubCommand =
     allSubCommands.length > 1 &&
-    allSubCommands.some(({ element }) => isCwdChangingCmdlet(element.name))
+    allSubCommands.some(({ element }) => isCwdChangingCmdlet(element.name));
   // Symlink-create compound guard (finding #18 / bug 001+004): when the
   // compound creates a filesystem link, subsequent writes through that link
   // land outside the validator's view. Same TOCTOU shape as cwd desync.
   const hasSymlinkCreate =
     allSubCommands.length > 1 &&
-    allSubCommands.some(({ element }) => isSymlinkCreatingCommand(element))
+    allSubCommands.some(({ element }) => isSymlinkCreatingCommand(element));
   const hasGitSubCommand = allSubCommands.some(
-    ({ element }) => resolveToCanonical(element.name) === 'git',
-  )
+    ({ element }) => resolveToCanonical(element.name) === "git"
+  );
   if (hasCdSubCommand && hasGitSubCommand) {
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message:
-        'Compound commands with cd/Set-Location and git require approval to prevent bare repository attacks',
-    })
+        "Compound commands with cd/Set-Location and git require approval to prevent bare repository attacks",
+    });
   }
 
   // cd+write compound guard — SUBSUMED by checkPathConstraints(compoundCommandHasCd).
@@ -1159,10 +1164,10 @@ export async function powershellToolHasPermission(
   // Port of BashTool readOnlyValidation.ts isCurrentDirectoryBareGitRepo.
   if (hasGitSubCommand && isCurrentDirectoryBareGitRepo()) {
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message:
-        'Git command in a directory with bare-repository indicators (HEAD, objects/, refs/ in cwd without .git/HEAD). Git may execute hooks from cwd.',
-    })
+        "Git command in a directory with bare-repository indicators (HEAD, objects/, refs/ in cwd without .git/HEAD). Git may execute hooks from cwd.",
+    });
   }
 
   // Decision: git-internal-paths write guard — bash parity.
@@ -1176,20 +1181,20 @@ export async function powershellToolHasPermission(
         // Redirection targets on this sub-command (raw Extent.Text — quotes
         // and ./ intact; normalizer handles both)
         for (const r of element.redirections ?? []) {
-          if (isGitInternalPathPS(r.target)) return true
+          if (isGitInternalPathPS(r.target)) return true;
         }
         // Write cmdlet args (new-item HEAD; mkdir hooks; set-content hooks/pre-commit)
-        const canonical = resolveToCanonical(element.name)
-        if (!GIT_SAFETY_WRITE_CMDLETS.has(canonical)) return false
+        const canonical = resolveToCanonical(element.name);
+        if (!GIT_SAFETY_WRITE_CMDLETS.has(canonical)) return false;
         // Raw arg text — normalizer strips colon-bound params, quotes, ./, case.
         // PS ArrayLiteralAst (`New-Item a,hooks/pre-commit`) surfaces as a single
         // comma-joined arg — split before checking.
         if (
           element.args
-            .flatMap(a => a.split(','))
-            .some(a => isGitInternalPathPS(a))
+            .flatMap((a) => a.split(","))
+            .some((a) => isGitInternalPathPS(a))
         ) {
-          return true
+          return true;
         }
         // Pipeline input: `"hooks/pre-commit" | New-Item -ItemType File` binds the
         // string to -Path at runtime. The path is in a non-CommandAst pipeline
@@ -1198,23 +1203,23 @@ export async function powershellToolHasPermission(
         // warning text.
         if (statement !== null) {
           for (const c of statement.commands) {
-            if (c.elementType === 'CommandAst') continue
-            if (isGitInternalPathPS(c.text)) return true
+            if (c.elementType === "CommandAst") continue;
+            if (isGitInternalPathPS(c.text)) return true;
           }
         }
-        return false
-      },
-    )
+        return false;
+      }
+    );
     // Also check top-level file redirections (> hooks/pre-commit)
-    const redirWritesToGitInternal = getFileRedirections(parsed).some(r =>
-      isGitInternalPathPS(r.target),
-    )
+    const redirWritesToGitInternal = getFileRedirections(parsed).some((r) =>
+      isGitInternalPathPS(r.target)
+    );
     if (writesToGitInternal || redirWritesToGitInternal) {
       decisions.push({
-        behavior: 'ask',
+        behavior: "ask",
         message:
-          'Command writes to a git-internal path (HEAD, objects/, refs/, hooks/, .git/) and runs git. This could plant a malicious hook that git then executes.',
-      })
+          "Command writes to a git-internal path (HEAD, objects/, refs/, hooks/, .git/) and runs git. This could plant a malicious hook that git then executes.",
+      });
     }
     // SECURITY: Archive-extraction TOCTOU. isCurrentDirectoryBareGitRepo
     // checks at permission-eval time; `tar -xf x.tar; git status` extracts
@@ -1222,14 +1227,14 @@ export async function powershellToolHasPermission(
     // cmdlets (where we inspect args for git-internal paths), archive
     // contents are opaque — any extraction in a compound with git must ask.
     const hasArchiveExtractor = allSubCommands.some(({ element }) =>
-      GIT_SAFETY_ARCHIVE_EXTRACTORS.has(element.name.toLowerCase()),
-    )
+      GIT_SAFETY_ARCHIVE_EXTRACTORS.has(element.name.toLowerCase())
+    );
     if (hasArchiveExtractor) {
       decisions.push({
-        behavior: 'ask',
+        behavior: "ask",
         message:
-          'Compound command extracts an archive and runs git. Archive contents may plant bare-repository indicators (HEAD, hooks/, refs/) that git then treats as the repository root.',
-      })
+          "Compound command extracts an archive and runs git. Archive contents may plant bare-repository indicators (HEAD, hooks/, refs/) that git then treats as the repository root.",
+      });
     }
   }
 
@@ -1241,18 +1246,18 @@ export async function powershellToolHasPermission(
     const found =
       allSubCommands.some(({ element }) => {
         for (const r of element.redirections ?? []) {
-          if (isDotGitPathPS(r.target)) return true
+          if (isDotGitPathPS(r.target)) return true;
         }
-        const canonical = resolveToCanonical(element.name)
-        if (!GIT_SAFETY_WRITE_CMDLETS.has(canonical)) return false
-        return element.args.flatMap(a => a.split(',')).some(isDotGitPathPS)
-      }) || getFileRedirections(parsed).some(r => isDotGitPathPS(r.target))
+        const canonical = resolveToCanonical(element.name);
+        if (!GIT_SAFETY_WRITE_CMDLETS.has(canonical)) return false;
+        return element.args.flatMap((a) => a.split(",")).some(isDotGitPathPS);
+      }) || getFileRedirections(parsed).some((r) => isDotGitPathPS(r.target));
     if (found) {
       decisions.push({
-        behavior: 'ask',
+        behavior: "ask",
         message:
-          'Command writes to .git/ — hooks or config planted there execute on the next git operation.',
-      })
+          "Command writes to .git/ — hooks or config planted there execute on the next git operation.",
+      });
     }
   }
 
@@ -1272,10 +1277,10 @@ export async function powershellToolHasPermission(
     input,
     parsed,
     toolPermissionContext,
-    hasCdSubCommand,
-  )
-  if (pathResult.behavior !== 'passthrough') {
-    decisions.push(pathResult)
+    hasCdSubCommand
+  );
+  if (pathResult.behavior !== "passthrough") {
+    decisions.push(pathResult);
   }
 
   // Decision: exact allow (parse-succeeded case) — was step 4.45 (:861-867).
@@ -1304,15 +1309,15 @@ export async function powershellToolHasPermission(
   // second statement (nameType=application, a script path) through. Require
   // EVERY subcommand to have nameType !== 'application'.
   if (
-    exactMatchResult.behavior === 'allow' &&
+    exactMatchResult.behavior === "allow" &&
     allSubCommands[0] !== undefined &&
     allSubCommands.every(
-      sc =>
-        sc.element.nameType !== 'application' &&
-        !argLeaksValue(sc.text, sc.element),
+      (sc) =>
+        sc.element.nameType !== "application" &&
+        !argLeaksValue(sc.text, sc.element)
     )
   ) {
-    decisions.push(exactMatchResult)
+    decisions.push(exactMatchResult);
   }
 
   // Decision: read-only allowlist — was step 4.5 (:869-885).
@@ -1321,50 +1326,50 @@ export async function powershellToolHasPermission(
   // Reduce places this below sub-command ask rules (ask > allow).
   if (isReadOnlyCommand(command, parsed)) {
     decisions.push({
-      behavior: 'allow',
+      behavior: "allow",
       updatedInput: input,
       decisionReason: {
-        type: 'other',
-        reason: 'Command is read-only and safe to execute',
+        type: "other",
+        reason: "Command is read-only and safe to execute",
       },
-    })
+    });
   }
 
   // Decision: file redirections — was :887-900.
   // Redirections (>, >>, 2>) write to arbitrary paths. isReadOnlyCommand
   // already rejects redirections internally so this can't conflict with the
   // read-only allow above. Reduce places it above checkPermissionMode allow.
-  const fileRedirections = getFileRedirections(parsed)
+  const fileRedirections = getFileRedirections(parsed);
   if (fileRedirections.length > 0) {
     decisions.push({
-      behavior: 'ask',
+      behavior: "ask",
       message:
-        'Command contains file redirections that could write to arbitrary paths',
+        "Command contains file redirections that could write to arbitrary paths",
       suggestions: suggestionForExactCommand(command),
-    })
+    });
   }
 
   // Decision: mode-specific handling (acceptEdits) — was step 4.7 (:902-906).
   // checkPermissionMode only returns 'allow' | 'passthrough'.
-  const modeResult = checkPermissionMode(input, parsed, toolPermissionContext)
-  if (modeResult.behavior !== 'passthrough') {
-    decisions.push(modeResult)
+  const modeResult = checkPermissionMode(input, parsed, toolPermissionContext);
+  if (modeResult.behavior !== "passthrough") {
+    decisions.push(modeResult);
   }
 
   // REDUCE: deny > ask > allow > passthrough. First of each behavior type
   // wins (preserves step-order messaging for single-check cases). If nothing
   // decided, fall through to step 5 per-sub-command approval collection.
-  const deniedDecision = decisions.find(d => d.behavior === 'deny')
+  const deniedDecision = decisions.find((d) => d.behavior === "deny");
   if (deniedDecision !== undefined) {
-    return deniedDecision
+    return deniedDecision;
   }
-  const askDecision = decisions.find(d => d.behavior === 'ask')
+  const askDecision = decisions.find((d) => d.behavior === "ask");
   if (askDecision !== undefined) {
-    return askDecision
+    return askDecision;
   }
-  const allowDecision = decisions.find(d => d.behavior === 'allow')
+  const allowDecision = decisions.find((d) => d.behavior === "allow");
   if (allowDecision !== undefined) {
-    return allowDecision
+    return allowDecision;
   }
 
   // 5. Pipeline/statement splitting: check each sub-command independently.
@@ -1378,18 +1383,18 @@ export async function powershellToolHasPermission(
   // Also filter out cd/Set-Location to CWD (model habit, Bash parity).
   const subCommands = allSubCommands.filter(({ element, isSafeOutput }) => {
     if (isSafeOutput) {
-      return false
+      return false;
     }
     // SECURITY: nameType gate — sixth location. Filtering out of the approval
     // list is a form of auto-allow. scripts\\Set-Location . would match below
     // (stripped name 'Set-Location', arg '.' → CWD) and be silently dropped,
     // then scripts\\Set-Location.ps1 executes with no prompt. Keep 'application'
     // commands in the list so they reach isAllowlistedCommand (which rejects them).
-    if (element.nameType === 'application') {
-      return true
+    if (element.nameType === "application") {
+      return true;
     }
-    const canonical = resolveToCanonical(element.name)
-    if (canonical === 'set-location' && element.args.length > 0) {
+    const canonical = resolveToCanonical(element.name);
+    if (canonical === "set-location" && element.args.length > 0) {
       // SECURITY: use PS_TOKENIZER_DASH_CHARS, not ASCII-only startsWith('-').
       // `Set-Location –Path .` (en-dash) would otherwise treat `–Path` as the
       // target, resolve it against cwd (mismatch), and keep the command in the
@@ -1398,19 +1403,19 @@ export async function powershellToolHasPermission(
       // list — also correct. The risk is the inverse: a Unicode-dash parameter
       // being treated as the positional target. Use the tokenizer dash set.
       const target = element.args.find(
-        a => a.length === 0 || !PS_TOKENIZER_DASH_CHARS.has(a[0]!),
-      )
+        (a) => a.length === 0 || !PS_TOKENIZER_DASH_CHARS.has(a[0]!)
+      );
       if (target && resolve(getCwd(), target) === getCwd()) {
-        return false
+        return false;
       }
     }
-    return true
-  })
+    return true;
+  });
 
   // Note: cd+git compound guard already ran at step 4.42. If we reach here,
   // either there's no cd or no git in the compound.
 
-  const subCommandsNeedingApproval: string[] = []
+  const subCommandsNeedingApproval: string[] = [];
   // Statements whose sub-commands were PUSHED to subCommandsNeedingApproval
   // in the step-5 loop below. The fail-closed gate (after the loop) only
   // pushes statements NOT tracked here — prevents duplicate suggestions where
@@ -1428,31 +1433,31 @@ export async function powershellToolHasPermission(
   // secret leaks. Tracking on push only: statement stays unseen → gate fires
   // → ask.
   const statementsSeenInLoop = new Set<
-    ParsedPowerShellCommand['statements'][number]
-  >()
+    ParsedPowerShellCommand["statements"][number]
+  >();
 
   for (const { text: subCmd, element, statement } of subCommands) {
     // Check deny rules FIRST - user explicit rules take precedence over allowlist
-    const subInput = { command: subCmd }
+    const subInput = { command: subCmd };
     const subResult = powershellToolCheckPermission(
       subInput,
-      toolPermissionContext,
-    )
+      toolPermissionContext
+    );
 
-    if (subResult.behavior === 'deny') {
+    if (subResult.behavior === "deny") {
       return {
-        behavior: 'deny',
+        behavior: "deny",
         message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
         decisionReason: subResult.decisionReason,
-      }
+      };
     }
 
-    if (subResult.behavior === 'ask') {
+    if (subResult.behavior === "ask") {
       if (statement !== null) {
-        statementsSeenInLoop.add(statement)
+        statementsSeenInLoop.add(statement);
       }
-      subCommandsNeedingApproval.push(subCmd)
-      continue
+      subCommandsNeedingApproval.push(subCmd);
+      continue;
     }
 
     // Explicitly allowed by a user rule — BUT NOT for applications/scripts.
@@ -1464,8 +1469,8 @@ export async function powershellToolHasPermission(
     // Module-qualified cmdlets also classify 'application' — fail-safe over-fire.
     // An application should NEVER be auto-allowed by a cmdlet allow rule.
     if (
-      subResult.behavior === 'allow' &&
-      element.nameType !== 'application' &&
+      subResult.behavior === "allow" &&
+      element.nameType !== "application" &&
       !hasSymlinkCreate
     ) {
       // SECURITY: User allow rule asserts the cmdlet is safe, NOT that
@@ -1483,23 +1488,23 @@ export async function powershellToolHasPermission(
       // !hasSymlinkCreate; the user-rule path must too.
       if (argLeaksValue(subCmd, element)) {
         if (statement !== null) {
-          statementsSeenInLoop.add(statement)
+          statementsSeenInLoop.add(statement);
         }
-        subCommandsNeedingApproval.push(subCmd)
-        continue
+        subCommandsNeedingApproval.push(subCmd);
+        continue;
       }
-      continue
+      continue;
     }
-    if (subResult.behavior === 'allow') {
+    if (subResult.behavior === "allow") {
       // nameType === 'application' with a matching allow rule: the rule was
       // written for a cmdlet, but this is a script/executable masquerading.
       // Don't continue; fall through to approval (NOT deny — the user may
       // actually want to run `scripts\Get-Content` and will see a prompt).
       if (statement !== null) {
-        statementsSeenInLoop.add(statement)
+        statementsSeenInLoop.add(statement);
       }
-      subCommandsNeedingApproval.push(subCmd)
-      continue
+      subCommandsNeedingApproval.push(subCmd);
+      continue;
     }
 
     // SECURITY: fail-closed gate. Do NOT take the allowlist shortcut unless
@@ -1527,7 +1532,7 @@ export async function powershellToolHasPermission(
       isProvablySafeStatement(statement) &&
       isAllowlistedCommand(element, subCmd)
     ) {
-      continue
+      continue;
     }
 
     // Check per-sub-command acceptEdits mode (BashTool parity).
@@ -1549,7 +1554,7 @@ export async function powershellToolHasPermission(
     // gate, `Set-Location ./.claude; Set-Content ./settings.json '...'` would
     // pass: Set-Content is checked in isolation, matches ACCEPT_EDITS_ALLOWED_CMDLETS,
     // and auto-allows — but PowerShell runs it from the changed cwd, writing to
-    // .claude/settings.json (a Claude config file the path validator didn't check).
+    // .claude/settings.json (a Maximo config file the path validator didn't check).
     // This matches BashTool's compoundCommandHasCd guard.
     if (statement !== null && !hasCdSubCommand && !hasSymlinkCreate) {
       const subModeResult = checkPermissionMode(
@@ -1562,18 +1567,18 @@ export async function powershellToolHasPermission(
           originalCommand: subCmd,
           statements: [statement],
         },
-        toolPermissionContext,
-      )
-      if (subModeResult.behavior === 'allow') {
-        continue
+        toolPermissionContext
+      );
+      if (subModeResult.behavior === "allow") {
+        continue;
       }
     }
 
     // Not allowlisted, no mode auto-allow, and no explicit rule — needs approval
     if (statement !== null) {
-      statementsSeenInLoop.add(statement)
+      statementsSeenInLoop.add(statement);
     }
-    subCommandsNeedingApproval.push(subCmd)
+    subCommandsNeedingApproval.push(subCmd);
   }
 
   // SECURITY: fail-closed gate (second half). The step-5 loop above only
@@ -1592,7 +1597,7 @@ export async function powershellToolHasPermission(
   // the fail-closed property.
   for (const stmt of parsed.statements) {
     if (!isProvablySafeStatement(stmt) && !statementsSeenInLoop.has(stmt)) {
-      subCommandsNeedingApproval.push(stmt.text)
+      subCommandsNeedingApproval.push(stmt.text);
     }
   }
 
@@ -1606,43 +1611,43 @@ export async function powershellToolHasPermission(
     // so it doesn't catch nested assignments either. Prompt instead.
     if (deriveSecurityFlags(parsed).hasScriptBlocks) {
       return {
-        behavior: 'ask',
+        behavior: "ask",
         message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME),
         decisionReason: {
-          type: 'other',
+          type: "other",
           reason:
-            'Pipeline consists of output-formatting cmdlets with script blocks — block content cannot be verified',
+            "Pipeline consists of output-formatting cmdlets with script blocks — block content cannot be verified",
         },
-      }
+      };
     }
     return {
-      behavior: 'allow',
+      behavior: "allow",
       updatedInput: input,
       decisionReason: {
-        type: 'other',
-        reason: 'All pipeline commands are individually allowed',
+        type: "other",
+        reason: "All pipeline commands are individually allowed",
       },
-    }
+    };
   }
 
   // 6. Some sub-commands need approval — build suggestions
   const decisionReason = {
-    type: 'other' as const,
-    reason: 'This command requires approval',
-  }
+    type: "other" as const,
+    reason: "This command requires approval",
+  };
 
-  const pendingSuggestions: PermissionUpdate[] = []
+  const pendingSuggestions: PermissionUpdate[] = [];
   for (const subCmd of subCommandsNeedingApproval) {
-    pendingSuggestions.push(...suggestionForExactCommand(subCmd))
+    pendingSuggestions.push(...suggestionForExactCommand(subCmd));
   }
 
   return {
-    behavior: 'passthrough',
+    behavior: "passthrough",
     message: createPermissionRequestMessage(
       POWERSHELL_TOOL_NAME,
-      decisionReason,
+      decisionReason
     ),
     decisionReason,
     suggestions: pendingSuggestions,
-  }
+  };
 }

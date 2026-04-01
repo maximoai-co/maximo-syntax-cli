@@ -1,19 +1,20 @@
 import { c as _c } from "react-compiler-runtime";
-import * as React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNotifications } from 'src/context/notifications.js';
-import { Text } from 'src/ink.js';
-import { getRateLimitWarning, getUsingOverageText } from 'src/services/claudeAiLimits.js';
-import { useClaudeAiLimits } from 'src/services/claudeAiLimitsHook.js';
-import { getSubscriptionType } from 'src/utils/auth.js';
-import { hasClaudeAiBillingAccess } from 'src/utils/billing.js';
-import { getIsRemoteMode } from '../../bootstrap/state.js';
+import * as React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNotifications } from "src/context/notifications.js";
+import { Text } from "src/ink.js";
+import {
+  getRateLimitWarning,
+  getUsingOverageText,
+} from "src/services/claudeAiLimits.js";
+import { useMaximoAiLimits } from "src/services/claudeAiLimitsHook.js";
+import { getSubscriptionType } from "src/utils/auth.js";
+import { hasMaximoAiBillingAccess } from "src/utils/billing.js";
+import { getIsRemoteMode } from "../../bootstrap/state.js";
 export function useRateLimitWarningNotification(model) {
   const $ = _c(17);
-  const {
-    addNotification
-  } = useNotifications();
-  const claudeAiLimits = useClaudeAiLimits();
+  const { addNotification } = useNotifications();
+  const claudeAiLimits = useMaximoAiLimits();
   let t0;
   if ($[0] !== claudeAiLimits || $[1] !== model) {
     t0 = getRateLimitWarning(claudeAiLimits, model);
@@ -44,26 +45,37 @@ export function useRateLimitWarningNotification(model) {
   const subscriptionType = t2;
   let t3;
   if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-    t3 = hasClaudeAiBillingAccess();
+    t3 = hasMaximoAiBillingAccess();
     $[6] = t3;
   } else {
     t3 = $[6];
   }
   const hasBillingAccess = t3;
-  const isTeamOrEnterprise = subscriptionType === "team" || subscriptionType === "enterprise";
-  const [hasShownOverageNotification, setHasShownOverageNotification] = useState(false);
+  const isTeamOrEnterprise =
+    subscriptionType === "team" || subscriptionType === "enterprise";
+  const [hasShownOverageNotification, setHasShownOverageNotification] =
+    useState(false);
   let t4;
   let t5;
-  if ($[7] !== addNotification || $[8] !== claudeAiLimits.isUsingOverage || $[9] !== hasShownOverageNotification || $[10] !== usingOverageText) {
+  if (
+    $[7] !== addNotification ||
+    $[8] !== claudeAiLimits.isUsingOverage ||
+    $[9] !== hasShownOverageNotification ||
+    $[10] !== usingOverageText
+  ) {
     t4 = () => {
       if (getIsRemoteMode()) {
         return;
       }
-      if (claudeAiLimits.isUsingOverage && !hasShownOverageNotification && (!isTeamOrEnterprise || hasBillingAccess)) {
+      if (
+        claudeAiLimits.isUsingOverage &&
+        !hasShownOverageNotification &&
+        (!isTeamOrEnterprise || hasBillingAccess)
+      ) {
         addNotification({
           key: "limit-reached",
           text: usingOverageText,
-          priority: "immediate"
+          priority: "immediate",
         });
         setHasShownOverageNotification(true);
       } else {
@@ -72,7 +84,14 @@ export function useRateLimitWarningNotification(model) {
         }
       }
     };
-    t5 = [claudeAiLimits.isUsingOverage, usingOverageText, hasShownOverageNotification, addNotification, hasBillingAccess, isTeamOrEnterprise];
+    t5 = [
+      claudeAiLimits.isUsingOverage,
+      usingOverageText,
+      hasShownOverageNotification,
+      addNotification,
+      hasBillingAccess,
+      isTeamOrEnterprise,
+    ];
     $[7] = addNotification;
     $[8] = claudeAiLimits.isUsingOverage;
     $[9] = hasShownOverageNotification;
@@ -95,8 +114,12 @@ export function useRateLimitWarningNotification(model) {
         shownWarningRef.current = rateLimitWarning;
         addNotification({
           key: "rate-limit-warning",
-          jsx: <Text><Text color="warning">{rateLimitWarning}</Text></Text>,
-          priority: "high"
+          jsx: (
+            <Text>
+              <Text color="warning">{rateLimitWarning}</Text>
+            </Text>
+          ),
+          priority: "high",
         });
       }
     };

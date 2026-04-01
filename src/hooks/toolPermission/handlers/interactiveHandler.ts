@@ -1,44 +1,44 @@
-import { feature } from 'bun:bundle'
-import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
-import { randomUUID } from 'crypto'
-import { logForDebugging } from 'src/utils/debug.js'
-import { getAllowedChannels } from '../../../bootstrap/state.js'
-import type { BridgePermissionCallbacks } from '../../../bridge/bridgePermissionCallbacks.js'
-import { getTerminalFocused } from '../../../ink/terminal-focus-state.js'
+import { feature } from "bun:bundle";
+import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
+import { randomUUID } from "crypto";
+import { logForDebugging } from "src/utils/debug.js";
+import { getAllowedChannels } from "../../../bootstrap/state.js";
+import type { BridgePermissionCallbacks } from "../../../bridge/bridgePermissionCallbacks.js";
+import { getTerminalFocused } from "../../../ink/terminal-focus-state.js";
 import {
   CHANNEL_PERMISSION_REQUEST_METHOD,
   type ChannelPermissionRequestParams,
   findChannelEntry,
-} from '../../../services/mcp/channelNotification.js'
-import type { ChannelPermissionCallbacks } from '../../../services/mcp/channelPermissions.js'
+} from "../../../services/mcp/channelNotification.js";
+import type { ChannelPermissionCallbacks } from "../../../services/mcp/channelPermissions.js";
 import {
   filterPermissionRelayClients,
   shortRequestId,
   truncateForPreview,
-} from '../../../services/mcp/channelPermissions.js'
-import { executeAsyncClassifierCheck } from '../../../tools/BashTool/bashPermissions.js'
-import { BASH_TOOL_NAME } from '../../../tools/BashTool/toolName.js'
+} from "../../../services/mcp/channelPermissions.js";
+import { executeAsyncClassifierCheck } from "../../../tools/BashTool/bashPermissions.js";
+import { BASH_TOOL_NAME } from "../../../tools/BashTool/toolName.js";
 import {
   clearClassifierChecking,
   setClassifierApproval,
   setClassifierChecking,
   setYoloClassifierApproval,
-} from '../../../utils/classifierApprovals.js'
-import { errorMessage } from '../../../utils/errors.js'
-import type { PermissionDecision } from '../../../utils/permissions/PermissionResult.js'
-import type { PermissionUpdate } from '../../../utils/permissions/PermissionUpdateSchema.js'
-import { hasPermissionsToUseTool } from '../../../utils/permissions/permissions.js'
-import type { PermissionContext } from '../PermissionContext.js'
-import { createResolveOnce } from '../PermissionContext.js'
+} from "../../../utils/classifierApprovals.js";
+import { errorMessage } from "../../../utils/errors.js";
+import type { PermissionDecision } from "../../../utils/permissions/PermissionResult.js";
+import type { PermissionUpdate } from "../../../utils/permissions/PermissionUpdateSchema.js";
+import { hasPermissionsToUseTool } from "../../../utils/permissions/permissions.js";
+import type { PermissionContext } from "../PermissionContext.js";
+import { createResolveOnce } from "../PermissionContext.js";
 
 type InteractivePermissionParams = {
-  ctx: PermissionContext
-  description: string
-  result: PermissionDecision & { behavior: 'ask' }
-  awaitAutomatedChecksBeforeDialog: boolean | undefined
-  bridgeCallbacks?: BridgePermissionCallbacks
-  channelCallbacks?: ChannelPermissionCallbacks
-}
+  ctx: PermissionContext;
+  description: string;
+  result: PermissionDecision & { behavior: "ask" };
+  awaitAutomatedChecksBeforeDialog: boolean | undefined;
+  bridgeCallbacks?: BridgePermissionCallbacks;
+  channelCallbacks?: ChannelPermissionCallbacks;
+};
 
 /**
  * Handles the interactive (main-agent) permission flow.
@@ -56,7 +56,7 @@ type InteractivePermissionParams = {
  */
 function handleInteractivePermission(
   params: InteractivePermissionParams,
-  resolve: (decision: PermissionDecision) => void,
+  resolve: (decision: PermissionDecision) => void
 ): void {
   const {
     ctx,
@@ -65,27 +65,31 @@ function handleInteractivePermission(
     awaitAutomatedChecksBeforeDialog,
     bridgeCallbacks,
     channelCallbacks,
-  } = params
+  } = params;
 
-  const { resolve: resolveOnce, isResolved, claim } = createResolveOnce(resolve)
-  let userInteracted = false
-  let checkmarkTransitionTimer: ReturnType<typeof setTimeout> | undefined
+  const {
+    resolve: resolveOnce,
+    isResolved,
+    claim,
+  } = createResolveOnce(resolve);
+  let userInteracted = false;
+  let checkmarkTransitionTimer: ReturnType<typeof setTimeout> | undefined;
   // Hoisted so onDismissCheckmark (Esc during checkmark window) can also
   // remove the abort listener — not just the timer callback.
-  let checkmarkAbortHandler: (() => void) | undefined
-  const bridgeRequestId = bridgeCallbacks ? randomUUID() : undefined
+  let checkmarkAbortHandler: (() => void) | undefined;
+  const bridgeRequestId = bridgeCallbacks ? randomUUID() : undefined;
   // Hoisted so local/hook/classifier wins can remove the pending channel
   // entry. No "tell remote to dismiss" equivalent — the text sits in your
   // phone, and a stale "yes abc123" after local-resolve falls through
   // tryConsumeReply (entry gone) and gets enqueued as normal chat.
-  let channelUnsubscribe: (() => void) | undefined
+  let channelUnsubscribe: (() => void) | undefined;
 
-  const permissionPromptStartTimeMs = Date.now()
-  const displayInput = result.updatedInput ?? ctx.input
+  const permissionPromptStartTimeMs = Date.now();
+  const displayInput = result.updatedInput ?? ctx.input;
 
   function clearClassifierIndicator(): void {
-    if (feature('BASH_CLASSIFIER')) {
-      ctx.updateQueueItem({ classifierCheckInProgress: false })
+    if (feature("BASH_CLASSIFIER")) {
+      ctx.updateQueueItem({ classifierCheckInProgress: false });
     }
   }
 
@@ -98,7 +102,7 @@ function handleInteractivePermission(
     toolUseID: ctx.toolUseID,
     permissionResult: result,
     permissionPromptStartTimeMs,
-    ...(feature('BASH_CLASSIFIER')
+    ...(feature("BASH_CLASSIFIER")
       ? {
           classifierCheckInProgress:
             !!result.pendingClassifierCheck &&
@@ -112,62 +116,62 @@ function handleInteractivePermission(
       //
       // Grace period: ignore interactions in the first 200ms to prevent
       // accidental keypresses from canceling the classifier prematurely
-      const GRACE_PERIOD_MS = 200
+      const GRACE_PERIOD_MS = 200;
       if (Date.now() - permissionPromptStartTimeMs < GRACE_PERIOD_MS) {
-        return
+        return;
       }
-      userInteracted = true
-      clearClassifierChecking(ctx.toolUseID)
-      clearClassifierIndicator()
+      userInteracted = true;
+      clearClassifierChecking(ctx.toolUseID);
+      clearClassifierIndicator();
     },
     onDismissCheckmark() {
       if (checkmarkTransitionTimer) {
-        clearTimeout(checkmarkTransitionTimer)
-        checkmarkTransitionTimer = undefined
+        clearTimeout(checkmarkTransitionTimer);
+        checkmarkTransitionTimer = undefined;
         if (checkmarkAbortHandler) {
           ctx.toolUseContext.abortController.signal.removeEventListener(
-            'abort',
-            checkmarkAbortHandler,
-          )
-          checkmarkAbortHandler = undefined
+            "abort",
+            checkmarkAbortHandler
+          );
+          checkmarkAbortHandler = undefined;
         }
-        ctx.removeFromQueue()
+        ctx.removeFromQueue();
       }
     },
     onAbort() {
-      if (!claim()) return
+      if (!claim()) return;
       if (bridgeCallbacks && bridgeRequestId) {
         bridgeCallbacks.sendResponse(bridgeRequestId, {
-          behavior: 'deny',
-          message: 'User aborted',
-        })
-        bridgeCallbacks.cancelRequest(bridgeRequestId)
+          behavior: "deny",
+          message: "User aborted",
+        });
+        bridgeCallbacks.cancelRequest(bridgeRequestId);
       }
-      channelUnsubscribe?.()
-      ctx.logCancelled()
+      channelUnsubscribe?.();
+      ctx.logCancelled();
       ctx.logDecision(
-        { decision: 'reject', source: { type: 'user_abort' } },
-        { permissionPromptStartTimeMs },
-      )
-      resolveOnce(ctx.cancelAndAbort(undefined, true))
+        { decision: "reject", source: { type: "user_abort" } },
+        { permissionPromptStartTimeMs }
+      );
+      resolveOnce(ctx.cancelAndAbort(undefined, true));
     },
     async onAllow(
       updatedInput,
       permissionUpdates: PermissionUpdate[],
       feedback?: string,
-      contentBlocks?: ContentBlockParam[],
+      contentBlocks?: ContentBlockParam[]
     ) {
-      if (!claim()) return // atomic check-and-mark before await
+      if (!claim()) return; // atomic check-and-mark before await
 
       if (bridgeCallbacks && bridgeRequestId) {
         bridgeCallbacks.sendResponse(bridgeRequestId, {
-          behavior: 'allow',
+          behavior: "allow",
           updatedInput,
           updatedPermissions: permissionUpdates,
-        })
-        bridgeCallbacks.cancelRequest(bridgeRequestId)
+        });
+        bridgeCallbacks.cancelRequest(bridgeRequestId);
       }
-      channelUnsubscribe?.()
+      channelUnsubscribe?.();
 
       resolveOnce(
         await ctx.handleUserAllow(
@@ -176,41 +180,41 @@ function handleInteractivePermission(
           feedback,
           permissionPromptStartTimeMs,
           contentBlocks,
-          result.decisionReason,
-        ),
-      )
+          result.decisionReason
+        )
+      );
     },
     onReject(feedback?: string, contentBlocks?: ContentBlockParam[]) {
-      if (!claim()) return
+      if (!claim()) return;
 
       if (bridgeCallbacks && bridgeRequestId) {
         bridgeCallbacks.sendResponse(bridgeRequestId, {
-          behavior: 'deny',
-          message: feedback ?? 'User denied permission',
-        })
-        bridgeCallbacks.cancelRequest(bridgeRequestId)
+          behavior: "deny",
+          message: feedback ?? "User denied permission",
+        });
+        bridgeCallbacks.cancelRequest(bridgeRequestId);
       }
-      channelUnsubscribe?.()
+      channelUnsubscribe?.();
 
       ctx.logDecision(
         {
-          decision: 'reject',
-          source: { type: 'user_reject', hasFeedback: !!feedback },
+          decision: "reject",
+          source: { type: "user_reject", hasFeedback: !!feedback },
         },
-        { permissionPromptStartTimeMs },
-      )
-      resolveOnce(ctx.cancelAndAbort(feedback, undefined, contentBlocks))
+        { permissionPromptStartTimeMs }
+      );
+      resolveOnce(ctx.cancelAndAbort(feedback, undefined, contentBlocks));
     },
     async recheckPermission() {
-      if (isResolved()) return
+      if (isResolved()) return;
       const freshResult = await hasPermissionsToUseTool(
         ctx.tool,
         ctx.input,
         ctx.toolUseContext,
         ctx.assistantMessage,
-        ctx.toolUseID,
-      )
-      if (freshResult.behavior === 'allow') {
+        ctx.toolUseID
+      );
+      if (freshResult.behavior === "allow") {
         // claim() (atomic check-and-mark), not isResolved() — the async
         // hasPermissionsToUseTool call above opens a window where CCR
         // could have responded in flight. Matches onAllow/onReject/hook
@@ -219,17 +223,17 @@ function handleInteractivePermission(
         // executing (particularly visible when recheck is triggered by
         // a CCR-initiated mode switch, the very case this callback exists
         // for after useReplBridge started calling it).
-        if (!claim()) return
+        if (!claim()) return;
         if (bridgeCallbacks && bridgeRequestId) {
-          bridgeCallbacks.cancelRequest(bridgeRequestId)
+          bridgeCallbacks.cancelRequest(bridgeRequestId);
         }
-        channelUnsubscribe?.()
-        ctx.removeFromQueue()
-        ctx.logDecision({ decision: 'accept', source: 'config' })
-        resolveOnce(ctx.buildAllow(freshResult.updatedInput ?? ctx.input))
+        channelUnsubscribe?.();
+        ctx.removeFromQueue();
+        ctx.logDecision({ decision: "accept", source: "config" });
+        resolveOnce(ctx.buildAllow(freshResult.updatedInput ?? ctx.input));
       }
     },
-  })
+  });
 
   // Race 4: Bridge permission response from CCR (claude.ai)
   // When the bridge is connected, send the permission request to CCR and
@@ -249,52 +253,52 @@ function handleInteractivePermission(
       ctx.toolUseID,
       description,
       result.suggestions,
-      result.blockedPath,
-    )
+      result.blockedPath
+    );
 
-    const signal = ctx.toolUseContext.abortController.signal
+    const signal = ctx.toolUseContext.abortController.signal;
     const unsubscribe = bridgeCallbacks.onResponse(
       bridgeRequestId,
-      response => {
-        if (!claim()) return // Local user/hook/classifier already responded
-        signal.removeEventListener('abort', unsubscribe)
-        clearClassifierChecking(ctx.toolUseID)
-        clearClassifierIndicator()
-        ctx.removeFromQueue()
-        channelUnsubscribe?.()
+      (response) => {
+        if (!claim()) return; // Local user/hook/classifier already responded
+        signal.removeEventListener("abort", unsubscribe);
+        clearClassifierChecking(ctx.toolUseID);
+        clearClassifierIndicator();
+        ctx.removeFromQueue();
+        channelUnsubscribe?.();
 
-        if (response.behavior === 'allow') {
+        if (response.behavior === "allow") {
           if (response.updatedPermissions?.length) {
-            void ctx.persistPermissions(response.updatedPermissions)
+            void ctx.persistPermissions(response.updatedPermissions);
           }
           ctx.logDecision(
             {
-              decision: 'accept',
+              decision: "accept",
               source: {
-                type: 'user',
+                type: "user",
                 permanent: !!response.updatedPermissions?.length,
               },
             },
-            { permissionPromptStartTimeMs },
-          )
-          resolveOnce(ctx.buildAllow(response.updatedInput ?? displayInput))
+            { permissionPromptStartTimeMs }
+          );
+          resolveOnce(ctx.buildAllow(response.updatedInput ?? displayInput));
         } else {
           ctx.logDecision(
             {
-              decision: 'reject',
+              decision: "reject",
               source: {
-                type: 'user_reject',
+                type: "user_reject",
                 hasFeedback: !!response.message,
               },
             },
-            { permissionPromptStartTimeMs },
-          )
-          resolveOnce(ctx.cancelAndAbort(response.message))
+            { permissionPromptStartTimeMs }
+          );
+          resolveOnce(ctx.cancelAndAbort(response.message));
         }
-      },
-    )
+      }
+    );
 
-    signal.addEventListener('abort', unsubscribe, { once: true })
+    signal.addEventListener("abort", unsubscribe, { once: true });
   }
 
   // Channel permission relay — races alongside the bridge block above. Send a
@@ -302,7 +306,7 @@ function handleInteractivePermission(
   // its MCP send_message tool, then race the reply against local/bridge/hook/
   // classifier. The inbound "yes abc123" is intercepted in the notification
   // handler (useManageMCPConnections.ts) BEFORE enqueue, so it never reaches
-  // Claude as a conversation turn.
+  // Maximo as a conversation turn.
   //
   // Unlike the bridge block, this still guards on `requiresUserInteraction` —
   // channel replies are pure yes/no with no `updatedInput` path. In practice
@@ -314,16 +318,16 @@ function handleInteractivePermission(
   // the subscription never fires and another racer wins. Graceful degradation
   // — the local dialog is always there as the floor.
   if (
-    (feature('KAIROS') || feature('KAIROS_CHANNELS')) &&
+    (feature("KAIROS") || feature("KAIROS_CHANNELS")) &&
     channelCallbacks &&
     !ctx.tool.requiresUserInteraction?.()
   ) {
-    const channelRequestId = shortRequestId(ctx.toolUseID)
-    const allowedChannels = getAllowedChannels()
+    const channelRequestId = shortRequestId(ctx.toolUseID);
+    const allowedChannels = getAllowedChannels();
     const channelClients = filterPermissionRelayClients(
       ctx.toolUseContext.getAppState().mcp.clients,
-      name => findChannelEntry(name, allowedChannels) !== undefined,
-    )
+      (name) => findChannelEntry(name, allowedChannels) !== undefined
+    );
 
     if (channelClients.length > 0) {
       // Outbound is structured too (Kenneth's symmetry ask) — server owns
@@ -336,24 +340,26 @@ function handleInteractivePermission(
         tool_name: ctx.tool.name,
         description,
         input_preview: truncateForPreview(displayInput),
-      }
+      };
 
       for (const client of channelClients) {
-        if (client.type !== 'connected') continue // refine for TS
+        if (client.type !== "connected") continue; // refine for TS
         void client.client
           .notification({
             method: CHANNEL_PERMISSION_REQUEST_METHOD,
             params,
           })
-          .catch(e => {
+          .catch((e) => {
             logForDebugging(
-              `Channel permission_request failed for ${client.name}: ${errorMessage(e)}`,
-              { level: 'error' },
-            )
-          })
+              `Channel permission_request failed for ${
+                client.name
+              }: ${errorMessage(e)}`,
+              { level: "error" }
+            );
+          });
       }
 
-      const channelSignal = ctx.toolUseContext.abortController.signal
+      const channelSignal = ctx.toolUseContext.abortController.signal;
       // Wrap so BOTH the map delete AND the abort-listener teardown happen
       // at every call site. The 6 channelUnsubscribe?.() sites after local/
       // hook/classifier wins previously only deleted the map entry — the
@@ -362,48 +368,48 @@ function handleInteractivePermission(
       // idempotent), but it held the closure alive.
       const mapUnsub = channelCallbacks.onResponse(
         channelRequestId,
-        response => {
-          if (!claim()) return // Another racer won
-          channelUnsubscribe?.() // both: map delete + listener remove
-          clearClassifierChecking(ctx.toolUseID)
-          clearClassifierIndicator()
-          ctx.removeFromQueue()
+        (response) => {
+          if (!claim()) return; // Another racer won
+          channelUnsubscribe?.(); // both: map delete + listener remove
+          clearClassifierChecking(ctx.toolUseID);
+          clearClassifierIndicator();
+          ctx.removeFromQueue();
           // Bridge is the other remote — tell it we're done.
           if (bridgeCallbacks && bridgeRequestId) {
-            bridgeCallbacks.cancelRequest(bridgeRequestId)
+            bridgeCallbacks.cancelRequest(bridgeRequestId);
           }
 
-          if (response.behavior === 'allow') {
+          if (response.behavior === "allow") {
             ctx.logDecision(
               {
-                decision: 'accept',
-                source: { type: 'user', permanent: false },
+                decision: "accept",
+                source: { type: "user", permanent: false },
               },
-              { permissionPromptStartTimeMs },
-            )
-            resolveOnce(ctx.buildAllow(displayInput))
+              { permissionPromptStartTimeMs }
+            );
+            resolveOnce(ctx.buildAllow(displayInput));
           } else {
             ctx.logDecision(
               {
-                decision: 'reject',
-                source: { type: 'user_reject', hasFeedback: false },
+                decision: "reject",
+                source: { type: "user_reject", hasFeedback: false },
               },
-              { permissionPromptStartTimeMs },
-            )
+              { permissionPromptStartTimeMs }
+            );
             resolveOnce(
-              ctx.cancelAndAbort(`Denied via channel ${response.fromServer}`),
-            )
+              ctx.cancelAndAbort(`Denied via channel ${response.fromServer}`)
+            );
           }
-        },
-      )
+        }
+      );
       channelUnsubscribe = () => {
-        mapUnsub()
-        channelSignal.removeEventListener('abort', channelUnsubscribe!)
-      }
+        mapUnsub();
+        channelSignal.removeEventListener("abort", channelUnsubscribe!);
+      };
 
-      channelSignal.addEventListener('abort', channelUnsubscribe, {
+      channelSignal.addEventListener("abort", channelUnsubscribe, {
         once: true,
-      })
+      });
     }
   }
 
@@ -412,27 +418,27 @@ function handleInteractivePermission(
     // Execute PermissionRequest hooks asynchronously
     // If hook returns a decision before user responds, apply it
     void (async () => {
-      if (isResolved()) return
-      const currentAppState = ctx.toolUseContext.getAppState()
+      if (isResolved()) return;
+      const currentAppState = ctx.toolUseContext.getAppState();
       const hookDecision = await ctx.runHooks(
         currentAppState.toolPermissionContext.mode,
         result.suggestions,
         result.updatedInput,
-        permissionPromptStartTimeMs,
-      )
-      if (!hookDecision || !claim()) return
+        permissionPromptStartTimeMs
+      );
+      if (!hookDecision || !claim()) return;
       if (bridgeCallbacks && bridgeRequestId) {
-        bridgeCallbacks.cancelRequest(bridgeRequestId)
+        bridgeCallbacks.cancelRequest(bridgeRequestId);
       }
-      channelUnsubscribe?.()
-      ctx.removeFromQueue()
-      resolveOnce(hookDecision)
-    })()
+      channelUnsubscribe?.();
+      ctx.removeFromQueue();
+      resolveOnce(hookDecision);
+    })();
   }
 
   // Execute bash classifier check asynchronously (if applicable)
   if (
-    feature('BASH_CLASSIFIER') &&
+    feature("BASH_CLASSIFIER") &&
     result.pendingClassifierCheck &&
     ctx.tool.name === BASH_TOOL_NAME &&
     !awaitAutomatedChecksBeforeDialog
@@ -440,7 +446,7 @@ function handleInteractivePermission(
     // UI indicator for "classifier running" — set here (not in
     // toolExecution.ts) so commands that auto-allow via prefix rules
     // don't flash the indicator for a split second before allow returns.
-    setClassifierChecking(ctx.toolUseID)
+    setClassifierChecking(ctx.toolUseID);
     void executeAsyncClassifierCheck(
       result.pendingClassifierCheck,
       ctx.toolUseContext.abortController.signal,
@@ -448,89 +454,89 @@ function handleInteractivePermission(
       {
         shouldContinue: () => !isResolved() && !userInteracted,
         onComplete: () => {
-          clearClassifierChecking(ctx.toolUseID)
-          clearClassifierIndicator()
+          clearClassifierChecking(ctx.toolUseID);
+          clearClassifierIndicator();
         },
-        onAllow: decisionReason => {
-          if (!claim()) return
+        onAllow: (decisionReason) => {
+          if (!claim()) return;
           if (bridgeCallbacks && bridgeRequestId) {
-            bridgeCallbacks.cancelRequest(bridgeRequestId)
+            bridgeCallbacks.cancelRequest(bridgeRequestId);
           }
-          channelUnsubscribe?.()
-          clearClassifierChecking(ctx.toolUseID)
+          channelUnsubscribe?.();
+          clearClassifierChecking(ctx.toolUseID);
 
           const matchedRule =
-            decisionReason.type === 'classifier'
-              ? (decisionReason.reason.match(
-                  /^Allowed by prompt rule: "(.+)"$/,
-                )?.[1] ?? decisionReason.reason)
-              : undefined
+            decisionReason.type === "classifier"
+              ? decisionReason.reason.match(
+                  /^Allowed by prompt rule: "(.+)"$/
+                )?.[1] ?? decisionReason.reason
+              : undefined;
 
           // Show auto-approved transition with dimmed options
-          if (feature('TRANSCRIPT_CLASSIFIER')) {
+          if (feature("TRANSCRIPT_CLASSIFIER")) {
             ctx.updateQueueItem({
               classifierCheckInProgress: false,
               classifierAutoApproved: true,
               classifierMatchedRule: matchedRule,
-            })
+            });
           }
 
           if (
-            feature('TRANSCRIPT_CLASSIFIER') &&
-            decisionReason.type === 'classifier'
+            feature("TRANSCRIPT_CLASSIFIER") &&
+            decisionReason.type === "classifier"
           ) {
-            if (decisionReason.classifier === 'auto-mode') {
-              setYoloClassifierApproval(ctx.toolUseID, decisionReason.reason)
+            if (decisionReason.classifier === "auto-mode") {
+              setYoloClassifierApproval(ctx.toolUseID, decisionReason.reason);
             } else if (matchedRule) {
-              setClassifierApproval(ctx.toolUseID, matchedRule)
+              setClassifierApproval(ctx.toolUseID, matchedRule);
             }
           }
 
           ctx.logDecision(
-            { decision: 'accept', source: { type: 'classifier' } },
-            { permissionPromptStartTimeMs },
-          )
-          resolveOnce(ctx.buildAllow(ctx.input, { decisionReason }))
+            { decision: "accept", source: { type: "classifier" } },
+            { permissionPromptStartTimeMs }
+          );
+          resolveOnce(ctx.buildAllow(ctx.input, { decisionReason }));
 
           // Keep checkmark visible, then remove dialog.
           // 3s if terminal is focused (user can see it), 1s if not.
           // User can dismiss early with Esc via onDismissCheckmark.
-          const signal = ctx.toolUseContext.abortController.signal
+          const signal = ctx.toolUseContext.abortController.signal;
           checkmarkAbortHandler = () => {
             if (checkmarkTransitionTimer) {
-              clearTimeout(checkmarkTransitionTimer)
-              checkmarkTransitionTimer = undefined
+              clearTimeout(checkmarkTransitionTimer);
+              checkmarkTransitionTimer = undefined;
               // Sibling Bash error can fire this (StreamingToolExecutor
               // cascades via siblingAbortController) — must drop the
               // cosmetic ✓ dialog or it blocks the next queued item.
-              ctx.removeFromQueue()
+              ctx.removeFromQueue();
             }
-          }
-          const checkmarkMs = getTerminalFocused() ? 3000 : 1000
+          };
+          const checkmarkMs = getTerminalFocused() ? 3000 : 1000;
           checkmarkTransitionTimer = setTimeout(() => {
-            checkmarkTransitionTimer = undefined
+            checkmarkTransitionTimer = undefined;
             if (checkmarkAbortHandler) {
-              signal.removeEventListener('abort', checkmarkAbortHandler)
-              checkmarkAbortHandler = undefined
+              signal.removeEventListener("abort", checkmarkAbortHandler);
+              checkmarkAbortHandler = undefined;
             }
-            ctx.removeFromQueue()
-          }, checkmarkMs)
-          signal.addEventListener('abort', checkmarkAbortHandler, {
+            ctx.removeFromQueue();
+          }, checkmarkMs);
+          signal.addEventListener("abort", checkmarkAbortHandler, {
             once: true,
-          })
+          });
         },
-      },
-    ).catch(error => {
+      }
+    ).catch((error) => {
       // Log classifier API errors for debugging but don't propagate them as interruptions
       // These errors can be network failures, rate limits, or model issues - not user cancellations
       logForDebugging(`Async classifier check failed: ${errorMessage(error)}`, {
-        level: 'error',
-      })
-    })
+        level: "error",
+      });
+    });
   }
 }
 
 // --
 
-export { handleInteractivePermission }
-export type { InteractivePermissionParams }
+export { handleInteractivePermission };
+export type { InteractivePermissionParams };
