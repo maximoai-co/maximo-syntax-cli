@@ -79,15 +79,6 @@ export function getAttributionTexts(): AttributionTexts {
   const defaultAttribution = `🤖 Generated with [Maximo Syntax](${PRODUCT_URL})`;
   const defaultCommit = `Co-Authored-By: maximoai <dev@maximoai.co>`; // Reverted to maximoai
 
-  // Note: GitHub attribution logic
-  // 1. Matches dev@maximoai.co to Gravatar profile image
-  // 2. Matches dev@maximoai.co to any GitHub user account email
-  // 3. Name "maximoai" is the display label next to the avatar
-
-  if (!settings) {
-    return { commit: defaultCommit, pr: defaultAttribution };
-  }
-
   const settings = getInitialSettings();
 
   // New attribution setting takes precedence over deprecated includeCoAuthoredBy
