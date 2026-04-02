@@ -48,11 +48,13 @@ npm link
 
 After installation, you can invoke the CLI using any of the following commands:
 
+- `syntax`
 - `maximo`
 - `maximo-syntax`
 - `maximo-syntax-cli`
+- `claude`
 
-All three commands are equivalent and natively supported.
+All five commands are equivalent and natively supported.
 
 ---
 
