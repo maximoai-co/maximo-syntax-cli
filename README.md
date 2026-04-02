@@ -6,14 +6,14 @@
 <p align="center">Build, ship, and iterate from your terminal. Maximo Syntax CLI is a powerful AI-powered command-line interface that brings together advanced LLM integration with a lightning-fast developer experience.</p>
 <p align="center">
   <a href="https://maximoai.co/syntax"><img alt="Website" src="https://img.shields.io/badge/Website-maximoai.co%2Fsyntax-021027?style=flat-square&logo=google-chrome&logoColor=white" /></a>
-  <a href="https://github.com/maximoai-co/maximo-syntax-cli"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-maximoai--co%2Fmaximo--syntax--cli-021027?style=flat-square&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/maximoai/maximo-syntax-cli"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-maximoai%2Fmaximo--syntax--cli-021027?style=flat-square&logo=github&logoColor=white" /></a>
 </p>
 
 # Maximo Syntax CLI
 
-Maximo Syntax CLI is a powerful AI-powered command-line interface that enables you to work with any LLM — GPT-4o, DeepSeek, Gemini, Llama, Mistral, or any model that speaks the OpenAI chat completions API.
+**Maximo Syntax CLI** — The official command-line interface natively built for Maximo AI models. Optimized for high-fidelity code generation and agentic task orchestration.
 
-All the tools you need work right from your terminal — bash execution, file read/write/edit, grep, glob, agents, tasks, MCP — all powered by whatever model you choose.
+Also compatible with any LLM via OpenAI, Gemini, or Ollama endpoints.
 
 ---
 
@@ -29,7 +29,7 @@ npm install -g @maximoai/maximo-syntax-cli
 
 ```bash
 # Clone from maximoai
-git clone https://github.com/maximoai-co/maximo-syntax-cli.git
+git clone https://github.com/maximoai/maximo-syntax-cli.git
 cd maximo-syntax-cli
 
 # Install dependencies
@@ -42,14 +42,17 @@ bun run build
 npm link
 ```
 
-### Option C: Run directly with Bun (no build step)
+---
 
-```bash
-git clone https://github.com/maximoai-co/maximo-syntax-cli.git
-cd maximo-syntax-cli
-bun install
-bun run dev
-```
+## Usage
+
+After installation, you can invoke the CLI using any of the following commands:
+
+- `maximo`
+- `maximo-syntax`
+- `maximo-syntax-cli`
+
+All three commands are equivalent and natively supported.
 
 ---
 
@@ -78,7 +81,7 @@ OPENAI_MODEL=maximo-pandora-3.6-nano
 ### 2. Run Maximo Syntax CLI
 
 ```bash
-maximo-syntax-cli
+maximo
 ```
 
 ---
@@ -117,4 +120,4 @@ See documentation: https://code.claude.com/docs/en/google-vertex-ai
 ## Documentation
 
 - [Maximo AI Documentation](https://maximoai.co/syntax)
-- [GitHub Repository](https://github.com/maximoai-co/maximo-syntax-cli)
+- [GitHub Repository](https://github.com/maximoai/maximo-syntax-cli)

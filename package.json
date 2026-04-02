@@ -1,6 +1,6 @@
 {
   "name": "@maximoai/maximo-syntax-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Maximo Syntax CLI - A powerful AI-powered command-line interface for code development with any LLM",
   "type": "module",
   "bin": {
