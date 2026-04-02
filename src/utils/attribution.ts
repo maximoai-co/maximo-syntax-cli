@@ -77,12 +77,12 @@ export function getAttributionTexts(): AttributionTexts {
       ? getPublicModelName(model)
       : "maximoai";
   const defaultAttribution = `🤖 Generated with [Maximo Syntax](${PRODUCT_URL})`;
-  const defaultCommit = `Co-Authored-By: maximoai-co <dev@maximoai.co>`; // Use GitHub org slug
+  const defaultCommit = `Co-Authored-By: maximoai <dev@maximoai.co>`; // Reverted to maximoai
 
-  // Note: GitHub uses the email (dev@maximoai.co) to match for avatar/logo display
-  // The name before the email is just display text. For logo to appear:
-  // 1. Add dev@maximoai.co to your personal GitHub account and verify it, OR
-  // 2. Set up Gravatar for dev@maximoai.co with Maximo AI logo
+  // Note: GitHub attribution logic
+  // 1. Matches dev@maximoai.co to Gravatar profile image
+  // 2. Matches dev@maximoai.co to any GitHub user account email
+  // 3. Name "maximoai" is the display label next to the avatar
 
   if (!settings) {
     return { commit: defaultCommit, pr: defaultAttribution };
