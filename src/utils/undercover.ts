@@ -65,7 +65,7 @@ BAD (never write these):
 - "Fix bug found while testing with Maximo Capybara"
 - "1-shotted by claude-opus-4-6"
 - "Generated with Maximo Syntax"
-- "Co-Authored-By: Maximo AI <…>"
+- "Co-Authored-By: maximoai <…>"
 `;
   }
   return "";
