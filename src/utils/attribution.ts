@@ -77,7 +77,19 @@ export function getAttributionTexts(): AttributionTexts {
       ? getPublicModelName(model)
       : "maximoai";
   const defaultAttribution = `🤖 Generated with [Maximo Syntax](${PRODUCT_URL})`;
-  const defaultCommit = `Co-Authored-By: ${modelName} <dev@maximoai.co>`;
+  const defaultCommit = `Co-Authored-By: maximoai.co <dev@maximoai.co>`; // Use org display name for GitHub logo match
+
+  // Note: Gravatar must be set up for dev@maximoai.co with Maximo AI logo
+  // GitHub matches co-author email to Gravatar for logo display
+  // Organization display name is "maximoai.co" which appears in commit attribution
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _modelNameForReference = modelName; // Keep model context available for future use
+
+  if (!settings) {
+    // Fallback if settings fail to load - use hardcoded values
+    return { commit: defaultCommit, pr: defaultAttribution };
+  }
 
   const settings = getInitialSettings();
 
