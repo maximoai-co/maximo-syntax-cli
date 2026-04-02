@@ -77,7 +77,7 @@ export function getAttributionTexts(): AttributionTexts {
       ? getPublicModelName(model)
       : "maximoai";
   const defaultAttribution = `🤖 Generated with [Maximo Syntax](${PRODUCT_URL})`;
-  const defaultCommit = `Co-Authored-By: ${modelName} <noreply@maximoai.co>`;
+  const defaultCommit = `Co-Authored-By: ${modelName} <dev@maximoai.co>`;
 
   const settings = getInitialSettings();
 
