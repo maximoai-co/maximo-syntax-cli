@@ -705,7 +705,7 @@ class OpenAIShimMessages {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "unknown error");
-      throw new Error(`OpenAI API error ${response.status}: ${errorBody}`);
+      throw new Error(`MaximoAI API error ${response.status}: ${errorBody}`);
     }
 
     return response;

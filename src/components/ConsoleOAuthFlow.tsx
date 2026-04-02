@@ -777,10 +777,10 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
       if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
         t2 = (
           <Text>
-            OpenMaximo supports OpenAI-compatible providers (GPT-4o, DeepSeek,
-            Ollama, Groq), Google Gemini, Amazon Bedrock, Microsoft Foundry, and
-            Vertex AI. Set the required environment variables, then restart
-            OpenMaximo.
+            Maximo Syntax supports OpenAI-compatible providers (GPT-4o,
+            DeepSeek, Ollama, Groq), Google Gemini, Amazon Bedrock, Microsoft
+            Foundry, and Vertex AI. Set the required environment variables, then
+            restart Maximo Syntax.
           </Text>
         );
         t3 = (

@@ -1,6 +1,6 @@
-# OpenMaximo Local Agent Playbook
+# Maximo Syntax Local Agent Playbook
 
-This playbook is a practical guide to run OpenMaximo with a local model (Ollama), work safely, and get strong day-to-day results.
+This playbook is a practical guide to run Maximo Syntax with a local model (Ollama), work safely, and get strong day-to-day results.
 
 ## 1. What You Have
 
@@ -27,7 +27,7 @@ bun run dev:fast
 bun run dev:code
 ```
 
-If everything is healthy, OpenMaximo starts directly.
+If everything is healthy, Maximo Syntax starts directly.
 
 ## 3. One-Time Setup (If Needed)
 
@@ -37,7 +37,7 @@ If everything is healthy, OpenMaximo starts directly.
 bun run profile:init -- --provider ollama --model llama3.1:8b
 ```
 
-Or let OpenMaximo recommend the best local model for your goal:
+Or let Maximo Syntax recommend the best local model for your goal:
 
 ```powershell
 bun run profile:init -- --provider ollama --goal coding

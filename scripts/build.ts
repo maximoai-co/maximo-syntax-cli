@@ -1,5 +1,5 @@
 /**
- * OpenMaximo build script — bundles the TypeScript source into a single
+ * Maximo Syntax build script — bundles the TypeScript source into a single
  * distributable JS file using Bun's bundler.
  *
  * Handles:
