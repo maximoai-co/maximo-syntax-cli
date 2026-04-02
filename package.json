@@ -1,6 +1,6 @@
 {
   "name": "@maximoai/maximo-syntax-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Maximo Syntax CLI - A powerful AI-powered command-line interface for code development with any LLM",
   "type": "module",
   "bin": {
@@ -127,7 +127,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/maximoai-co/maximo-syntax-cli"
+    "url": "git+https://github.com/maximoai-co/maximo-syntax-cli.git"
   },
   "keywords": [
     "claude-code",
