@@ -43,6 +43,21 @@ export function parseScopes(scopeString?: string): string[] {
   return scopeString?.split(" ").filter(Boolean) ?? [];
 }
 
+// Maximo backend OAuth configuration
+export const MAXIMO_OAUTH_CONFIG = {
+  BASE_API_URL: "https://api.maximoai.co",
+  AUTHORIZE_URL: "https://api.maximoai.co/syntax/auth/oauth/authorize",
+  TOKEN_URL: "https://api.maximoai.co/syntax/auth/oauth/token",
+  API_KEY_URL: "https://api.maximoai.co/syntax/auth/oauth/claude_cli/create_api_key",
+  ROLES_URL: "https://api.maximoai.co/syntax/auth/oauth/claude_cli/roles",
+  PROFILE_URL: "https://api.maximoai.co/syntax/auth/oauth/profile",
+  MANUAL_REDIRECT_URL: "https://api.maximoai.co/syntax/auth/oauth/code/callback",
+  CLIENT_ID: "maximo-cli-client",
+  // Maximo-branded success page
+  CLAUDEAI_SUCCESS_URL: "https://maximoai.co/syntax/oauth/success",
+  CONSOLE_SUCCESS_URL: "https://maximoai.co/syntax/oauth/success",
+};
+
 export function buildAuthUrl({
   codeChallenge,
   state,
@@ -64,18 +79,27 @@ export function buildAuthUrl({
   loginHint?: string;
   loginMethod?: string;
 }): string {
+  // Use Maximo backend for loginWithMaximoAi (Option 2), Anthropic for Console (Option 3)
   const authUrlBase = loginWithMaximoAi
-    ? getOauthConfig().CLAUDE_AI_AUTHORIZE_URL
+    ? MAXIMO_OAUTH_CONFIG.AUTHORIZE_URL
     : getOauthConfig().CONSOLE_AUTHORIZE_URL;
 
   const authUrl = new URL(authUrlBase);
-  authUrl.searchParams.append("code", "true"); // this tells the login page to show Maximo Max upsell
-  authUrl.searchParams.append("client_id", getOauthConfig().CLIENT_ID);
+  authUrl.searchParams.append("code", "true");
+  // Use Maximo client_id for Maximo OAuth, Anthropic for Console
+  authUrl.searchParams.append(
+    "client_id",
+    loginWithMaximoAi
+      ? MAXIMO_OAUTH_CONFIG.CLIENT_ID
+      : getOauthConfig().CLIENT_ID
+  );
   authUrl.searchParams.append("response_type", "code");
   authUrl.searchParams.append(
     "redirect_uri",
     isManual
-      ? getOauthConfig().MANUAL_REDIRECT_URL
+      ? loginWithMaximoAi
+        ? MAXIMO_OAUTH_CONFIG.MANUAL_REDIRECT_URL
+        : getOauthConfig().MANUAL_REDIRECT_URL
       : `http://localhost:${port}/callback`
   );
   const scopesToUse = inferenceOnly
@@ -110,15 +134,17 @@ export async function exchangeCodeForTokens(
   codeVerifier: string,
   port: number,
   useManualRedirect: boolean = false,
-  expiresIn?: number
+  expiresIn?: number,
+  loginWithMaximoAi?: boolean
 ): Promise<OAuthTokenExchangeResponse> {
+  const config = loginWithMaximoAi ? MAXIMO_OAUTH_CONFIG : getOauthConfig();
   const requestBody: Record<string, string | number> = {
     grant_type: "authorization_code",
     code: authorizationCode,
     redirect_uri: useManualRedirect
-      ? getOauthConfig().MANUAL_REDIRECT_URL
+      ? config.MANUAL_REDIRECT_URL
       : `http://localhost:${port}/callback`,
-    client_id: getOauthConfig().CLIENT_ID,
+    client_id: config.CLIENT_ID,
     code_verifier: codeVerifier,
     state,
   };
@@ -127,7 +153,7 @@ export async function exchangeCodeForTokens(
     requestBody.expires_in = expiresIn;
   }
 
-  const response = await axios.post(getOauthConfig().TOKEN_URL, requestBody, {
+  const response = await axios.post(config.TOKEN_URL, requestBody, {
     headers: { "Content-Type": "application/json" },
     timeout: 15000,
   });
@@ -145,17 +171,14 @@ export async function exchangeCodeForTokens(
 
 export async function refreshOAuthToken(
   refreshToken: string,
-  { scopes: requestedScopes }: { scopes?: string[] } = {}
+  { scopes: requestedScopes, loginWithMaximoAi }: { scopes?: string[]; loginWithMaximoAi?: boolean } = {}
 ): Promise<OAuthTokens> {
+  const config = loginWithMaximoAi ? MAXIMO_OAUTH_CONFIG : getOauthConfig();
   const requestBody = {
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: getOauthConfig().CLIENT_ID,
-    // Request specific scopes, defaulting to the full Maximo AI set. The
-    // backend's refresh-token grant allows scope expansion beyond what the
-    // initial authorize granted (see ALLOWED_SCOPE_EXPANSIONS), so this is
-    // safe even for tokens issued before scopes were added to the app's
-    // registered oauth_scope.
+    client_id: config.CLIENT_ID,
+    // Request specific scopes, defaulting to the full Maximo AI set.
     scope: (requestedScopes?.length
       ? requestedScopes
       : CLAUDE_AI_OAUTH_SCOPES
@@ -163,7 +186,7 @@ export async function refreshOAuthToken(
   };
 
   try {
-    const response = await axios.post(getOauthConfig().TOKEN_URL, requestBody, {
+    const response = await axios.post(config.TOKEN_URL, requestBody, {
       headers: { "Content-Type": "application/json" },
       timeout: 15000,
     });
@@ -184,34 +207,21 @@ export async function refreshOAuthToken(
 
     logEvent("tengu_oauth_token_refresh_success", {});
 
-    // Skip the extra /api/oauth/profile round-trip when we already have both
-    // the global-config profile fields AND the secure-storage subscription data.
-    // Routine refreshes satisfy both, so we cut ~7M req/day fleet-wide.
-    //
-    // Checking secure storage (not just config) matters for the
-    // CLAUDE_CODE_OAUTH_REFRESH_TOKEN re-login path: installOAuthTokens runs
-    // performLogout() AFTER we return, wiping secure storage. If we returned
-    // null for subscriptionType here, saveOAuthTokensIfNeeded would persist
-    // null ?? (wiped) ?? null = null, and every future refresh would see the
-    // config guard fields satisfied and skip again, permanently losing the
-    // subscription type for paying users. By passing through existing values,
-    // the re-login path writes cached ?? wiped ?? null = cached; and if secure
-    // storage was already empty we fall through to the fetch.
-    const config = getGlobalConfig();
+    const globalConfig = getGlobalConfig();
     const existing = getMaximoAIOAuthTokens();
     const haveProfileAlready =
-      config.oauthAccount?.billingType !== undefined &&
-      config.oauthAccount?.accountCreatedAt !== undefined &&
-      config.oauthAccount?.subscriptionCreatedAt !== undefined &&
+      globalConfig.oauthAccount?.billingType !== undefined &&
+      globalConfig.oauthAccount?.accountCreatedAt !== undefined &&
+      globalConfig.oauthAccount?.subscriptionCreatedAt !== undefined &&
       existing?.subscriptionType != null &&
       existing?.rateLimitTier != null;
 
     const profileInfo = haveProfileAlready
       ? null
-      : await fetchProfileInfo(accessToken);
+      : await fetchProfileInfo(accessToken, loginWithMaximoAi);
 
     // Update the stored properties if they have changed
-    if (profileInfo && config.oauthAccount) {
+    if (profileInfo && globalConfig.oauthAccount) {
       const updates: Partial<AccountInfo> = {};
       if (profileInfo.displayName !== undefined) {
         updates.displayName = profileInfo.displayName;
@@ -274,9 +284,11 @@ export async function refreshOAuthToken(
 }
 
 export async function fetchAndStoreUserRoles(
-  accessToken: string
+  accessToken: string,
+  loginWithMaximoAi?: boolean
 ): Promise<void> {
-  const response = await axios.get(getOauthConfig().ROLES_URL, {
+  const config = loginWithMaximoAi ? MAXIMO_OAUTH_CONFIG : getOauthConfig();
+  const response = await axios.get(config.ROLES_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -284,9 +296,9 @@ export async function fetchAndStoreUserRoles(
     throw new Error(`Failed to fetch user roles: ${response.statusText}`);
   }
   const data = response.data as UserRolesResponse;
-  const config = getGlobalConfig();
+  const globalConfig = getGlobalConfig();
 
-  if (!config.oauthAccount) {
+  if (!globalConfig.oauthAccount) {
     throw new Error("OAuth account information not found in config");
   }
 
@@ -309,10 +321,12 @@ export async function fetchAndStoreUserRoles(
 }
 
 export async function createAndStoreApiKey(
-  accessToken: string
+  accessToken: string,
+  loginWithMaximoAi?: boolean
 ): Promise<string | null> {
   try {
-    const response = await axios.post(getOauthConfig().API_KEY_URL, null, {
+    const config = loginWithMaximoAi ? MAXIMO_OAUTH_CONFIG : getOauthConfig();
+    const response = await axios.post(config.API_KEY_URL, null, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -352,7 +366,7 @@ export function isOAuthTokenExpired(expiresAt: number | null): boolean {
   return expiresWithBuffer >= expiresAt;
 }
 
-export async function fetchProfileInfo(accessToken: string): Promise<{
+export async function fetchProfileInfo(accessToken: string, loginWithMaximoAi?: boolean): Promise<{
   subscriptionType: SubscriptionType | null;
   displayName?: string;
   rateLimitTier: RateLimitTier | null;
@@ -362,23 +376,21 @@ export async function fetchProfileInfo(accessToken: string): Promise<{
   subscriptionCreatedAt?: string;
   rawProfile?: OAuthProfileResponse;
 }> {
-  const profile = await getOauthProfileFromOauthToken(accessToken);
+  const config = loginWithMaximoAi ? MAXIMO_OAUTH_CONFIG : getOauthConfig();
+  const profile = await getOauthProfileFromOauthToken(accessToken, loginWithMaximoAi);
   const orgType = profile?.organization?.organization_type;
 
   // Reuse the logic from fetchSubscriptionType
   let subscriptionType: SubscriptionType | null = null;
   switch (orgType) {
-    case "claude_max":
-      subscriptionType = "max";
-      break;
-    case "claude_pro":
+    case "pro":
       subscriptionType = "pro";
       break;
-    case "claude_enterprise":
-      subscriptionType = "enterprise";
+    case "prime":
+      subscriptionType = "prime";
       break;
-    case "claude_team":
-      subscriptionType = "team";
+    case "plus":
+      subscriptionType = "plus";
       break;
     default:
       // Return null for unknown organization types

@@ -79,11 +79,20 @@ import { getEffortSuffix } from "../../utils/effort.js";
 import { getAPIProvider } from "../../utils/model/providers.js";
 import { useMainLoopModel } from "../../hooks/useMainLoopModel.js";
 import { renderModelSetting } from "../../utils/model/model.js";
+import { isMaximoAISubscriber } from "../../utils/auth.js"; // ADDED: Import Maximo AI subscriber check
+import { getGlobalConfig } from "../../utils/config.js"; // ADDED: Ensure config is imported for OAuth info
+
+// ADDED: Import for Maximo AI auth detection
+function isMaximoAIOAuthContext(): boolean {
+  // Check if using Option 2 login (Maximo AI OAuth with OpenAI-compatible API)
+  return isMaximoAISubscriber() || getAPIProvider() === "openai";
+}
 const LEFT_PANEL_MAX_WIDTH = 50;
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();
-  const showAccountIdentity = getAPIProvider() === "firstParty";
+  // UPDATED: Show account identity for both firstParty and Maximo AI OAuth (Option 2)
+  const showAccountIdentity = getAPIProvider() === "firstParty" || isMaximoAIOAuthContext();
   const username = showAccountIdentity
     ? getGlobalConfig().oauthAccount?.displayName ?? ""
     : "";

@@ -177,9 +177,10 @@ function getLocalOauthConfig(): OauthConfig {
 // Only FedStart/PubSec deployments are permitted to prevent OAuth tokens
 // from being sent to arbitrary endpoints.
 const ALLOWED_OAUTH_BASE_URLS = [
-  "https://beacon.claude-ai.staging.ant.dev",
-  "https://claude.fedstart.com",
-  "https://claude-staging.fedstart.com",
+  // "https://beacon.claude-ai.staging.ant.dev",
+  // "https://claude.fedstart.com",
+  // "https://claude-staging.fedstart.com",
+  "https://api.maximoai.co",
 ];
 
 // Default to prod config, override with test/staging if enabled

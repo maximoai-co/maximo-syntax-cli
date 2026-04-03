@@ -30,6 +30,7 @@ import { type ModelAlias, isModelAlias } from "./aliases.js";
 import { capitalize } from "../stringUtils.js";
 import { getGlobalConfig } from "../config.js";
 import { getAntModelOverrideConfig, resolveAntModel } from "./antModels.js";
+import { getCachedMaximoModelOptions } from "../../services/api/maximoModels.js";
 
 export type ModelShortName = string;
 
@@ -55,6 +56,13 @@ export function isMaximoAIProvider(): boolean {
     (globalConfig.openAIBaseUrl?.includes("maximoai.co") ||
       baseUrl.includes("maximoai.co"))
   ) {
+    return true;
+  }
+
+  // Check if we have Maximo AI OAuth tokens (Option 2 login)
+  // This ensures OAuth-based Maximo users get proper model display
+  const oauthTokens = getMaximoAIOAuthTokens();
+  if (oauthTokens?.accessToken && isMaximoAISubscriber()) {
     return true;
   }
 
@@ -320,6 +328,25 @@ export function getDefaultMainLoopModel(): ModelName {
  */
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase();
+  // Maximo AI models - check first
+  if (name.includes("maximo-pandora-3.6-nano")) {
+    return "maximo-pandora-3.6-nano";
+  }
+  if (name.includes("maximo-pandora-3.5-syntax-fast")) {
+    return "maximo-pandora-3.5-syntax-fast";
+  }
+  if (name.includes("maximo-pandora-3.5")) {
+    return "maximo-pandora-3.5";
+  }
+  if (name.includes("maximo-pandora")) {
+    return "maximo-pandora";
+  }
+  if (name.includes("maximo-astra")) {
+    return "maximo-astra";
+  }
+  if (name.includes("maximo-alpha")) {
+    return "maximo-alpha";
+  }
   // Special cases for Maximo 4+ models to differentiate versions
   // Order matters: check more specific versions first (4-5 before 4)
   if (name.includes("claude-opus-4-6")) {
@@ -390,6 +417,38 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 export function getMaximoAiUserDefaultModelDescription(
   fastMode = false
 ): string {
+  // For Maximo AI subscribers (Option 2) or Maximo AI provider (Option 1),
+  // return dynamic Maximo model descriptions from cached API models.
+  if (isMaximoAIProvider() || isMaximoAISubscriber()) {
+    const cachedOptions = getCachedMaximoModelOptions();
+    if (cachedOptions && cachedOptions.length > 0) {
+      if (fastMode) {
+        // Find the "Nano" or first model in the list for fast mode
+        const nanoModel =
+          cachedOptions.find(
+            (opt) =>
+              opt.label.toLowerCase().includes("nano") ||
+              opt.value.toLowerCase().includes("nano")
+          ) || cachedOptions[cachedOptions.length - 1];
+        return `${nanoModel.label} · Fast & efficient`;
+      }
+      // Find the "Syntax" or preferred model, defaulting to the first one
+      const syntaxModel =
+        cachedOptions.find(
+          (opt) =>
+            opt.label.toLowerCase().includes("syntax") ||
+            opt.value.toLowerCase().includes("syntax")
+        ) || cachedOptions[0];
+      return `${syntaxModel.label} · Optimized for coding`;
+    }
+
+    // Fallback if cache is empty
+    if (fastMode) {
+      return "Pandora 3.6 Nano · Fast & efficient";
+    }
+    return "Pandora 3.5 Syntax Fast · Optimized for coding";
+  }
+  // Fall back to Anthropic model descriptions for non-Maximo providers
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${
@@ -702,6 +761,43 @@ export function modelDisplayString(model: ModelSetting): string {
     : `${model} (${resolvedModel})`;
 }
 
+/**
+ * Get marketing name for a Maximo AI model by looking up in cached API models.
+ * Returns undefined if model not found in cache.
+ */
+function getMaximoMarketingNameForModel(modelId: string): string | undefined {
+  const cachedOptions = getCachedMaximoModelOptions();
+  if (!cachedOptions || cachedOptions.length === 0) {
+    return undefined;
+  }
+
+  // Look for exact match first
+  const exactMatch = cachedOptions.find((opt) => opt.value === modelId);
+  if (exactMatch) {
+    return exactMatch.label;
+  }
+
+  // Try matching with canonical name
+  const canonical = getCanonicalName(modelId);
+  const canonicalMatch = cachedOptions.find((opt) => opt.value === canonical);
+  if (canonicalMatch) {
+    return canonicalMatch.label;
+  }
+
+  // Try partial match on model ID
+  const partialMatch = cachedOptions.find(
+    (opt) =>
+      modelId.includes(opt.value) ||
+      opt.value.includes(modelId) ||
+      modelId.includes(opt.label.toLowerCase().replace(/\s+/g, "-"))
+  );
+  if (partialMatch) {
+    return partialMatch.label;
+  }
+
+  return undefined;
+}
+
 // @[MODEL LAUNCH]: Add a marketing name mapping for the new model below.
 export function getMarketingNameForModel(modelId: string): string | undefined {
   if (getAPIProvider() === "foundry") {
@@ -712,6 +808,17 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   const has1m = modelId.toLowerCase().includes("[1m]");
   const canonical = getCanonicalName(modelId);
 
+  // Maximo AI models - dynamically get from cached models if available
+  // This works for both Option 1 (OpenAI endpoint) and Option 2 (OAuth) users
+  // because isMaximoAIProvider() checks both environment config AND cached OAuth state
+  if (isMaximoAIProvider() || isMaximoAISubscriber()) {
+    const maximoLabel = getMaximoMarketingNameForModel(canonical);
+    if (maximoLabel) {
+      return maximoLabel;
+    }
+  }
+
+  // Anthropic models (for first-party and other providers)
   if (canonical.includes("claude-opus-4-6")) {
     return has1m ? "Opus 4.6 (with 1M context)" : "Opus 4.6";
   }

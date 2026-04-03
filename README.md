@@ -119,9 +119,38 @@ See documentation: https://code.claude.com/docs/en/microsoft-foundry
 
 See documentation: https://code.claude.com/docs/en/google-vertex-ai
 
+
 ---
 
 ## Documentation
 
 - [Maximo AI Documentation](https://maximoai.co/syntax)
 - [GitHub Repository](https://github.com/maximoai/maximo-syntax-cli)
+
+---
+
+## Security
+
+If you believe you found a security issue, see [SECURITY.md](./SECURITY.md).
+
+## Contributing
+
+Contributions are welcome.
+
+For larger changes, open an issue first so the scope is clear before implementation. Helpful validation commands include:
+
+```bash
+bun run build
+bun run smoke
+# focused bun test ... runs for touched areas
+```
+
+## Disclaimer
+
+Maximo Syntax CLI is an independent community project and is not affiliated with, endorsed by, or sponsored by Anthropic.
+
+"Claude" and "Claude Code" are trademarks of Anthropic.
+
+## License
+
+MIT

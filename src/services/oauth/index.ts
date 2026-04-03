@@ -98,14 +98,16 @@ export class OAuthService {
         this.codeVerifier,
         this.port!,
         !isAutomaticFlow, // Pass isManual=true if it's NOT automatic flow
-        options?.expiresIn
+        options?.expiresIn,
+        options?.loginWithMaximoAi // Pass flag to use Maximo backend
       );
 
       // Fetch profile info (subscription type and rate limit tier) for the
       // returned OAuthTokens. Logout and account storage are handled by the
       // caller (installOAuthTokens in auth.ts).
       const profileInfo = await client.fetchProfileInfo(
-        tokenResponse.access_token
+        tokenResponse.access_token,
+        options?.loginWithMaximoAi
       );
 
       // Handle success redirect for automatic flow

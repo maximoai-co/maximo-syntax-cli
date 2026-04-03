@@ -504,11 +504,16 @@ const createDefaultState = <T>({
 
 export function useSelectNavigation<T>({
   visibleOptionCount = 5,
-  options,
+  options: rawOptions,
   initialFocusValue,
   onFocus,
   focusValue,
 }: UseSelectNavigationProps<T>): SelectNavigation<T> {
+  // Normalize options to always be an array - handles undefined/null/non-array
+  // values that can appear during React cleanup/unmount (e.g. Ctrl+C exit)
+  const options: OptionWithDescription<T>[] = Array.isArray(rawOptions)
+    ? rawOptions
+    : [];
   const [state, dispatch] = useReducer(
     reducer<T>,
     {

@@ -196,7 +196,7 @@ export function Select(t0) {
     hideIndexes: t2,
     visibleOptionCount: t3,
     highlightText,
-    options,
+    options: rawOptions,
     defaultValue,
     onCancel,
     onChange,
@@ -219,6 +219,11 @@ export function Select(t0) {
   const layout = t4 === undefined ? "compact" : t4;
   const disableSelection = t5 === undefined ? false : t5;
   const inlineDescriptions = t6 === undefined ? false : t6;
+  // Normalize options to always be an array - handles undefined/null/non-array
+  // values that can appear during React cleanup/unmount (e.g. Ctrl+C exit)
+  const options: OptionWithDescription<T>[] = Array.isArray(rawOptions)
+    ? rawOptions
+    : [];
   const [imagesSelected, setImagesSelected] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   let t7;

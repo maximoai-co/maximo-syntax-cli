@@ -4,6 +4,12 @@ import type { OAuthProfileResponse } from 'src/services/oauth/types.js'
 import { getAnthropicApiKey } from 'src/utils/auth.js'
 import { getGlobalConfig } from 'src/utils/config.js'
 import { logError } from 'src/utils/log.js'
+
+// Maximo backend OAuth configuration
+const MAXIMO_OAUTH_CONFIG = {
+  BASE_API_URL: "https://api.maximoai.co",
+  PROFILE_URL: "https://api.maximoai.co/syntax/auth/oauth/profile",
+};
 export async function getOauthProfileFromApiKey(): Promise<
   OAuthProfileResponse | undefined
 > {
@@ -36,8 +42,11 @@ export async function getOauthProfileFromApiKey(): Promise<
 
 export async function getOauthProfileFromOauthToken(
   accessToken: string,
+  loginWithMaximoAi?: boolean
 ): Promise<OAuthProfileResponse | undefined> {
-  const endpoint = `${getOauthConfig().BASE_API_URL}/api/oauth/profile`
+  const endpoint = loginWithMaximoAi
+    ? MAXIMO_OAUTH_CONFIG.PROFILE_URL
+    : `${getOauthConfig().BASE_API_URL}/api/oauth/profile`
   try {
     const response = await axios.get<OAuthProfileResponse>(endpoint, {
       headers: {

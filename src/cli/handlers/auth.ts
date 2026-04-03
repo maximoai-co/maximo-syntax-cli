@@ -96,6 +96,19 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
     await fetchAndStoreMaximoCodeFirstTokenDate().catch((err) =>
       logForDebugging(String(err), { level: "error" })
     );
+
+    // For Maximo AI OAuth (Option 2), set up OpenAI-compatible configuration
+    // The OAuth access token serves as the API key for OpenAI-compatible endpoints
+    saveGlobalConfig((current) => ({
+      ...current,
+      maximoApiKey: tokens.accessToken,
+      openAIBaseUrl: "https://api.maximoai.co/v1",
+    }));
+
+    // Set environment variables for immediate use in this session
+    process.env.CLAUDE_CODE_USE_OPENAI = "true";
+    process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
+    process.env.OPENAI_API_KEY = tokens.accessToken;
   } else {
     // API key creation is critical for Console users — let it throw.
     const apiKey = await createAndStoreApiKey(tokens.accessToken);
