@@ -126,6 +126,7 @@ See documentation: https://code.claude.com/docs/en/google-vertex-ai
 
 - [Maximo AI Documentation](https://maximoai.co/syntax)
 - [GitHub Repository](https://github.com/maximoai/maximo-syntax-cli)
+- [Changelog](./CHANGELOG.md)
 
 ---
 
