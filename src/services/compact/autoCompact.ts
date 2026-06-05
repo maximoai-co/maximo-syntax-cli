@@ -5,7 +5,10 @@ import type { QuerySource } from '../../constants/querySource.js'
 import type { ToolUseContext } from '../../Tool.js'
 import type { Message } from '../../types/message.js'
 import { getGlobalConfig } from '../../utils/config.js'
-import { getContextWindowForModel } from '../../utils/context.js'
+import {
+  getCompactSummaryMaxOutputTokensForModel,
+  getContextWindowForModel,
+} from '../../utils/context.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
 import { hasExactErrorMessage } from '../../utils/errors.js'
@@ -13,7 +16,7 @@ import type { CacheSafeParams } from '../../utils/forkedAgent.js'
 import { logError } from '../../utils/log.js'
 import { tokenCountWithEstimation } from '../../utils/tokens.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
-import { getMaxOutputTokensForModel } from '../api/claude.js'
+import { getCachedMaximoModelLimits } from '../api/maximoModels.js'
 import { notifyCompaction } from '../api/promptCacheBreakDetection.js'
 import { setLastSummarizedMessageId } from '../SessionMemory/sessionMemoryUtils.js'
 import {
@@ -25,16 +28,8 @@ import {
 import { runPostCompactCleanup } from './postCompactCleanup.js'
 import { trySessionMemoryCompaction } from './sessionMemoryCompact.js'
 
-// Reserve this many tokens for output during compaction
-// Based on p99.99 of compact summary output being 17,387 tokens.
-const MAX_OUTPUT_TOKENS_FOR_SUMMARY = 20_000
-
 // Returns the context window size minus the max output tokens for the model
 export function getEffectiveContextWindowSize(model: string): number {
-  const reservedTokensForSummary = Math.min(
-    getMaxOutputTokensForModel(model),
-    MAX_OUTPUT_TOKENS_FOR_SUMMARY,
-  )
   let contextWindow = getContextWindowForModel(model, getSdkBetas())
 
   const autoCompactWindow = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
@@ -45,7 +40,10 @@ export function getEffectiveContextWindowSize(model: string): number {
     }
   }
 
-  return contextWindow - reservedTokensForSummary
+  const reservedTokensForSummary =
+    getCompactSummaryMaxOutputTokensForModel(model, contextWindow)
+
+  return Math.max(0, contextWindow - reservedTokensForSummary)
 }
 
 export type AutoCompactTrackingState = {
@@ -59,6 +57,7 @@ export type AutoCompactTrackingState = {
   consecutiveFailures?: number
 }
 
+// Fallback buffers for providers that do not expose context/output metadata.
 export const AUTOCOMPACT_BUFFER_TOKENS = 13_000
 export const WARNING_THRESHOLD_BUFFER_TOKENS = 20_000
 export const ERROR_THRESHOLD_BUFFER_TOKENS = 20_000
@@ -69,11 +68,37 @@ export const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
 // in a single session, wasting ~250K API calls/day globally.
 const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
 
+function usesMaximoModelLimits(model: string): boolean {
+  const limits = getCachedMaximoModelLimits(model)
+  return Boolean(limits?.contextWindow && limits.maxOutputTokens)
+}
+
+function getMaximoOutputRatio(model: string): number | undefined {
+  const limits = getCachedMaximoModelLimits(model)
+  if (!limits?.contextWindow || !limits.maxOutputTokens) {
+    return undefined
+  }
+  return Math.min(1, limits.maxOutputTokens / limits.contextWindow)
+}
+
+function getThresholdBufferTokens(
+  model: string,
+  threshold: number,
+  fallback: number,
+): number {
+  const outputRatio = getMaximoOutputRatio(model)
+  if (outputRatio === undefined) {
+    return fallback
+  }
+  return Math.floor(Math.min(threshold, threshold * outputRatio))
+}
+
 export function getAutoCompactThreshold(model: string): number {
   const effectiveContextWindow = getEffectiveContextWindowSize(model)
 
-  const autocompactThreshold =
-    effectiveContextWindow - AUTOCOMPACT_BUFFER_TOKENS
+  const autocompactThreshold = usesMaximoModelLimits(model)
+    ? effectiveContextWindow
+    : effectiveContextWindow - AUTOCOMPACT_BUFFER_TOKENS
 
   // Override for easier testing of autocompact
   const envPercent = process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
@@ -87,7 +112,7 @@ export function getAutoCompactThreshold(model: string): number {
     }
   }
 
-  return autocompactThreshold
+  return Math.max(0, autocompactThreshold)
 }
 
 export function calculateTokenWarningState(
@@ -105,13 +130,17 @@ export function calculateTokenWarningState(
     ? autoCompactThreshold
     : getEffectiveContextWindowSize(model)
 
-  const percentLeft = Math.max(
-    0,
-    Math.round(((threshold - tokenUsage) / threshold) * 100),
-  )
+  const percentLeft =
+    threshold > 0
+      ? Math.max(0, Math.round(((threshold - tokenUsage) / threshold) * 100))
+      : 0
 
-  const warningThreshold = threshold - WARNING_THRESHOLD_BUFFER_TOKENS
-  const errorThreshold = threshold - ERROR_THRESHOLD_BUFFER_TOKENS
+  const warningThreshold =
+    threshold -
+    getThresholdBufferTokens(model, threshold, WARNING_THRESHOLD_BUFFER_TOKENS)
+  const errorThreshold =
+    threshold -
+    getThresholdBufferTokens(model, threshold, ERROR_THRESHOLD_BUFFER_TOKENS)
 
   const isAboveWarningThreshold = tokenUsage >= warningThreshold
   const isAboveErrorThreshold = tokenUsage >= errorThreshold
@@ -120,8 +149,15 @@ export function calculateTokenWarningState(
     isAutoCompactEnabled() && tokenUsage >= autoCompactThreshold
 
   const actualContextWindow = getEffectiveContextWindowSize(model)
-  const defaultBlockingLimit =
-    actualContextWindow - MANUAL_COMPACT_BUFFER_TOKENS
+  const defaultBlockingLimit = Math.max(
+    0,
+    actualContextWindow -
+      getThresholdBufferTokens(
+        model,
+        actualContextWindow,
+        MANUAL_COMPACT_BUFFER_TOKENS,
+      ),
+  )
 
   // Allow override for testing
   const blockingLimitOverride = process.env.CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE

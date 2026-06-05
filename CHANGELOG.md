@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Refreshed the startup terminal UI with Maximo branding, restored the "Move at Maximo Speed" tagline, and replaced the legacy mascot with a compact octopus mascot.
 - Moved "Maximo AI account with subscription" to the first login option.
+- Maximo model context, output, and auto-compact thresholds now come from `https://api.maximoai.co/v1/models`, with compact reserves derived from each model's own output-to-context ratio.
 
 ### Fixed
 

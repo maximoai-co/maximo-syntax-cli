@@ -8,7 +8,11 @@
 import type { ModelOption } from "../../utils/model/modelOptions.js";
 import { getGlobalConfig } from "../../utils/config.js";
 import { logError } from "../../utils/log.js";
-import { getAPIProvider } from "../../utils/model/providers.js";
+import {
+  getMaximoAIOAuthTokens,
+  isMaximoAIOpenAICompatibleProvider,
+  isMaximoAISubscriber,
+} from "../../utils/auth.js";
 
 // Response type from Maximo AI /v1/models endpoint
 export interface MaximoModel {
@@ -17,8 +21,15 @@ export interface MaximoModel {
   hugging_face_id: string;
   created: number;
   description: string;
-  context_length: number;
-  max_output_length: number;
+  context_length?: number;
+  max_context_length?: number;
+  max_context_tokens?: number;
+  max_input_tokens?: number;
+  context_window?: number;
+  max_output_length?: number;
+  max_output_tokens?: number;
+  max_completion_tokens?: number;
+  max_tokens?: number;
   isPreview?: boolean;
   earlyAccess?: boolean;
   isResearchPreview?: boolean;
@@ -77,39 +88,124 @@ let cachedModels: MaximoModel[] | null = null;
 let lastFetchTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export type MaximoModelLimits = {
+  id: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+};
+
+function firstPositiveInteger(
+  ...values: Array<number | null | undefined>
+): number | undefined {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return Math.floor(value);
+    }
+  }
+  return undefined;
+}
+
+function getMaximoModelContextLength(model: MaximoModel): number | undefined {
+  return firstPositiveInteger(
+    model.context_length,
+    model.max_context_length,
+    model.max_context_tokens,
+    model.max_input_tokens,
+    model.context_window,
+    model.top_provider?.context_length
+  );
+}
+
+function getMaximoModelMaxOutputLength(model: MaximoModel): number | undefined {
+  return firstPositiveInteger(
+    model.max_output_length,
+    model.max_output_tokens,
+    model.max_completion_tokens,
+    model.max_tokens,
+    model.top_provider?.max_completion_tokens
+  );
+}
+
+function getModelMatchKeys(model: MaximoModel): string[] {
+  return [
+    model.id,
+    model.canonical_slug,
+    model.openrouter?.slug,
+    model.hugging_face_id,
+  ].filter((value): value is string => typeof value === "string" && value);
+}
+
+function normalizeModelId(model: string): string {
+  return model.replace(/\[1m\]/gi, "").trim().toLowerCase();
+}
+
+export function getCachedMaximoModel(model: string): MaximoModel | undefined {
+  if (!cachedModels || cachedModels.length === 0) {
+    return undefined;
+  }
+
+  const normalized = normalizeModelId(model);
+  if (!normalized) {
+    return undefined;
+  }
+
+  for (const candidate of cachedModels) {
+    if (
+      getModelMatchKeys(candidate).some(
+        (key) => key.toLowerCase() === normalized
+      )
+    ) {
+      return candidate;
+    }
+  }
+
+  const sorted = [...cachedModels].sort(
+    (a, b) => b.id.length - a.id.length || a.id.localeCompare(b.id)
+  );
+  return sorted.find((candidate) =>
+    getModelMatchKeys(candidate).some((key) => {
+      const normalizedKey = key.toLowerCase();
+      return (
+        normalizedKey.length > 0 &&
+        (normalized.includes(normalizedKey) ||
+          normalizedKey.includes(normalized))
+      );
+    })
+  );
+}
+
+export function getCachedMaximoModelLimits(
+  model: string
+): MaximoModelLimits | undefined {
+  const maximoModel = getCachedMaximoModel(model);
+  if (!maximoModel) {
+    return undefined;
+  }
+
+  const contextWindow = getMaximoModelContextLength(maximoModel);
+  const maxOutputTokens = getMaximoModelMaxOutputLength(maximoModel);
+  if (!contextWindow && !maxOutputTokens) {
+    return undefined;
+  }
+
+  return {
+    id: maximoModel.id,
+    contextWindow,
+    maxOutputTokens,
+  };
+}
+
 /**
  * Check if we're using Maximo AI provider (via OpenAI-compatible endpoint)
  * This is duplicated from model.ts to avoid circular imports
  */
 function isMaximoAIProviderInternal(): boolean {
-  const provider = process.env.CLAUDE_CODE_USE_OPENAI
-    ? "openai"
-    : process.env.CLAUDE_CODE_USE_GEMINI
-    ? "gemini"
-    : process.env.CLAUDE_CODE_USE_BEDROCK
-    ? "bedrock"
-    : process.env.CLAUDE_CODE_USE_VERTEX
-    ? "vertex"
-    : process.env.CLAUDE_CODE_USE_FOUNDRY
-    ? "foundry"
-    : "firstParty";
-  const baseUrl = process.env.OPENAI_BASE_URL || "";
-
-  // Check if we're using the Maximo AI API endpoint
-  if (
-    provider === "openai" &&
-    (baseUrl.includes("api.maximoai.co") || baseUrl.includes("maximoai.co"))
-  ) {
+  if (isMaximoAIOpenAICompatibleProvider()) {
     return true;
   }
 
-  // Check if using Maximo AI OAuth config
-  const globalConfig = getGlobalConfig();
-  if (
-    globalConfig.maximoApiKey &&
-    (globalConfig.openAIBaseUrl?.includes("maximoai.co") ||
-      baseUrl.includes("maximoai.co"))
-  ) {
+  const oauthTokens = getMaximoAIOAuthTokens();
+  if (oauthTokens?.accessToken && isMaximoAISubscriber()) {
     return true;
   }
 
@@ -121,11 +217,11 @@ function isMaximoAIProviderInternal(): boolean {
  */
 function getMaximoAIBaseUrl(): string {
   const globalConfig = getGlobalConfig();
-  return (
-    globalConfig.openAIBaseUrl ||
-    process.env.OPENAI_BASE_URL ||
-    "https://api.maximoai.co/v1"
-  );
+  const configuredBaseUrl =
+    globalConfig.openAIBaseUrl || process.env.OPENAI_BASE_URL;
+  return configuredBaseUrl?.includes("maximoai.co")
+    ? configuredBaseUrl
+    : "https://api.maximoai.co/v1";
 }
 
 /**
@@ -133,7 +229,11 @@ function getMaximoAIBaseUrl(): string {
  */
 function getMaximoApiKey(): string | undefined {
   const globalConfig = getGlobalConfig();
-  return globalConfig.maximoApiKey || process.env.OPENAI_API_KEY;
+  return (
+    globalConfig.maximoApiKey ||
+    getMaximoAIOAuthTokens()?.accessToken ||
+    process.env.OPENAI_API_KEY
+  );
 }
 
 /**
@@ -145,19 +245,19 @@ export async function fetchMaximoModels(): Promise<MaximoModel[]> {
     return cachedModels;
   }
 
-  const baseUrl = getMaximoAIBaseUrl();
+  const baseUrl = getMaximoAIBaseUrl().replace(/\/+$/, "");
   const apiKey = getMaximoApiKey();
 
-  if (!apiKey) {
-    return [];
-  }
-
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(`${baseUrl}/models`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -166,10 +266,15 @@ export async function fetchMaximoModels(): Promise<MaximoModel[]> {
       );
     }
 
-    const data = (await response.json()) as MaximoModelsResponse;
+    const data = (await response.json()) as MaximoModelsResponse | MaximoModel[];
+    const models = Array.isArray(data) ? data : data.data;
+
+    if (!Array.isArray(models)) {
+      throw new Error("Failed to fetch models: malformed response");
+    }
 
     // Sort models by name, prioritizing non-preview models
-    const sortedModels = data.data.sort((a, b) => {
+    const sortedModels = [...models].sort((a, b) => {
       // Prioritize Pandora models for coding
       const aIsPandora = a.id.includes("pandora");
       const bIsPandora = b.id.includes("pandora");
@@ -182,7 +287,7 @@ export async function fetchMaximoModels(): Promise<MaximoModel[]> {
       if (!a.isPreview && b.isPreview) return -1;
 
       // Then sort by name
-      return a.name.localeCompare(b.name);
+      return (a.name || a.id).localeCompare(b.name || b.id);
     });
 
     cachedModels = sortedModels;
@@ -253,14 +358,19 @@ function toModelOption(model: MaximoModel): ModelOption {
     description = `[Preview] ${description}`;
   }
 
-  // Add context length info
-  const contextInK = Math.round(model.context_length / 1000);
-  const outputInK = Math.round(model.max_output_length / 1000);
+  const contextLength = getMaximoModelContextLength(model);
+  const outputLength = getMaximoModelMaxOutputLength(model);
+  const limitParts = [
+    contextLength ? `${Math.round(contextLength / 1000)}K context` : undefined,
+    outputLength ? `${Math.round(outputLength / 1000)}K output` : undefined,
+  ].filter((part): part is string => Boolean(part));
+  const limitsDescription =
+    limitParts.length > 0 ? ` · ${limitParts.join(" · ")}` : "";
 
   return {
     value: model.id,
     label,
-    description: `${description} · ${contextInK}K context · ${outputInK}K output`,
+    description: `${description}${limitsDescription}`,
     descriptionForModel: `${model.name} - ${model.description}`,
   };
 }

@@ -2,6 +2,7 @@
 import { CONTEXT_1M_BETA_HEADER } from '../constants/betas.js'
 import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
+import { getCachedMaximoModelLimits } from '../services/api/maximoModels.js'
 import { getCanonicalName } from './model/model.js'
 import { getModelCapability } from './model/modelCapabilities.js'
 import { getOpenAIContextWindow, getOpenAIMaxOutputTokens } from './model/openaiContextWindows.js'
@@ -9,7 +10,7 @@ import { getOpenAIContextWindow, getOpenAIMaxOutputTokens } from './model/openai
 // Model context window size (200k tokens for all models right now)
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
 
-// Maximum output tokens for compact operations
+// Fallback compact output cap for providers that do not expose model metadata.
 export const COMPACT_MAX_OUTPUT_TOKENS = 20_000
 
 // Default max output tokens
@@ -65,6 +66,11 @@ export function getContextWindowForModel(
     if (!isNaN(override) && override > 0) {
       return override
     }
+  }
+
+  const maximoLimits = getCachedMaximoModelLimits(model)
+  if (maximoLimits?.contextWindow) {
+    return maximoLimits.contextWindow
   }
 
   // [1m] suffix — explicit client-side opt-in, respected over all detection
@@ -164,6 +170,14 @@ export function getModelMaxOutputTokens(model: string): {
   default: number
   upperLimit: number
 } {
+  const maximoLimits = getCachedMaximoModelLimits(model)
+  if (maximoLimits?.maxOutputTokens) {
+    return {
+      default: maximoLimits.maxOutputTokens,
+      upperLimit: maximoLimits.maxOutputTokens,
+    }
+  }
+
   let defaultTokens: number
   let upperLimit: number
 
@@ -234,6 +248,30 @@ export function getModelMaxOutputTokens(model: string): {
   }
 
   return { default: defaultTokens, upperLimit }
+}
+
+export function getCompactSummaryMaxOutputTokensForModel(
+  model: string,
+  contextWindowOverride?: number,
+): number {
+  const maximoLimits = getCachedMaximoModelLimits(model)
+  if (maximoLimits?.contextWindow && maximoLimits.maxOutputTokens) {
+    const outputRatio = maximoLimits.maxOutputTokens / maximoLimits.contextWindow
+    const contextWindow =
+      contextWindowOverride ?? getContextWindowForModel(model)
+    return Math.floor(
+      Math.min(
+        maximoLimits.maxOutputTokens,
+        contextWindow,
+        contextWindow * outputRatio,
+      ),
+    )
+  }
+
+  return Math.min(
+    COMPACT_MAX_OUTPUT_TOKENS,
+    getModelMaxOutputTokens(model).default,
+  )
 }
 
 /**

@@ -7,7 +7,6 @@ import {
   getSettingsForSource,
 } from "src/utils/settings/settings.js";
 import { shouldOfferTerminalSetup } from "../../commands/terminalSetup/terminalSetup.js";
-import { getDesktopUpsellConfig } from "../../components/DesktopUpsell/DesktopUpsellStartup.js";
 import { color } from "../../components/design-system/color.js";
 import { shouldShowOverageCreditUpsell } from "../../components/LogoV2/OverageCreditUpsell.js";
 import { getShortcutDisplay } from "../../keybindings/shortcutFormat.js";
@@ -453,40 +452,9 @@ const externalTips: Tip[] = [
     },
   },
   {
-    id: "desktop-app",
-    content: async () =>
-      "Run Maximo Syntax locally or remotely using the Maximo desktop app: clau.de/desktop",
-    cooldownSessions: 15,
-    isRelevant: async () => getPlatform() !== "linux",
-  },
-  {
-    id: "desktop-shortcut",
-    content: async (ctx) => {
-      const blue = color("suggestion", ctx.theme);
-      return `Continue your session in Maximo Syntax Desktop with ${blue(
-        "/desktop"
-      )}`;
-    },
-    cooldownSessions: 15,
-    isRelevant: async () => {
-      if (!getDesktopUpsellConfig().enable_shortcut_tip) return false;
-      return (
-        process.platform === "darwin" ||
-        (process.platform === "win32" && process.arch === "x64")
-      );
-    },
-  },
-  {
     id: "web-app",
     content: async () =>
       "Run tasks in the cloud while you keep coding locally · clau.de/web",
-    cooldownSessions: 15,
-    isRelevant: async () => true,
-  },
-  {
-    id: "mobile-app",
-    content: async () =>
-      "/mobile to use Maximo Syntax from the Maximo app on your phone",
     cooldownSessions: 15,
     isRelevant: async () => true,
   },

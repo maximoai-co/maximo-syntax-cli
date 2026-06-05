@@ -343,6 +343,7 @@ import {
   gracefulShutdownSync,
 } from "src/utils/gracefulShutdown.js";
 import { setAllHookEventsEnabled } from "src/utils/hooks/hookEvents.js";
+import { prefetchMaximoModels } from "src/services/api/maximoModels.js";
 import { refreshModelCapabilities } from "src/utils/model/modelCapabilities.js";
 import { peekForStdinData, writeToStderr } from "src/utils/process.js";
 import { setCwd } from "src/utils/Shell.js";
@@ -685,6 +686,7 @@ export function startDeferredPrefetches(): void {
   void initializeAnalyticsGates();
   void prefetchOfficialMcpUrls();
   void refreshModelCapabilities();
+  prefetchMaximoModels();
 
   // File change detectors deferred from init() to unblock first render
   void settingsChangeDetector.initialize();
