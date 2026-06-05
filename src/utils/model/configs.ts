@@ -18,7 +18,7 @@ export const OPENAI_MODEL_DEFAULTS = {
 export const MAXIMO_AI_MODEL_DEFAULTS = {
   opus: "maximo-pandora-3.5-syntax-pro", // best reasoning
   sonnet: "maximo-pandora-3.5-syntax-fast", // balanced
-  haiku: "maximo-pandora-3.6-nano", // fast & cheap
+  haiku: "maximo-pandora-3.7-nano", // fast & cheap
 } as const;
 
 // ---------------------------------------------------------------------------

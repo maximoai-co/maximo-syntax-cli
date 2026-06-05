@@ -70,7 +70,7 @@ Maximo Syntax CLI uses Maximo AI as the default provider. Get your API key from 
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=your-maximo-api-key
 export OPENAI_BASE_URL=https://api.maximoai.co/v1
-export OPENAI_MODEL=maximo-pandora-3.6-nano
+export OPENAI_MODEL=maximo-pandora-3.7-nano
 ```
 
 Or create a `.env` file in your project directory:
@@ -79,7 +79,7 @@ Or create a `.env` file in your project directory:
 CLAUDE_CODE_USE_OPENAI=1
 OPENAI_API_KEY=your-maximo-api-key
 OPENAI_BASE_URL=https://api.maximoai.co/v1
-OPENAI_MODEL=maximo-pandora-3.6-nano
+OPENAI_MODEL=maximo-pandora-3.7-nano
 ```
 
 ### 2. Run Maximo Syntax CLI

@@ -84,7 +84,7 @@ export function getSmallFastModel(): ModelName {
     const baseUrl = process.env.OPENAI_BASE_URL || "";
     // If using Maximo AI API, use Nano as the fast model
     if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.6-nano";
+      return process.env.OPENAI_MODEL || "maximo-pandora-3.7-nano";
     }
     return process.env.OPENAI_MODEL || "gpt-4o-mini";
   }
@@ -226,7 +226,7 @@ export function getDefaultHaikuModel(): ModelName {
     const baseUrl = process.env.OPENAI_BASE_URL || "";
     // If using Maximo AI API, don't use gpt-4o-mini default
     if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.6-nano";
+      return process.env.OPENAI_MODEL || "maximo-pandora-3.7-nano";
     }
     return process.env.OPENAI_MODEL || "gpt-4o-mini";
   }
@@ -329,6 +329,9 @@ export function getDefaultMainLoopModel(): ModelName {
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase();
   // Maximo AI models - check first
+  if (name.includes("maximo-pandora-3.7-nano")) {
+    return "maximo-pandora-3.7-nano";
+  }
   if (name.includes("maximo-pandora-3.6-nano")) {
     return "maximo-pandora-3.6-nano";
   }
@@ -444,7 +447,7 @@ export function getMaximoAiUserDefaultModelDescription(
 
     // Fallback if cache is empty
     if (fastMode) {
-      return "Pandora 3.6 Nano · Fast & efficient";
+      return "Pandora 3.7 Nano · Fast & efficient";
     }
     return "Pandora 3.5 Syntax Fast · Optimized for coding";
   }

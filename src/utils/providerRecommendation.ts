@@ -208,12 +208,12 @@ export function normalizeRecommendationGoal(
 export function getGoalDefaultOpenAIModel(goal: RecommendationGoal): string {
   switch (goal) {
     case "latency":
-      return "maximo-pandora-3.6-nano";
+      return "maximo-pandora-3.7-nano";
     case "coding":
-      return "maximo-pandora-3.6-nano";
+      return "maximo-pandora-3.7-nano";
     case "balanced":
     default:
-      return "maximo-pandora-3.6-nano";
+      return "maximo-pandora-3.7-nano";
   }
 }
 
