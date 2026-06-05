@@ -1574,7 +1574,74 @@ export function isMaximoAISubscriber(): boolean {
     return false;
   }
 
-  return shouldUseMaximoAIAuth(getMaximoAIOAuthTokens()?.scopes);
+  const oauthTokens = getMaximoAIOAuthTokens();
+  return Boolean(
+    shouldUseMaximoAIAuth(oauthTokens?.scopes) ||
+      (oauthTokens?.accessToken &&
+        normalizeSubscriptionType(oauthTokens.subscriptionType))
+  );
+}
+
+function isMaximoAIBaseUrl(baseUrl: string | undefined): boolean {
+  return Boolean(baseUrl?.includes("maximoai.co"));
+}
+
+function getGlobalConfigIfAvailable(): ReturnType<
+  typeof getGlobalConfig
+> | null {
+  try {
+    return getGlobalConfig();
+  } catch {
+    return null;
+  }
+}
+
+export function isMaximoAIOpenAICompatibleProvider(): boolean {
+  const globalConfig = getGlobalConfigIfAvailable();
+  const baseUrl = process.env.OPENAI_BASE_URL || globalConfig?.openAIBaseUrl;
+  const hasMaximoProviderConfig =
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
+    Boolean(globalConfig?.maximoApiKey);
+
+  return hasMaximoProviderConfig && isMaximoAIBaseUrl(baseUrl);
+}
+
+function normalizeSubscriptionType(
+  value: unknown
+): SubscriptionType | null {
+  switch (value) {
+    case "enterprise":
+    case "team":
+    case "max":
+    case "pro":
+    case "prime":
+    case "plus":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function getStoredOAuthAccountSubscriptionType(): SubscriptionType | null {
+  return normalizeSubscriptionType(
+    getGlobalConfigIfAvailable()?.oauthAccount?.billingType
+  );
+}
+
+function hasStoredMaximoAISubscriptionAccount(): boolean {
+  const oauthAccount = getGlobalConfigIfAvailable()?.oauthAccount;
+  return Boolean(
+    getStoredOAuthAccountSubscriptionType() ||
+      oauthAccount?.subscriptionCreatedAt
+  );
+}
+
+export function hasMaximoAISubscriptionDisplayAccount(): boolean {
+  return (
+    isMaximoAISubscriber() ||
+    (isMaximoAIOpenAICompatibleProvider() &&
+      hasStoredMaximoAISubscriptionAccount())
+  );
 }
 
 /**
@@ -1676,12 +1743,17 @@ export function getSubscriptionType(): SubscriptionType | null {
   if (!isAnthropicAuthEnabled()) {
     return null;
   }
-  const oauthTokens = getMaximoAIOAuthTokens();
-  if (!oauthTokens) {
-    return null;
-  }
 
-  return oauthTokens.subscriptionType ?? null;
+  return normalizeSubscriptionType(getMaximoAIOAuthTokens()?.subscriptionType);
+}
+
+export function getSubscriptionTypeForDisplay(): SubscriptionType | null {
+  return (
+    getSubscriptionType() ??
+    (isMaximoAIOpenAICompatibleProvider()
+      ? getStoredOAuthAccountSubscriptionType()
+      : null)
+  );
 }
 
 export function isMaxSubscriber(): boolean {
@@ -1720,8 +1792,20 @@ export function getRateLimitTier(): string | null {
 }
 
 export function getSubscriptionName(): string {
-  const subscriptionType = getSubscriptionType();
+  return getSubscriptionNameFromType(getSubscriptionType());
+}
 
+export function getSubscriptionNameForDisplay(): string {
+  return getSubscriptionNameFromType(
+    getSubscriptionTypeForDisplay(),
+    hasMaximoAISubscriptionDisplayAccount()
+  );
+}
+
+function getSubscriptionNameFromType(
+  subscriptionType: SubscriptionType | null,
+  hasSubscriptionFallback = false
+): string {
   switch (subscriptionType) {
     case "enterprise":
       return "Maximo Enterprise";
@@ -1731,8 +1815,12 @@ export function getSubscriptionName(): string {
       return "Maximo Max";
     case "pro":
       return "Maximo Pro";
+    case "prime":
+      return "Maximo Prime";
+    case "plus":
+      return "Maximo Plus";
     default:
-      return "Maximo API";
+      return hasSubscriptionFallback ? "Maximo Subscription" : "Maximo API";
   }
 }
 
@@ -1851,8 +1939,15 @@ export function getOtelHeadersFromHelper(): Record<string, string> {
   }
 }
 
-function isConsumerPlan(plan: SubscriptionType): plan is "max" | "pro" {
-  return plan === "max" || plan === "pro";
+function isConsumerPlan(
+  plan: SubscriptionType
+): plan is "max" | "pro" | "prime" | "plus" {
+  return (
+    plan === "max" ||
+    plan === "pro" ||
+    plan === "prime" ||
+    plan === "plus"
+  );
 }
 
 export function isConsumerSubscriber(): boolean {

@@ -161,7 +161,7 @@ export function ThemePicker(t0) {
   let t11;
   if ($[8] !== showIntroText) {
     t11 = showIntroText ? (
-      <Text>Let's get started.</Text>
+      <Text bold={true} color="claude">Quick setup</Text>
     ) : (
       <Text bold={true} color="permission">
         Theme
@@ -176,7 +176,7 @@ export function ThemePicker(t0) {
   if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
     t12 = (
       <Text bold={true}>
-        Choose the text style that looks best with your terminal
+        Pick the theme that reads best in this terminal
       </Text>
     );
     $[10] = t12;

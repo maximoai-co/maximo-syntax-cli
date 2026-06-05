@@ -1,7 +1,10 @@
 import { getDirectConnectServerUrl, getSessionId } from "../bootstrap/state.js";
 import { stringWidth } from "../ink/stringWidth.js";
 import type { LogOption } from "../types/logs.js";
-import { getSubscriptionName, isMaximoAISubscriber } from "./auth.js";
+import {
+  getSubscriptionNameForDisplay,
+  hasMaximoAISubscriptionDisplayAccount,
+} from "./auth.js";
 import { getCwd } from "./cwd.js";
 import { getDisplayPath } from "./file.js";
 import {
@@ -14,7 +17,10 @@ import {
   parseChangelog,
 } from "./releaseNotes.js";
 import { gt } from "./semver.js";
-import { loadMessageLogs } from "./sessionStorage.js";
+import {
+  loadAllProjectsMessageLogs,
+  loadMessageLogs,
+} from "./sessionStorage.js";
 import { getInitialSettings } from "./settings/settings.js";
 
 // Layout constants
@@ -197,6 +203,22 @@ export function truncatePath(path: string, maxLength: number): string {
 let cachedActivity: LogOption[] = [];
 let cachePromise: Promise<LogOption[]> | null = null;
 
+function filterRecentActivity(
+  logs: LogOption[],
+  currentSessionId: string
+): LogOption[] {
+  return logs.filter((log) => {
+    if (log.isSidechain) return false;
+    if (log.sessionId === currentSessionId) return false;
+    if (log.summary?.includes("I apologize")) return false;
+
+    // Filter out sessions where both summary and firstPrompt are "No prompt" or missing
+    const hasSummary = log.summary && log.summary !== "No prompt";
+    const hasFirstPrompt = log.firstPrompt && log.firstPrompt !== "No prompt";
+    return hasSummary || hasFirstPrompt;
+  });
+}
+
 /**
  * Preloads recent conversations for display in Logo v2
  */
@@ -208,20 +230,15 @@ export async function getRecentActivity(): Promise<LogOption[]> {
 
   const currentSessionId = getSessionId();
   cachePromise = loadMessageLogs(10)
-    .then((logs) => {
-      cachedActivity = logs
-        .filter((log) => {
-          if (log.isSidechain) return false;
-          if (log.sessionId === currentSessionId) return false;
-          if (log.summary?.includes("I apologize")) return false;
-
-          // Filter out sessions where both summary and firstPrompt are "No prompt" or missing
-          const hasSummary = log.summary && log.summary !== "No prompt";
-          const hasFirstPrompt =
-            log.firstPrompt && log.firstPrompt !== "No prompt";
-          return hasSummary || hasFirstPrompt;
-        })
-        .slice(0, 3);
+    .then(async (logs) => {
+      let activity = filterRecentActivity(logs, currentSessionId);
+      if (activity.length === 0) {
+        activity = filterRecentActivity(
+          await loadAllProjectsMessageLogs(10),
+          currentSessionId
+        );
+      }
+      cachedActivity = activity.slice(0, 3);
       return cachedActivity;
     })
     .catch(() => {
@@ -268,8 +285,8 @@ export function getLogoDisplayData(): {
   const cwd = serverUrl
     ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, "")}`
     : displayPath;
-  const billingType = isMaximoAISubscriber()
-    ? getSubscriptionName()
+  const billingType = hasMaximoAISubscriptionDisplayAccount()
+    ? getSubscriptionNameForDisplay()
     : "API Usage Billing";
   const agentName = getInitialSettings().agent;
 

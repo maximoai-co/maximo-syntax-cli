@@ -43,6 +43,17 @@ export function parseScopes(scopeString?: string): string[] {
   return scopeString?.split(" ").filter(Boolean) ?? [];
 }
 
+export function parseTokenScopes(
+  scopeString: string | undefined,
+  fallbackToMaximoAIScopes = false
+): string[] {
+  const scopes = parseScopes(scopeString);
+  if (scopes.length > 0) {
+    return scopes;
+  }
+  return fallbackToMaximoAIScopes ? [...CLAUDE_AI_OAUTH_SCOPES] : [];
+}
+
 // Maximo backend OAuth configuration
 export const MAXIMO_OAUTH_CONFIG = {
   BASE_API_URL: "https://api.maximoai.co",
@@ -203,7 +214,14 @@ export async function refreshOAuthToken(
     } = data;
 
     const expiresAt = Date.now() + expiresIn * 1000;
-    const scopes = parseScopes(data.scope);
+    const shouldFallbackToMaximoAIScopes =
+      loginWithMaximoAi ||
+      !requestedScopes?.length ||
+      requestedScopes.includes(CLAUDE_AI_INFERENCE_SCOPE);
+    const scopes = parseTokenScopes(
+      data.scope,
+      shouldFallbackToMaximoAIScopes
+    );
 
     logEvent("tengu_oauth_token_refresh_success", {});
 

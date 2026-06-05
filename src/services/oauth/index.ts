@@ -110,9 +110,13 @@ export class OAuthService {
         options?.loginWithMaximoAi
       );
 
+      const scopes = client.parseTokenScopes(
+        tokenResponse.scope,
+        options?.loginWithMaximoAi
+      );
+
       // Handle success redirect for automatic flow
       if (isAutomaticFlow) {
-        const scopes = client.parseScopes(tokenResponse.scope);
         this.authCodeListener?.handleSuccessRedirect(scopes);
       }
 
@@ -120,7 +124,8 @@ export class OAuthService {
         tokenResponse,
         profileInfo.subscriptionType,
         profileInfo.rateLimitTier,
-        profileInfo.rawProfile
+        profileInfo.rawProfile,
+        scopes
       );
     } catch (error) {
       // If we have a pending response, send an error redirect before closing
@@ -173,13 +178,14 @@ export class OAuthService {
     response: OAuthTokenExchangeResponse,
     subscriptionType: SubscriptionType | null,
     rateLimitTier: RateLimitTier | null,
-    profile?: OAuthProfileResponse
+    profile?: OAuthProfileResponse,
+    scopes = client.parseScopes(response.scope)
   ): OAuthTokens {
     return {
       accessToken: response.access_token,
       refreshToken: response.refresh_token,
       expiresAt: Date.now() + response.expires_in * 1000,
-      scopes: client.parseScopes(response.scope),
+      scopes,
       subscriptionType,
       rateLimitTier,
       profile,

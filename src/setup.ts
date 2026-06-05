@@ -388,12 +388,8 @@ export async function setup(
   // --bare / SIMPLE: skip — release notes are interactive-UI display data,
   // and getRecentActivity() reads up to 10 session JSONL files.
   if (!isBareMode()) {
-    const { hasReleaseNotes } = await checkForReleaseNotes(
-      getGlobalConfig().lastReleaseNotesSeen
-    );
-    if (hasReleaseNotes) {
-      await getRecentActivity();
-    }
+    await checkForReleaseNotes(getGlobalConfig().lastReleaseNotesSeen);
+    await getRecentActivity();
   }
 
   // If permission mode is set to bypass, verify we're in a safe environment

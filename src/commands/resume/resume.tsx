@@ -107,8 +107,15 @@ function ResumeCommand({
   const loadLogs = React.useCallback(async (allProjects: boolean, paths: string[]) => {
     setLoading(true);
     try {
-      const allLogs = allProjects ? await loadAllProjectsMessageLogs() : await loadSameRepoMessageLogs(paths);
-      const resumable = filterResumableSessions(allLogs, getSessionId());
+      let allLogs = allProjects ? await loadAllProjectsMessageLogs() : await loadSameRepoMessageLogs(paths);
+      let resumable = filterResumableSessions(allLogs, getSessionId());
+      if (!allProjects && resumable.length === 0) {
+        allLogs = await loadAllProjectsMessageLogs();
+        resumable = filterResumableSessions(allLogs, getSessionId());
+        if (resumable.length > 0) {
+          setShowAllProjects(true);
+        }
+      }
       if (resumable.length === 0) {
         onDone('No conversations found to resume');
         return;
@@ -212,8 +219,20 @@ export const call: LocalJSXCommandCall = async (onDone, context, args) => {
 
   // Load logs to search (includes same-repo worktrees)
   const worktreePaths = await getWorktreePaths(getOriginalCwd());
-  const logs = await loadSameRepoMessageLogs(worktreePaths);
-  if (logs.length === 0) {
+  const currentSessionId = getSessionId();
+  let logs = await loadSameRepoMessageLogs(worktreePaths);
+  let searchedAllProjects = false;
+  async function ensureAllProjectLogs(): Promise<LogOption[]> {
+    if (!searchedAllProjects) {
+      logs = await loadAllProjectsMessageLogs();
+      searchedAllProjects = true;
+    }
+    return logs;
+  }
+  if (filterResumableSessions(logs, currentSessionId).length === 0) {
+    await ensureAllProjectLogs();
+  }
+  if (filterResumableSessions(logs, currentSessionId).length === 0) {
     const message = 'No conversations found to resume.';
     return <ResumeError message={message} args={arg} onDone={() => onDone(message)} />;
   }
@@ -224,6 +243,14 @@ export const call: LocalJSXCommandCall = async (onDone, context, args) => {
     const matchingLogs = logs.filter(l => getSessionIdFromLog(l) === maybeSessionId).sort((a, b) => b.modified.getTime() - a.modified.getTime());
     if (matchingLogs.length > 0) {
       const log = matchingLogs[0]!;
+      const fullLog = isLiteLog(log) ? await loadFullLog(log) : log;
+      void onResume(maybeSessionId, fullLog, 'slash_command_session_id');
+      return null;
+    }
+    const allProjectLogs = await ensureAllProjectLogs();
+    const allProjectMatchingLogs = allProjectLogs.filter(l => getSessionIdFromLog(l) === maybeSessionId).sort((a, b) => b.modified.getTime() - a.modified.getTime());
+    if (allProjectMatchingLogs.length > 0) {
+      const log = allProjectMatchingLogs[0]!;
       const fullLog = isLiteLog(log) ? await loadFullLog(log) : log;
       void onResume(maybeSessionId, fullLog, 'slash_command_session_id');
       return null;

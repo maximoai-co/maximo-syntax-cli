@@ -4,6 +4,21 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.13] - 2026-06-05
+
+### Changed
+
+- Refreshed the startup terminal UI with Maximo branding, restored the "Move at Maximo Speed" tagline, and replaced the legacy mascot with a compact octopus mascot.
+- Moved "Maximo AI account with subscription" to the first login option.
+
+### Fixed
+
+- Fixed Maximo AI subscription logins falling back to API usage billing when OAuth token responses omit scope metadata.
+- Fixed the startup billing label for Maximo subscription sessions that run through the Maximo OpenAI-compatible endpoint.
+- Fixed a post-login keyboard/input freeze by keeping the startup subscription label separate from request authentication, so Maximo OpenAI-compatible sessions continue using their configured API key.
+- Fixed subscription plan labels so Plus, Prime, and Pro display as their actual Maximo plans.
+- Fixed Recent Sessions and `/resume` falling back to empty when only the active session exists in the current project by loading all-project sessions before showing the empty state.
+
 ## [0.1.11] - 2026-04-10
 
 ### Fixed
@@ -45,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 0.1.13 | 2026-06-05 | Refreshed startup UI, fixed subscription login billing/input behavior, and repaired session discovery |
 | 0.1.11 | 2026-04-10 | Fixed billing display issues in `/usage` command |
 | 0.1.10 | 2026-04-10 | Added comprehensive `/usage` command with dual auth support |
 | 0.1.0 | 2026-03 | Initial release |

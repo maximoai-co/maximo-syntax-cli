@@ -79,20 +79,23 @@ import { getEffortSuffix } from "../../utils/effort.js";
 import { getAPIProvider } from "../../utils/model/providers.js";
 import { useMainLoopModel } from "../../hooks/useMainLoopModel.js";
 import { renderModelSetting } from "../../utils/model/model.js";
-import { isMaximoAISubscriber } from "../../utils/auth.js"; // ADDED: Import Maximo AI subscriber check
-import { getGlobalConfig } from "../../utils/config.js"; // ADDED: Ensure config is imported for OAuth info
+import {
+  hasMaximoAISubscriptionDisplayAccount,
+  isMaximoAIOpenAICompatibleProvider,
+} from "../../utils/auth.js";
 
-// ADDED: Import for Maximo AI auth detection
 function isMaximoAIOAuthContext(): boolean {
-  // Check if using Option 2 login (Maximo AI OAuth with OpenAI-compatible API)
-  return isMaximoAISubscriber() || getAPIProvider() === "openai";
+  return (
+    hasMaximoAISubscriptionDisplayAccount() ||
+    isMaximoAIOpenAICompatibleProvider()
+  );
 }
 const LEFT_PANEL_MAX_WIDTH = 50;
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();
-  // UPDATED: Show account identity for both firstParty and Maximo AI OAuth (Option 2)
-  const showAccountIdentity = getAPIProvider() === "firstParty" || isMaximoAIOAuthContext();
+  const showAccountIdentity =
+    getAPIProvider() === "firstParty" || isMaximoAIOAuthContext();
   const username = showAccountIdentity
     ? getGlobalConfig().oauthAccount?.displayName ?? ""
     : "";
@@ -378,11 +381,11 @@ export function LogoV2() {
   }
   const layoutMode = getLayoutMode(columns);
   const userTheme = resolveThemeSetting(getGlobalConfig().theme);
-  const borderTitle = ` ${color("text", userTheme)("Maximo Syntax")} ${color(
+  const borderTitle = ` ${color("claude", userTheme)("Maximo Syntax")} ${color(
     "inactive",
     userTheme
   )(`v${version}`)} `;
-  const compactBorderTitle = color("text", userTheme)(" Maximo Syntax ");
+  const compactBorderTitle = color("claude", userTheme)(" Maximo Syntax ");
   if (layoutMode === "compact") {
     let welcomeMessage = formatWelcomeMessage(username);
     if (stringWidth(welcomeMessage) > columns - 4) {
@@ -477,7 +480,7 @@ export function LogoV2() {
           <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="inactive"
+            borderColor="claude"
             borderText={t11}
             paddingX={1}
             paddingY={1}
@@ -530,7 +533,7 @@ export function LogoV2() {
   const T1 = Box;
   const t11 = "column";
   const t12 = "round";
-  const t13 = "inactive";
+  const t13 = "claude";
   let t14;
   if ($[44] !== borderTitle) {
     t14 = {
@@ -553,7 +556,8 @@ export function LogoV2() {
     t18 = (
       <Box marginTop={1} flexDirection="column" alignItems="center">
         <Text bold={true}>MAXIMO SYNTAX</Text>
-        <Text dimColor={true}>build, ship, and iterate from your terminal</Text>
+        <Text color="claude">Move at Maximo Speed</Text>
+        <Text dimColor={true}>Build, ship, and iterate from your terminal</Text>
         <Text color="inactive">•</Text>
         <Text bold={true}>{welcomeMessage_0}</Text>
       </Box>

@@ -74,7 +74,7 @@ export function ConsoleOAuthFlow({
   const orgUUID = settings.forceLoginOrgUUID;
   const forcedMethodMessage =
     forceLoginMethod === "claudeai"
-      ? "Login method pre-selected: Subscription Plan (Maximo Pro/Max)"
+      ? "Login method pre-selected: Maximo AI account with subscription"
       : forceLoginMethod === "console"
       ? "Login method pre-selected: API Usage Billing (Anthropic Console)"
       : null;
@@ -566,8 +566,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
       let t6;
       if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
         t6 = [
-          t_maximo,
           t4,
+          t_maximo,
           t5,
           {
             label: (
