@@ -6,7 +6,7 @@ import { Clawd, OCTOPUS_COMPACT_WIDTH } from "./Clawd.js";
 function SetupRow({ children }: { children: React.ReactNode }) {
   return (
     <Text>
-      <Text color="claude">• </Text>
+      <Text color="maximo">• </Text>
       <Text dimColor>{children}</Text>
     </Text>
   );
@@ -21,7 +21,7 @@ export function WelcomeV2() {
   return (
     <Box
       borderStyle="round"
-      borderColor="claude"
+      borderColor="maximo"
       paddingX={2}
       paddingY={1}
       flexDirection="column"
@@ -37,10 +37,10 @@ export function WelcomeV2() {
         </Box>
         <Box flexDirection="column" flexShrink={1}>
           <Text>
-            <Text bold color="claude">MAXIMO SYNTAX</Text>
+            <Text bold color="maximo">MAXIMO SYNTAX</Text>
             <Text dimColor> v{version}</Text>
           </Text>
-          <Text bold color="claude">Move at Maximo Speed</Text>
+          <Text bold color="maximo">Move at Maximo Speed</Text>
           <Text dimColor>Build, ship, and iterate from your terminal.</Text>
           <Text dimColor>AI-powered CLI for developer workflows.</Text>
           <Box marginTop={1} flexDirection="column">

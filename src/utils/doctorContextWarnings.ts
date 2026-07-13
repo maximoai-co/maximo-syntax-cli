@@ -6,7 +6,7 @@ import {
   getLargeMemoryFiles,
   getMemoryFiles,
   MAX_MEMORY_CHARACTER_COUNT,
-} from "./claudemd.js";
+} from "./maximomd.js";
 import { getMainLoopModel } from "./model/model.js";
 import { permissionRuleValueToString } from "./permissions/permissionRuleParser.js";
 import { detectUnreachableRules } from "./permissions/shadowedRuleDetection.js";
@@ -22,7 +22,7 @@ const MCP_TOOLS_THRESHOLD = 25_000; // 15k tokens
 
 export type ContextWarning = {
   type:
-    | "claudemd_files"
+    | "maximomd_files"
     | "agent_descriptions"
     | "mcp_tools"
     | "unreachable_rules";
@@ -56,13 +56,13 @@ async function checkMaximoMdFiles(): Promise<ContextWarning | null> {
 
   const message =
     largeFiles.length === 1
-      ? `Large CLAUDE.md file detected (${largeFiles[0]!.content.length.toLocaleString()} chars > ${MAX_MEMORY_CHARACTER_COUNT.toLocaleString()})`
+      ? `Large MAXIMO.md file detected (${largeFiles[0]!.content.length.toLocaleString()} chars > ${MAX_MEMORY_CHARACTER_COUNT.toLocaleString()})`
       : `${
           largeFiles.length
-        } large CLAUDE.md files detected (each > ${MAX_MEMORY_CHARACTER_COUNT.toLocaleString()} chars)`;
+        } large MAXIMO.md files detected (each > ${MAX_MEMORY_CHARACTER_COUNT.toLocaleString()} chars)`;
 
   return {
-    type: "claudemd_files",
+    type: "maximomd_files",
     severity: "warning",
     message,
     details,

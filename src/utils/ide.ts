@@ -292,7 +292,7 @@ export function getTerminalIdeType(): IdeType | null {
 }
 
 /**
- * Gets sorted IDE lockfiles from ~/.claude/ide directory
+ * Gets sorted IDE lockfiles from ~/.maximo/ide directory
  * @returns Array of full lockfile paths sorted by modification time (newest first)
  */
 export async function getSortedIdeLockfiles(): Promise<string[]> {
@@ -476,7 +476,7 @@ export async function getIdeLockfilesPaths(): Promise<string[]> {
   if (windowsHome) {
     const converter = new WindowsToWSLConverter(process.env.WSL_DISTRO_NAME);
     const wslPath = converter.toLocalPath(windowsHome);
-    paths.push(resolve(wslPath, ".claude", "ide"));
+    paths.push(resolve(wslPath, ".maximo", "ide"));
   }
 
   // Construct the path based on the standard Windows WSL locations
@@ -501,7 +501,7 @@ export async function getIdeLockfilesPaths(): Promise<string[]> {
       ) {
         continue; // Skip system directories
       }
-      paths.push(join(usersDir, user.name, ".claude", "ide"));
+      paths.push(join(usersDir, user.name, ".maximo", "ide"));
     }
   } catch (error: unknown) {
     if (isFsInaccessible(error)) {
@@ -671,8 +671,8 @@ export async function detectIDEs(
   const detectedIDEs: DetectedIDEInfo[] = [];
 
   try {
-    // Get the CLAUDE_CODE_SSE_PORT if set
-    const ssePort = process.env.CLAUDE_CODE_SSE_PORT;
+    // Get the MAXIMO_SYNTAX_SSE_PORT if set
+    const ssePort = process.env.MAXIMO_SYNTAX_SSE_PORT;
     const envPort = ssePort ? parseInt(ssePort) : null;
 
     // Get the current working directory, normalized to NFC for consistent
@@ -698,7 +698,7 @@ export async function detectIDEs(
       if (!lockfileInfo) continue;
 
       let isValid = false;
-      if (isEnvTruthy(process.env.CLAUDE_CODE_IDE_SKIP_VALID_CHECK)) {
+      if (isEnvTruthy(process.env.MAXIMO_SYNTAX_IDE_SKIP_VALID_CHECK)) {
         isValid = true;
       } else if (lockfileInfo.port === envPort) {
         // If the port matches the environment variable, mark as valid regardless of directory
@@ -1303,7 +1303,7 @@ export async function initializeIdeIntegration(
 
   const shouldAutoInstall = getGlobalConfig().autoInstallIdeExtension ?? true;
   if (
-    !isEnvTruthy(process.env.CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL) &&
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_IDE_SKIP_AUTO_INSTALL) &&
     shouldAutoInstall
   ) {
     const ideType = ideToInstallExtension ?? getTerminalIdeType();
@@ -1359,8 +1359,8 @@ export async function initializeIdeIntegration(
  */
 const detectHostIP = memoize(
   async (isIdeRunningInWindows: boolean, port: number) => {
-    if (process.env.CLAUDE_CODE_IDE_HOST_OVERRIDE) {
-      return process.env.CLAUDE_CODE_IDE_HOST_OVERRIDE;
+    if (process.env.MAXIMO_SYNTAX_IDE_HOST_OVERRIDE) {
+      return process.env.MAXIMO_SYNTAX_IDE_HOST_OVERRIDE;
     }
 
     if (getPlatform() !== "wsl" || !isIdeRunningInWindows) {
@@ -1428,7 +1428,7 @@ async function installFromArtifactory(command: string): Promise<string> {
 
   // Fetch the version from artifactory
   const versionUrl =
-    "https://artifactory.infra.ant.dev/artifactory/armorcode-claude-code-internal/claude-vscode-releases/stable";
+    "https://artifactory.infra.ant.dev/artifactory/armorcode-claude-code-internal/maximo-vscode-releases/stable";
 
   try {
     const versionResponse = await axios.get(versionUrl, {
@@ -1443,7 +1443,7 @@ async function installFromArtifactory(command: string): Promise<string> {
     }
 
     // Download the .vsix file from artifactory
-    const vsixUrl = `https://artifactory.infra.ant.dev/artifactory/armorcode-claude-code-internal/claude-vscode-releases/${version}/claude-code.vsix`;
+    const vsixUrl = `https://artifactory.infra.ant.dev/artifactory/armorcode-claude-code-internal/maximo-vscode-releases/${version}/claude-code.vsix`;
     const tempVsixPath = join(
       os.tmpdir(),
       `claude-code-${version}-${Date.now()}.vsix`

@@ -62,7 +62,7 @@ export function notifyVscodeFileUpdated(
  * Sets up the speicial internal VSCode MCP for bidirectional communication using notifications.
  */
 export function setupVscodeSdkMcp(sdkClients: MCPServerConnection[]): void {
-  const client = sdkClients.find((client) => client.name === "claude-vscode");
+  const client = sdkClients.find((client) => client.name === "maximo-vscode");
 
   if (client && client.type === "connected") {
     // Store the client reference for later use

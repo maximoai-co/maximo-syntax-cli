@@ -166,7 +166,7 @@ export function sanitizeModelName(shortName: string): string {
   if (shortName.includes("haiku-4-5")) return "claude-haiku-4-5";
   if (shortName.includes("haiku-3-5")) return "claude-haiku-3-5";
   // Unknown models get a generic name
-  return "claude";
+  return "maximo";
 }
 
 /**
@@ -229,7 +229,7 @@ export type AttributionData = {
  * Get the current client surface from environment.
  */
 export function getClientSurface(): string {
-  return process.env.CLAUDE_CODE_ENTRYPOINT ?? "cli";
+  return process.env.MAXIMO_SYNTAX_ENTRYPOINT ?? "cli";
 }
 
 /**

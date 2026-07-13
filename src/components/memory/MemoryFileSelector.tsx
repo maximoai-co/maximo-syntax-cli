@@ -16,7 +16,7 @@ import { readLastConsolidatedAt } from "../../services/autoDream/consolidationLo
 import { useAppState } from "../../state/AppState.js";
 import { getAgentMemoryDir } from "../../tools/AgentTool/agentMemory.js";
 import { openPath } from "../../utils/browser.js";
-import { getMemoryFiles, type MemoryFileInfo } from "../../utils/claudemd.js";
+import { getMemoryFiles, type MemoryFileInfo } from "../../utils/maximomd.js";
 import { getMaximoConfigHomeDir } from "../../utils/envUtils.js";
 import { getDisplayPath } from "../../utils/file.js";
 import { formatRelativeTimeAgo } from "../../utils/format.js";
@@ -47,8 +47,8 @@ export function MemoryFileSelector(t0) {
   const $ = _c(58);
   const { onSelect, onCancel } = t0;
   const existingMemoryFiles = use(getMemoryFiles());
-  const userMemoryPath = join(getMaximoConfigHomeDir(), "CLAUDE.md");
-  const projectMemoryPath = join(getOriginalCwd(), "CLAUDE.md");
+  const userMemoryPath = join(getMaximoConfigHomeDir(), "MAXIMO.md");
+  const projectMemoryPath = join(getOriginalCwd(), "MAXIMO.md");
   const hasUserMemory = existingMemoryFiles.some(
     (f) => f.path === userMemoryPath
   );
@@ -110,14 +110,14 @@ export function MemoryFileSelector(t0) {
     let description;
     const isGit = projectIsInGitRepo(getOriginalCwd());
     if (file.type === "User" && !file.isNested) {
-      description = "Saved in ~/.claude/CLAUDE.md";
+      description = "Saved in ~/.maximo/MAXIMO.md";
     } else {
       if (
         file.type === "Project" &&
         !file.isNested &&
         file.path === projectMemoryPath
       ) {
-        description = `${isGit ? "Checked in at" : "Saved in"} ./CLAUDE.md`;
+        description = `${isGit ? "Checked in at" : "Saved in"} ./MAXIMO.md`;
       } else {
         if (file.parent) {
           description = "@-imported";

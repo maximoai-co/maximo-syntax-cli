@@ -294,7 +294,7 @@ import { validateUuid } from "./utils/uuid.js";
 import { registerMcpAddCommand } from "src/commands/mcp/addCommand.js";
 import { registerMcpXaaIdpCommand } from "src/commands/mcp/xaaIdpCommand.js";
 import { logPermissionContextForAnts } from "src/services/internalLogging.js";
-import { fetchMaximoAIMcpConfigsIfEligible } from "src/services/mcp/claudeai.js";
+import { fetchMaximoAIMcpConfigsIfEligible } from "src/services/mcp/maximoai.js";
 import { clearServerCache } from "src/services/mcp/client.js";
 import {
   areMcpConfigsAllowedWithEnterpriseMcpConfig,
@@ -543,7 +543,7 @@ function getCertEnvVarTelemetry(): Record<string, boolean> {
   if (process.env.NODE_EXTRA_CA_CERTS) {
     result.has_node_extra_ca_certs = true;
   }
-  if (process.env.CLAUDE_CODE_CLIENT_CERT) {
+  if (process.env.MAXIMO_SYNTAX_CLIENT_CERT) {
     result.has_client_cert = true;
   }
   if (hasNodeOption("--use-system-ca")) {
@@ -652,7 +652,7 @@ export function startDeferredPrefetches(): void {
   // loop time, which skews startup benchmarks (CPU profiles, time-to-first-render
   // measurements). Skip all of it when we're only measuring startup performance.
   if (
-    isEnvTruthy(process.env.CLAUDE_CODE_EXIT_AFTER_FIRST_RENDER) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_EXIT_AFTER_FIRST_RENDER) ||
     // --bare: skip ALL prefetches. These are cache-warms for the REPL's
     // first-turn responsiveness (initUser, getUserContext, tips, countFiles,
     // modelCapabilities, change detectors). Scripted -p calls don't have a
@@ -669,14 +669,14 @@ export function startDeferredPrefetches(): void {
   prefetchSystemContextIfSafe();
   void getRelevantTips();
   if (
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH)
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_BEDROCK) &&
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_SKIP_BEDROCK_AUTH)
   ) {
     void prefetchAwsCredentialsAndBedRockInfoIfSafe();
   }
   if (
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_SKIP_VERTEX_AUTH)
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_VERTEX) &&
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_SKIP_VERTEX_AUTH)
   ) {
     void prefetchGcpCredentialsIfSafe();
   }
@@ -800,7 +800,7 @@ function eagerLoadSettings(): void {
 }
 function initializeEntrypoint(isNonInteractive: boolean): void {
   // Skip if already set (e.g., by SDK or other entrypoints)
-  if (process.env.CLAUDE_CODE_ENTRYPOINT) {
+  if (process.env.MAXIMO_SYNTAX_ENTRYPOINT) {
     return;
   }
   const cliArgs = process.argv.slice(2);
@@ -808,22 +808,22 @@ function initializeEntrypoint(isNonInteractive: boolean): void {
   // Check for MCP serve command (handle flags before mcp serve, e.g., --debug mcp serve)
   const mcpIndex = cliArgs.indexOf("mcp");
   if (mcpIndex !== -1 && cliArgs[mcpIndex + 1] === "serve") {
-    process.env.CLAUDE_CODE_ENTRYPOINT = "mcp";
+    process.env.MAXIMO_SYNTAX_ENTRYPOINT = "mcp";
     return;
   }
-  if (isEnvTruthy(process.env.CLAUDE_CODE_ACTION)) {
-    process.env.CLAUDE_CODE_ENTRYPOINT = "claude-code-github-action";
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_ACTION)) {
+    process.env.MAXIMO_SYNTAX_ENTRYPOINT = "claude-code-github-action";
     return;
   }
 
   // Note: 'local-agent' entrypoint is set by the local agent mode launcher
-  // via CLAUDE_CODE_ENTRYPOINT env var (handled by early return above)
+  // via MAXIMO_SYNTAX_ENTRYPOINT env var (handled by early return above)
 
   // Set based on interactive status
-  process.env.CLAUDE_CODE_ENTRYPOINT = isNonInteractive ? "sdk-cli" : "cli";
+  process.env.MAXIMO_SYNTAX_ENTRYPOINT = isNonInteractive ? "sdk-cli" : "cli";
 }
 
-// Set by early argv processing when `claude open <url>` is detected (interactive mode only)
+// Set by early argv processing when `maximo open <url>` is detected (interactive mode only)
 type PendingConnect = {
   url: string | undefined;
   authToken: string | undefined;
@@ -837,7 +837,7 @@ const _pendingConnect: PendingConnect | undefined = feature("DIRECT_CONNECT")
     }
   : undefined;
 
-// Set by early argv processing when `claude assistant [sessionId]` is detected
+// Set by early argv processing when `maximo assistant [sessionId]` is detected
 type PendingAssistantChat = {
   sessionId?: string;
   discover: boolean;
@@ -851,7 +851,7 @@ const _pendingAssistantChat: PendingAssistantChat | undefined = feature(
     }
   : undefined;
 
-// `claude ssh <host> [dir]` — parsed from argv early (same pattern as
+// `maximo ssh <host> [dir]` — parsed from argv early (same pattern as
 // DIRECT_CONNECT above) so the main command path can pick it up and hand
 // the REPL an SSH-backed session instead of a local one.
 type PendingSSH = {
@@ -976,10 +976,10 @@ export async function main() {
     }
   }
 
-  // `claude assistant [sessionId]` — stash and strip so the main
+  // `maximo assistant [sessionId]` — stash and strip so the main
   // command handles it, giving the full interactive TUI. Position-0 only
   // (matching the ssh pattern below) — indexOf would false-positive on
-  // `claude -p "explain assistant"`. Root-flag-before-subcommand
+  // `maximo -p "explain assistant"`. Root-flag-before-subcommand
   // (e.g. `--debug assistant`) falls through to the stub, which
   // prints usage.
   if (feature("KAIROS") && _pendingAssistantChat) {
@@ -995,11 +995,11 @@ export async function main() {
         rawArgs.splice(0, 1); // drop 'assistant'
         process.argv = [process.argv[0]!, process.argv[1]!, ...rawArgs];
       }
-      // else: `claude assistant --help` → fall through to stub
+      // else: `maximo assistant --help` → fall through to stub
     }
   }
 
-  // `claude ssh <host> [dir]` — strip from argv so the main command handler
+  // `maximo ssh <host> [dir]` — strip from argv so the main command handler
   // runs (full interactive TUI), stash the host/dir for the REPL branch at
   // ~line 3720 to pick up. Headless (-p) mode not supported in v1: SSH
   // sessions need the local REPL to drive them (interrupt, permissions).
@@ -1008,7 +1008,7 @@ export async function main() {
     // SSH-specific flags can appear before the host positional (e.g.
     // `ssh --permission-mode auto host /tmp` — standard POSIX flags-before-
     // positionals). Pull them all out BEFORE checking whether a host was
-    // given, so `claude ssh --permission-mode auto host` and `claude ssh host
+    // given, so `maximo ssh --permission-mode auto host` and `maximo ssh host
     // --permission-mode auto` are equivalent. The host check below only needs
     // to guard against `-h`/`--help` (which commander should handle).
     if (rawCliArgs[0] === "ssh") {
@@ -1040,7 +1040,7 @@ export async function main() {
       }
       // Forward session-resume + model flags to the remote CLI's initial spawn.
       // --continue/-c and --resume <uuid> operate on the REMOTE session history
-      // (which persists under the remote's ~/.claude/projects/<cwd>/).
+      // (which persists under the remote's ~/.maximo/projects/<cwd>/).
       // --model controls which model the remote uses.
       const extractFlag = (
         flag: string,
@@ -1101,7 +1101,7 @@ export async function main() {
       // so the flag doesn't silently cause local execution.
       if (rest.includes("-p") || rest.includes("--print")) {
         process.stderr.write(
-          "Error: headless (-p/--print) mode is not supported with claude ssh\n"
+          "Error: headless (-p/--print) mode is not supported with maximo ssh\n"
         );
         gracefulShutdownSync(1);
         return;
@@ -1136,23 +1136,23 @@ export async function main() {
   // Determine client type
   const clientType = (() => {
     if (isEnvTruthy(process.env.GITHUB_ACTIONS)) return "github-action";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "sdk-ts")
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "sdk-ts")
       return "sdk-typescript";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "sdk-py") return "sdk-python";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "sdk-cli") return "sdk-cli";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "claude-vscode")
-      return "claude-vscode";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "local-agent")
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "sdk-py") return "sdk-python";
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "sdk-cli") return "sdk-cli";
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "maximo-vscode")
+      return "maximo-vscode";
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "local-agent")
       return "local-agent";
-    if (process.env.CLAUDE_CODE_ENTRYPOINT === "claude-desktop")
-      return "claude-desktop";
+    if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "maximo-desktop")
+      return "maximo-desktop";
 
     // Check if session-ingress token is provided (indicates remote session)
     const hasSessionIngressToken =
-      process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN ||
-      process.env.CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR;
+      process.env.MAXIMO_SYNTAX_SESSION_ACCESS_TOKEN ||
+      process.env.MAXIMO_SYNTAX_WEBSOCKET_AUTH_FILE_DESCRIPTOR;
     if (
-      process.env.CLAUDE_CODE_ENTRYPOINT === "remote" ||
+      process.env.MAXIMO_SYNTAX_ENTRYPOINT === "remote" ||
       hasSessionIngressToken
     ) {
       return "remote";
@@ -1160,22 +1160,22 @@ export async function main() {
     return "cli";
   })();
   setClientType(clientType);
-  const previewFormat = process.env.CLAUDE_CODE_QUESTION_PREVIEW_FORMAT;
+  const previewFormat = process.env.MAXIMO_SYNTAX_QUESTION_PREVIEW_FORMAT;
   if (previewFormat === "markdown" || previewFormat === "html") {
     setQuestionPreviewFormat(previewFormat);
   } else if (
     !clientType.startsWith("sdk-") &&
     // Desktop and CCR pass previewFormat via toolConfig; when the feature is
     // gated off they pass undefined — don't override that with markdown.
-    clientType !== "claude-desktop" &&
+    clientType !== "maximo-desktop" &&
     clientType !== "local-agent" &&
     clientType !== "remote"
   ) {
     setQuestionPreviewFormat("markdown");
   }
 
-  // Tag sessions created via `claude remote-control` so the backend can identify them
-  if (process.env.CLAUDE_CODE_ENVIRONMENT_KIND === "bridge") {
+  // Tag sessions created via `maximo remote-control` so the backend can identify them
+  if (process.env.MAXIMO_SYNTAX_ENVIRONMENT_KIND === "bridge") {
     setSessionSource("remote-control");
   }
   profileCheckpoint("main_client_type_determined");
@@ -1262,8 +1262,8 @@ async function run(): Promise<CommanderCommand> {
     // process.title on Windows sets the console title directly; on POSIX,
     // terminal shell integration may mirror the process name to the tab.
     // After init() so settings.json env can also gate this (gh-4765).
-    if (!isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE)) {
-      process.title = "claude";
+    if (!isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_TERMINAL_TITLE)) {
+      process.title = "maximo";
     }
 
     // Attach logging sinks so subcommand handlers can use logEvent/logError.
@@ -1353,7 +1353,7 @@ async function run(): Promise<CommanderCommand> {
     )
     .option(
       "--bare",
-      "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and CLAUDE.md auto-discovery. Sets CLAUDE_CODE_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read). 3P providers (Bedrock/Vertex/Foundry) use their own credentials. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir (CLAUDE.md dirs), --mcp-config, --settings, --agents, --plugin-dir.",
+      "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and MAXIMO.md auto-discovery. Sets MAXIMO_SYNTAX_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read). 3P providers (Bedrock/Vertex/Foundry) use their own credentials. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir (MAXIMO.md dirs), --mcp-config, --settings, --agents, --plugin-dir.",
       () => true
     )
     .addOption(
@@ -1683,7 +1683,7 @@ async function run(): Promise<CommanderCommand> {
       "Comma-separated list of setting sources to load (user, project, local)."
     )
     // gh-33508: <paths...> (variadic) consumed everything until the next
-    // --flag. `claude --plugin-dir /path mcp add --transport http` swallowed
+    // --flag. `maximo --plugin-dir /path mcp add --transport http` swallowed
     // `mcp` and `add` as paths, then choked on --transport as an unknown
     // top-level option. Single-value + collect accumulator means each
     // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
@@ -1704,7 +1704,7 @@ async function run(): Promise<CommanderCommand> {
       profileCheckpoint("action_handler_start");
 
       // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
-      // gates fire (CLAUDE.md, skills, hooks inside executeHooks, agent
+      // gates fire (MAXIMO.md, skills, hooks inside executeHooks, agent
       // dir-walk). Must be set before setup() / any of the gated work runs.
       if (
         (
@@ -1713,7 +1713,7 @@ async function run(): Promise<CommanderCommand> {
           }
         ).bare
       ) {
-        process.env.CLAUDE_CODE_SIMPLE = "1";
+        process.env.MAXIMO_SYNTAX_SIMPLE = "1";
       }
 
       // Ignore "code" as a prompt - treat it the same as no prompt
@@ -1740,7 +1740,7 @@ async function run(): Promise<CommanderCommand> {
         });
       }
 
-      // Assistant mode: when .claude/settings.json has assistant: true AND
+      // Assistant mode: when .maximo/settings.json has assistant: true AND
       // the tengu_kairos GrowthBook gate is on, force brief on. Permission
       // mode is left to the user — settings defaultMode or --permission-mode
       // apply as normal. REPL-typed messages already default to 'next'
@@ -1750,10 +1750,10 @@ async function run(): Promise<CommanderCommand> {
       // kairosEnabled is computed once here and reused at the
       // getAssistantSystemPromptAddendum() call site further down.
       //
-      // Trust gate: .claude/settings.json is attacker-controllable in an
+      // Trust gate: .maximo/settings.json is attacker-controllable in an
       // untrusted clone. We run ~1000 lines before showSetupScreens() shows
       // the trust dialog, and by then we've already appended
-      // .claude/agents/assistant.md to the system prompt. Refuse to activate
+      // .maximo/agents/assistant.md to the system prompt. Refuse to activate
       // until the directory has been explicitly trusted.
       let kairosEnabled = false;
       let assistantTeamContext:
@@ -1849,7 +1849,7 @@ async function run(): Promise<CommanderCommand> {
       const agentsJson = options.agents;
       const agentCli = options.agent;
       if (feature("BG_SESSIONS") && agentCli) {
-        process.env.CLAUDE_CODE_AGENT = agentCli;
+        process.env.MAXIMO_SYNTAX_AGENT = agentCli;
       }
 
       // NOTE: LSP manager initialization is intentionally deferred until after
@@ -1882,7 +1882,7 @@ async function run(): Promise<CommanderCommand> {
           : DEFAULT_TASKS_MODE_TASK_LIST_ID
         : undefined;
       if ("external" === "ant" && taskListId) {
-        process.env.CLAUDE_CODE_TASK_LIST_ID = taskListId;
+        process.env.MAXIMO_SYNTAX_TASK_LIST_ID = taskListId;
       }
 
       // Extract worktree option
@@ -1946,7 +1946,7 @@ async function run(): Promise<CommanderCommand> {
       let storedTeammateOpts: TeammateOptions | undefined;
       if (isAgentSwarmsEnabled()) {
         // Extract agent identity options (for tmux-spawned agents)
-        // These replace the CLAUDE_CODE_* environment variables
+        // These replace the MAXIMO_SYNTAX_* environment variables
         const teammateOpts = extractTeammateOptions(options);
         storedTeammateOpts = teammateOpts;
 
@@ -2004,12 +2004,12 @@ async function run(): Promise<CommanderCommand> {
       // Allow env var to enable partial messages (used by sandbox gateway for baku)
       const effectiveIncludePartialMessages =
         includePartialMessages ||
-        isEnvTruthy(process.env.CLAUDE_CODE_INCLUDE_PARTIAL_MESSAGES);
+        isEnvTruthy(process.env.MAXIMO_SYNTAX_INCLUDE_PARTIAL_MESSAGES);
 
       // Enable all hook event types when explicitly requested via SDK option
-      // or when running in CLAUDE_CODE_REMOTE mode (CCR needs them).
+      // or when running in MAXIMO_SYNTAX_REMOTE mode (CCR needs them).
       // Without this, only SessionStart and Setup events are emitted.
-      if (includeHookEvents || isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
+      if (includeHookEvents || isEnvTruthy(process.env.MAXIMO_SYNTAX_REMOTE)) {
         setAllHookEventsEnabled(true);
       }
 
@@ -2114,12 +2114,12 @@ async function run(): Promise<CommanderCommand> {
         }
       ).file;
       if (fileSpecs && fileSpecs.length > 0) {
-        // Get session ingress token (provided by EnvManager via CLAUDE_CODE_SESSION_ACCESS_TOKEN)
+        // Get session ingress token (provided by EnvManager via MAXIMO_SYNTAX_SESSION_ACCESS_TOKEN)
         const sessionToken = getSessionIngressAuthToken();
         if (!sessionToken) {
           process.stderr.write(
             chalk.red(
-              "Error: Session token required for file downloads. CLAUDE_CODE_SESSION_ACCESS_TOKEN must be set.\n"
+              "Error: Session token required for file downloads. MAXIMO_SYNTAX_SESSION_ACCESS_TOKEN must be set.\n"
             )
           );
           process.exit(1);
@@ -2127,7 +2127,7 @@ async function run(): Promise<CommanderCommand> {
 
         // Resolve session ID: prefer remote session ID, fall back to internal session ID
         const fileSessionId =
-          process.env.CLAUDE_CODE_REMOTE_SESSION_ID || getSessionId();
+          process.env.MAXIMO_SYNTAX_REMOTE_SESSION_ID || getSessionId();
         const files = parseFileSpecs(fileSpecs);
         if (files.length > 0) {
           // Use ANTHROPIC_BASE_URL if set (by EnvManager), otherwise use OAuth config
@@ -2394,7 +2394,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // Extract Maximo in Chrome option and enforce claude.ai subscriber check (unless user is ant)
+      // Extract Maximo in Chrome option and enforce maximo.ai subscriber check (unless user is ant)
       const chromeOpts = options as {
         chrome?: boolean;
       };
@@ -2527,7 +2527,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // Store additional directories for CLAUDE.md loading (controlled by env var)
+      // Store additional directories for MAXIMO.md loading (controlled by env var)
       setAdditionalDirectoriesForMaximoMd(addDir);
 
       // Channel server allowlist from --channels flag — servers whose
@@ -2703,17 +2703,17 @@ async function run(): Promise<CommanderCommand> {
       });
       void assertMinVersion();
 
-      // claude.ai config fetch: -p mode only (interactive uses useManageMCPConnections
+      // maximo.ai config fetch: -p mode only (interactive uses useManageMCPConnections
       // two-phase loading). Kicked off here to overlap with setup(); awaited
       // before runHeadless so single-turn -p sees connectors. Skipped under
       // enterprise/strict MCP to preserve policy boundaries.
-      const claudeaiConfigPromise: Promise<
+      const maximoaiConfigPromise: Promise<
         Record<string, ScopedMcpServerConfig>
       > =
         isNonInteractiveSession &&
         !strictMcpConfig &&
         !doesEnterpriseMcpConfigExist() &&
-        // --bare / SIMPLE: skip claude.ai proxy servers (datadog, Gmail,
+        // --bare / SIMPLE: skip maximo.ai proxy servers (datadog, Gmail,
         // Slack, BigQuery, PubMed — 6-14s each to connect). Scripted calls
         // that need MCP pass --mcp-config explicitly.
         !isBareMode()
@@ -2721,7 +2721,7 @@ async function run(): Promise<CommanderCommand> {
               const { allowed, blocked } = filterMcpServersByPolicy(configs);
               if (blocked.length > 0) {
                 process.stderr.write(
-                  `Warning: claude.ai MCP ${plural(
+                  `Warning: maximo.ai MCP ${plural(
                     blocked.length,
                     "server"
                   )} blocked by enterprise policy: ${blocked.join(", ")}\n`
@@ -2827,7 +2827,7 @@ async function run(): Promise<CommanderCommand> {
       // (mirrors useMergedTools.ts filtering for REPL/interactive path)
       if (
         feature("COORDINATOR_MODE") &&
-        isEnvTruthy(process.env.CLAUDE_CODE_COORDINATOR_MODE)
+        isEnvTruthy(process.env.MAXIMO_SYNTAX_COORDINATOR_MODE)
       ) {
         const { applyCoordinatorToolFilter } = await import(
           "./utils/toolPool.js"
@@ -2890,7 +2890,7 @@ async function run(): Promise<CommanderCommand> {
       // pure in-memory array pushes (<1ms, zero I/O) that getBundledSkills()
       // reads synchronously. Previously ran inside setup() after ~20ms of
       // await points, so the parallel getCommands() memoized an empty list.
-      if (process.env.CLAUDE_CODE_ENTRYPOINT !== "local-agent") {
+      if (process.env.MAXIMO_SYNTAX_ENTRYPOINT !== "local-agent") {
         initBuiltinPlugins();
         initBundledSkills();
       }
@@ -2937,7 +2937,7 @@ async function run(): Promise<CommanderCommand> {
       }
       if (getIsNonInteractiveSession()) {
         // Apply full merged settings env now (including project-scoped
-        // .claude/settings.json PATH/GIT_DIR/GIT_WORK_TREE) so gitExe() and
+        // .maximo/settings.json PATH/GIT_DIR/GIT_WORK_TREE) so gitExe() and
         // the git spawn below see it. Trust is implicit in -p mode; the
         // docstring at managedEnv.ts:96-97 says this applies "potentially
         // dangerous environment variables such as LD_PRELOAD, PATH" from all
@@ -2962,7 +2962,7 @@ async function run(): Promise<CommanderCommand> {
         // (same gate as prefetchSystemContextIfSafe).
         void getSystemContext();
         // Kick getUserContext now too — its first await (fs.readFile in
-        // getMemoryFiles) yields naturally, so the CLAUDE.md directory walk
+        // getMemoryFiles) yields naturally, so the MAXIMO.md directory walk
         // runs during the ~280ms overlap window before the context
         // Promise.all join in print.ts. The void getUserContext() in
         // startDeferredPrefetches becomes a memoize cache-hit.
@@ -3269,7 +3269,7 @@ async function run(): Promise<CommanderCommand> {
             proactive?: boolean;
           }
         ).proactive ||
-          isEnvTruthy(process.env.CLAUDE_CODE_PROACTIVE)) &&
+          isEnvTruthy(process.env.MAXIMO_SYNTAX_PROACTIVE)) &&
         !coordinatorModeModule?.isCoordinatorMode()
       ) {
         /* eslint-disable @typescript-eslint/no-require-imports */
@@ -3306,7 +3306,7 @@ async function run(): Promise<CommanderCommand> {
         const ctx = getRenderContext(false);
         getFpsMetrics = ctx.getFpsMetrics;
         stats = ctx.stats;
-        // Install asciicast recorder before Ink mounts (ant-only, opt-in via CLAUDE_CODE_TERMINAL_RECORDING=1)
+        // Install asciicast recorder before Ink mounts (ant-only, opt-in via MAXIMO_SYNTAX_TERMINAL_RECORDING=1)
         if ("external" === "ant") {
           installAsciicastRecorder();
         }
@@ -3388,7 +3388,7 @@ async function run(): Promise<CommanderCommand> {
           void refreshPolicyLimits();
           // Clear user data cache BEFORE GrowthBook refresh so it picks up fresh credentials
           resetUserCache();
-          // Refresh GrowthBook after login to get updated feature flags (e.g., for claude.ai MCPs)
+          // Refresh GrowthBook after login to get updated feature flags (e.g., for maximo.ai MCPs)
           refreshGrowthBookAfterAuthChange();
           // Clear any stale trusted device token then enroll for Remote Control.
           // Both self-gate on tengu_sessions_elevated_auth_enforcement internally
@@ -3429,7 +3429,7 @@ async function run(): Promise<CommanderCommand> {
         const nonMcpErrors = errors.filter((e) => !e.mcpErrorMetadata);
         if (
           nonMcpErrors.length > 0 &&
-          !isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
+          !isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)
         ) {
           await launchInvalidSettingsDialog(root, {
             settingsErrors: nonMcpErrors,
@@ -3530,13 +3530,13 @@ async function run(): Promise<CommanderCommand> {
             commands: [],
           })
         : prefetchAllMcpResources(regularMcpConfigs);
-      const claudeaiMcpPromise = isNonInteractiveSession
+      const maximoaiMcpPromise = isNonInteractiveSession
         ? Promise.resolve({
             clients: [],
             tools: [],
             commands: [],
           })
-        : claudeaiConfigPromise.then((configs) =>
+        : maximoaiConfigPromise.then((configs) =>
             Object.keys(configs).length > 0
               ? prefetchAllMcpResources(configs)
               : {
@@ -3551,11 +3551,11 @@ async function run(): Promise<CommanderCommand> {
       // already uniqBy's the final tool pool, but dedup here keeps appState clean.
       const mcpPromise = Promise.all([
         localMcpPromise,
-        claudeaiMcpPromise,
-      ]).then(([local, claudeai]) => ({
-        clients: [...local.clients, ...claudeai.clients],
-        tools: uniqBy([...local.tools, ...claudeai.tools], "name"),
-        commands: uniqBy([...local.commands, ...claudeai.commands], "name"),
+        maximoaiMcpPromise,
+      ]).then(([local, maximoai]) => ({
+        clients: [...local.clients, ...maximoai.clients],
+        tools: uniqBy([...local.tools, ...maximoai.tools], "name"),
+        commands: uniqBy([...local.commands, ...maximoai.commands], "name"),
       }));
 
       // Start hooks early so they run in parallel with MCP connections.
@@ -3676,9 +3676,9 @@ async function run(): Promise<CommanderCommand> {
       void logPermissionContextForAnts(null, "initialization");
       logManagedSettings();
 
-      // Register PID file for concurrent-session detection (~/.claude/sessions/)
+      // Register PID file for concurrent-session detection (~/.maximo/sessions/)
       // and fire multi-clauding telemetry. Lives here (not init.ts) so only the
-      // REPL path registers — not subcommands like `claude doctor`. Chained:
+      // REPL path registers — not subcommands like `maximo doctor`. Chained:
       // count must run after register's write completes or it misses our own file.
       void registerSession().then((registered) => {
         if (!registered) return;
@@ -3909,39 +3909,39 @@ async function run(): Promise<CommanderCommand> {
         // message and turn-1 tool list both need configured MCP tools present.
         // Zero-server case is free via the early return in connectMcpBatch.
         // Connectors parallelize inside getMcpToolsCommandsAndResources
-        // (processBatched with Promise.all). claude.ai is awaited too — its
+        // (processBatched with Promise.all). maximo.ai is awaited too — its
         // fetch was kicked off early (line ~2558) so only residual time blocks
-        // here. --bare skips claude.ai entirely for perf-sensitive scripts.
+        // here. --bare skips maximo.ai entirely for perf-sensitive scripts.
         profileCheckpoint("before_connectMcp");
         await connectMcpBatch(regularMcpConfigs, "regular");
         profileCheckpoint("after_connectMcp");
-        // Dedup: suppress plugin MCP servers that duplicate a claude.ai
-        // connector (connector wins), then connect claude.ai servers.
+        // Dedup: suppress plugin MCP servers that duplicate a maximo.ai
+        // connector (connector wins), then connect maximo.ai servers.
         // Bounded wait — #23725 made this blocking so single-turn -p sees
         // connectors, but with 40+ slow connectors tengu_startup_perf p99
         // climbed to 76s. If fetch+connect doesn't finish in time, proceed;
         // the promise keeps running and updates headlessStore in the
         // background so turn 2+ still sees connectors.
         const CLAUDE_AI_MCP_TIMEOUT_MS = 5_000;
-        const claudeaiConnect = claudeaiConfigPromise.then(
-          (claudeaiConfigs) => {
-            if (Object.keys(claudeaiConfigs).length > 0) {
-              const claudeaiSigs = new Set<string>();
-              for (const config of Object.values(claudeaiConfigs)) {
+        const maximoaiConnect = maximoaiConfigPromise.then(
+          (maximoaiConfigs) => {
+            if (Object.keys(maximoaiConfigs).length > 0) {
+              const maximoaiSigs = new Set<string>();
+              for (const config of Object.values(maximoaiConfigs)) {
                 const sig = getMcpServerSignature(config);
-                if (sig) claudeaiSigs.add(sig);
+                if (sig) maximoaiSigs.add(sig);
               }
               const suppressed = new Set<string>();
               for (const [name, config] of Object.entries(regularMcpConfigs)) {
                 if (!name.startsWith("plugin:")) continue;
                 const sig = getMcpServerSignature(config);
-                if (sig && claudeaiSigs.has(sig)) suppressed.add(name);
+                if (sig && maximoaiSigs.has(sig)) suppressed.add(name);
               }
               if (suppressed.size > 0) {
                 logForDebugging(
                   `[MCP] Lazy dedup: suppressing ${
                     suppressed.size
-                  } plugin server(s) that duplicate claude.ai connectors: ${[
+                  } plugin server(s) that duplicate maximo.ai connectors: ${[
                     ...suppressed,
                   ].join(", ")}`
                 );
@@ -3978,41 +3978,41 @@ async function run(): Promise<CommanderCommand> {
                 });
               }
             }
-            // Suppress claude.ai connectors that duplicate an enabled
+            // Suppress maximo.ai connectors that duplicate an enabled
             // manual server (URL-signature match). Plugin dedup above only
             // handles `plugin:*` keys; this catches manual `.mcp.json` entries.
             // plugin:* must be excluded here — step 1 already suppressed
-            // those (claude.ai wins); leaving them in suppresses the
+            // those (maximo.ai wins); leaving them in suppresses the
             // connector too, and neither survives (gh-39974).
             const nonPluginConfigs = pickBy(
               regularMcpConfigs,
               (_, n) => !n.startsWith("plugin:")
             );
             const { servers: dedupedMaximoAi } = dedupMaximoAiMcpServers(
-              claudeaiConfigs,
+              maximoaiConfigs,
               nonPluginConfigs
             );
-            return connectMcpBatch(dedupedMaximoAi, "claudeai");
+            return connectMcpBatch(dedupedMaximoAi, "maximoai");
           }
         );
-        let claudeaiTimer: ReturnType<typeof setTimeout> | undefined;
-        const claudeaiTimedOut = await Promise.race([
-          claudeaiConnect.then(() => false),
+        let maximoaiTimer: ReturnType<typeof setTimeout> | undefined;
+        const maximoaiTimedOut = await Promise.race([
+          maximoaiConnect.then(() => false),
           new Promise<boolean>((resolve) => {
-            claudeaiTimer = setTimeout(
+            maximoaiTimer = setTimeout(
               (r) => r(true),
               CLAUDE_AI_MCP_TIMEOUT_MS,
               resolve
             );
           }),
         ]);
-        if (claudeaiTimer) clearTimeout(claudeaiTimer);
-        if (claudeaiTimedOut) {
+        if (maximoaiTimer) clearTimeout(maximoaiTimer);
+        if (maximoaiTimedOut) {
           logForDebugging(
-            `[MCP] claude.ai connectors not ready after ${CLAUDE_AI_MCP_TIMEOUT_MS}ms — proceeding; background connection continues`
+            `[MCP] maximo.ai connectors not ready after ${CLAUDE_AI_MCP_TIMEOUT_MS}ms — proceeding; background connection continues`
           );
         }
-        profileCheckpoint("after_connectMcp_claudeai");
+        profileCheckpoint("after_connectMcp_maximoai");
 
         // In headless mode, start deferred prefetches immediately (no user typing delay)
         // --bare / SIMPLE: startDeferredPrefetches early-returns internally.
@@ -4310,7 +4310,7 @@ async function run(): Promise<CommanderCommand> {
       // environments can be recreated at any user message index. Gating:
       //   - Build-time: this import is stubbed in external builds.
       //   - Runtime: uploader checks github.com/anthropics/* remote + gcloud auth.
-      //   - Safety: CLAUDE_CODE_DISABLE_SESSION_DATA_UPLOAD=1 bypasses (tests set this).
+      //   - Safety: MAXIMO_SYNTAX_DISABLE_SESSION_DATA_UPLOAD=1 bypasses (tests set this).
       // Import is dynamic + async to avoid adding startup latency.
       const sessionUploaderPromise =
         "external" === "ant" ? import("./utils/sessionDataUploader.js") : null;
@@ -4426,7 +4426,7 @@ async function run(): Promise<CommanderCommand> {
           process.exit(1);
         }
       } else if (feature("DIRECT_CONNECT") && _pendingConnect?.url) {
-        // `claude connect <url>` — full interactive TUI connected to a remote server
+        // `maximo connect <url>` — full interactive TUI connected to a remote server
         let directConnectConfig;
         try {
           const session = await createDirectConnectSession({
@@ -4476,7 +4476,7 @@ async function run(): Promise<CommanderCommand> {
         );
         return;
       } else if (feature("SSH_REMOTE") && _pendingSSH?.host) {
-        // `claude ssh <host> [dir]` — probe remote, deploy binary if needed,
+        // `maximo ssh <host> [dir]` — probe remote, deploy binary if needed,
         // spawn ssh with unix-socket -R forward to a local auth proxy, hand
         // the REPL an SSHSession. Tools run remotely, UI renders locally.
         // `--local` skips probe/deploy/ssh and spawns the current binary
@@ -4566,7 +4566,7 @@ async function run(): Promise<CommanderCommand> {
         _pendingAssistantChat &&
         (_pendingAssistantChat.sessionId || _pendingAssistantChat.discover)
       ) {
-        // `claude assistant [sessionId]` — REPL as a pure viewer client
+        // `maximo assistant [sessionId]` — REPL as a pure viewer client
         // of a remote assistant session. The agentic loop runs remotely; this
         // process streams live events and POSTs messages. History is lazy-
         // loaded by useAssistantHistory on scroll-up (no blocking fetch here).
@@ -4610,7 +4610,7 @@ async function run(): Promise<CommanderCommand> {
             // establish a bridge session before discovery will find it.
             return await exitWithMessage(
               root,
-              `Assistant installed in ${installedDir}. The daemon is starting up — run \`claude assistant\` again in a few seconds to connect.`,
+              `Assistant installed in ${installedDir}. The daemon is starting up — run \`maximo assistant\` again in a few seconds to connect.`,
               {
                 exitCode: 0,
                 beforeExit: () => gracefulShutdown(0),
@@ -4775,7 +4775,7 @@ async function run(): Promise<CommanderCommand> {
           if (!isRemoteTuiEnabled && !hasInitialPrompt) {
             return await exitWithError(
               root,
-              'Error: --remote requires a description.\nUsage: claude --remote "your task description"',
+              'Error: --remote requires a description.\nUsage: maximo --remote "your task description"',
               () => gracefulShutdown(1)
             );
           }
@@ -4819,7 +4819,7 @@ async function run(): Promise<CommanderCommand> {
               `View: ${getRemoteSessionUrl(createdSession.id)}?m=0\n`
             );
             process.stdout.write(
-              `Resume with: claude --teleport ${createdSession.id}\n`
+              `Resume with: maximo --teleport ${createdSession.id}\n`
             );
             await gracefulShutdown(0);
             process.exit(0);
@@ -4970,9 +4970,9 @@ async function run(): Promise<CommanderCommand> {
                   } else {
                     // No known paths - show original error
                     throw new TeleportOperationError(
-                      `You must run claude --teleport ${teleport} from a checkout of ${sessionRepo}.`,
+                      `You must run maximo --teleport ${teleport} from a checkout of ${sessionRepo}.`,
                       chalk.red(
-                        `You must run claude --teleport ${teleport} from a checkout of ${chalk.bold(
+                        `You must run maximo --teleport ${teleport} from a checkout of ${chalk.bold(
                           sessionRepo
                         )}.\n`
                       )
@@ -5285,7 +5285,7 @@ async function run(): Promise<CommanderCommand> {
         // knows the session originated externally. Linux xdg-open and
         // browsers with "always allow" set dispatch the link with no OS-level
         // confirmation, so this is the only signal the user gets that the
-        // prompt — and the working directory / CLAUDE.md it implies — came
+        // prompt — and the working directory / MAXIMO.md it implies — came
         // from an external source rather than something they typed.
         let deepLinkBanner: ReturnType<typeof createSystemMessage> | null =
           null;
@@ -5451,7 +5451,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // Teammate identity options (set by leader when spawning tmux teammates)
-  // These replace the CLAUDE_CODE_* environment variables
+  // These replace the MAXIMO_SYNTAX_* environment variables
   program.addOption(
     new Option("--agent-id <id>", "Teammate agent ID").hideHelp()
   );
@@ -5560,7 +5560,7 @@ async function run(): Promise<CommanderCommand> {
     return program;
   }
 
-  // claude mcp
+  // maximo mcp
 
   const mcp = program
     .command("mcp")
@@ -5653,7 +5653,7 @@ async function run(): Promise<CommanderCommand> {
       }
     );
   mcp
-    .command("add-from-claude-desktop")
+    .command("add-from-maximo-desktop")
     .description("Import MCP servers from Maximo Desktop (Mac and WSL only)")
     .option(
       "-s, --scope <scope>",
@@ -5676,7 +5676,7 @@ async function run(): Promise<CommanderCommand> {
       await mcpResetChoicesHandler();
     });
 
-  // claude server
+  // maximo server
   if (feature("DIRECT_CONNECT")) {
     program
       .command("server")
@@ -5722,7 +5722,7 @@ async function run(): Promise<CommanderCommand> {
           const existing = await probeRunningServer();
           if (existing) {
             process.stderr.write(
-              `A claude server is already running (pid ${existing.pid}) at ${existing.httpUrl}\n`
+              `A maximo server is already running (pid ${existing.pid}) at ${existing.httpUrl}\n`
             );
             process.exit(1);
           }
@@ -5772,11 +5772,11 @@ async function run(): Promise<CommanderCommand> {
       );
   }
 
-  // `claude ssh <host> [dir]` — registered here only so --help shows it.
+  // `maximo ssh <host> [dir]` — registered here only so --help shows it.
   // The actual interactive flow is handled by early argv rewriting in main()
   // (parallels the DIRECT_CONNECT/cc:// pattern above). If commander reaches
   // this action it means the argv rewrite didn't fire (e.g. user ran
-  // `claude ssh` with no host) — just print usage.
+  // `maximo ssh` with no host) — just print usage.
   if (feature("SSH_REMOTE")) {
     program
       .command("ssh <host> [dir]")
@@ -5802,16 +5802,16 @@ async function run(): Promise<CommanderCommand> {
         // commander runs. Reaching here means host was missing or the
         // rewrite predicate didn't match.
         process.stderr.write(
-          "Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n" +
+          "Usage: maximo ssh <user@host | ssh-config-alias> [dir]\n\n" +
             "Runs Maximo Syntax on a remote Linux host. You don't need to install\n" +
-            "anything on the remote or run `claude auth login` there — the binary is\n" +
+            "anything on the remote or run `maximo auth login` there — the binary is\n" +
             "deployed over SSH and API auth tunnels back through your local machine.\n"
         );
         process.exit(1);
       });
   }
 
-  // claude connect — subcommand only handles -p (headless) mode.
+  // maximo connect — subcommand only handles -p (headless) mode.
   // Interactive mode (without -p) is handled by early argv rewriting in main()
   // which redirects to the main command with full TUI support.
   if (feature("DIRECT_CONNECT")) {
@@ -5875,7 +5875,7 @@ async function run(): Promise<CommanderCommand> {
       );
   }
 
-  // claude auth
+  // maximo auth
 
   const auth = program
     .command("auth")
@@ -5890,25 +5890,25 @@ async function run(): Promise<CommanderCommand> {
       "--console",
       "Use Anthropic Console (API usage billing) instead of Maximo subscription"
     )
-    .option("--claudeai", "Use Maximo subscription (default)")
+    .option("--maximoai", "Use Maximo subscription (default)")
     .action(
       async ({
         email,
         sso,
         console: useConsole,
-        claudeai,
+        maximoai,
       }: {
         email?: string;
         sso?: boolean;
         console?: boolean;
-        claudeai?: boolean;
+        maximoai?: boolean;
       }) => {
         const { authLogin } = await import("./cli/handlers/auth.js");
         await authLogin({
           email,
           sso,
           console: useConsole,
-          claudeai,
+          maximoai,
         });
       }
     );
@@ -5995,7 +5995,7 @@ async function run(): Promise<CommanderCommand> {
     .addOption(coworkOption())
     .option(
       "--sparse <paths...>",
-      "Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .claude-plugin plugins"
+      "Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .maximo-plugin plugins"
     )
     .option(
       "--scope <scope>",
@@ -6106,7 +6106,7 @@ async function run(): Promise<CommanderCommand> {
     )
     .option(
       "--keep-data",
-      "Preserve the plugin's persistent data directory (~/.claude/plugins/data/{id}/)"
+      "Preserve the plugin's persistent data directory (~/.maximo/plugins/data/{id}/)"
     )
     .addOption(coworkOption())
     .action(
@@ -6279,7 +6279,7 @@ async function run(): Promise<CommanderCommand> {
     }
   }
 
-  // Remote Control command — connect local environment to claude.ai/code.
+  // Remote Control command — connect local environment to maximo.ai/code.
   // The actual command is intercepted by the fast-path in cli.tsx before
   // Commander.js runs, so this registration exists only for help output.
   // Always hidden: isBridgeEnabled() at this point (before enableConfigs)
@@ -6294,7 +6294,7 @@ async function run(): Promise<CommanderCommand> {
       })
       .alias("rc")
       .description(
-        "Connect your local environment for remote-control sessions via claude.ai/code"
+        "Connect your local environment for remote-control sessions via maximo.ai/code"
       )
       .action(async () => {
         // Unreachable — cli.tsx fast-path handles this command before main.tsx loads.
@@ -6315,7 +6315,7 @@ async function run(): Promise<CommanderCommand> {
         // (e.g. `--debug assistant`) and the position-0 predicate
         // didn't match. Print usage like the ssh stub does.
         process.stderr.write(
-          "Usage: claude assistant [sessionId]\n\n" +
+          "Usage: maximo assistant [sessionId]\n\n" +
             "Attach the REPL as a viewer client to a running bridge session.\n" +
             "Omit sessionId to discover and pick from available sessions.\n"
         );
@@ -6338,7 +6338,7 @@ async function run(): Promise<CommanderCommand> {
       await doctorHandler(root);
     });
 
-  // claude update
+  // maximo update
   //
   // For SemVer-compliant versioning with build metadata (X.X.X+SHA):
   // - We perform exact string comparison (including SHA) to detect any change
@@ -6353,12 +6353,12 @@ async function run(): Promise<CommanderCommand> {
       await update();
     });
 
-  // claude up — run the project's CLAUDE.md "# claude up" setup instructions.
+  // maximo up — run the project's MAXIMO.md "# maximo up" setup instructions.
   if ("external" === "ant") {
     program
       .command("up")
       .description(
-        '[ANT-ONLY] Initialize or upgrade the local dev environment using the "# claude up" section of the nearest CLAUDE.md'
+        '[ANT-ONLY] Initialize or upgrade the local dev environment using the "# maximo up" section of the nearest MAXIMO.md'
       )
       .action(async () => {
         const { up } = await import("src/cli/up.js");
@@ -6366,13 +6366,13 @@ async function run(): Promise<CommanderCommand> {
       });
   }
 
-  // claude rollback (ant-only)
+  // maximo rollback (ant-only)
   // Rolls back to previous releases
   if ("external" === "ant") {
     program
       .command("rollback [target]")
       .description(
-        "[ANT-ONLY] Roll back to a previous release\n\nExamples:\n  claude rollback                                    Go 1 version back from current\n  claude rollback 3                                  Go 3 versions back from current\n  claude rollback 2.0.73-dev.20251217.t190658        Roll back to a specific version"
+        "[ANT-ONLY] Roll back to a previous release\n\nExamples:\n  maximo rollback                                    Go 1 version back from current\n  maximo rollback 3                                  Go 3 versions back from current\n  maximo rollback 2.0.73-dev.20251217.t190658        Roll back to a specific version"
       )
       .option("-l, --list", "List recent published versions with ages")
       .option("--dry-run", "Show what would be installed without installing")
@@ -6395,7 +6395,7 @@ async function run(): Promise<CommanderCommand> {
       );
   }
 
-  // claude install
+  // maximo install
   program
     .command("install [target]")
     .description(
@@ -6421,7 +6421,7 @@ async function run(): Promise<CommanderCommand> {
       if (maybeSessionId) return maybeSessionId;
       return Number(value);
     };
-    // claude log
+    // maximo log
     program
       .command("log")
       .description("[ANT-ONLY] Manage conversation logs.")
@@ -6435,7 +6435,7 @@ async function run(): Promise<CommanderCommand> {
         await logHandler(logId);
       });
 
-    // claude error
+    // maximo error
     program
       .command("error")
       .description(
@@ -6451,7 +6451,7 @@ async function run(): Promise<CommanderCommand> {
         await errorHandler(number);
       });
 
-    // claude export
+    // maximo export
     program
       .command("export")
       .description("[ANT-ONLY] Export a conversation to a text file.")
@@ -6465,10 +6465,10 @@ async function run(): Promise<CommanderCommand> {
         "after",
         `
 Examples:
-  $ claude export 0 conversation.txt                Export conversation at log index 0
-  $ claude export <uuid> conversation.txt           Export conversation by session ID
-  $ claude export input.json output.txt             Render JSON log file to text
-  $ claude export <uuid>.jsonl output.txt           Render JSONL session file to text`
+  $ maximo export 0 conversation.txt                Export conversation at log index 0
+  $ maximo export <uuid> conversation.txt           Export conversation by session ID
+  $ maximo export input.json output.txt             Render JSON log file to text
+  $ maximo export <uuid>.jsonl output.txt           Render JSONL session file to text`
       )
       .action(async (source: string, outputFile: string) => {
         const { exportHandler } = await import("./cli/handlers/ant.js");
@@ -6564,7 +6564,7 @@ Examples:
         });
     }
 
-    // claude completion <shell>
+    // maximo completion <shell>
     program
       .command("completion <shell>", {
         hidden: true,
@@ -6647,7 +6647,7 @@ async function logTenguInit({
   try {
     logEvent("tengu_init", {
       entrypoint:
-        "claude" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        "maximo" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       hasInitialPrompt,
       hasStdin,
       verbose,
@@ -6721,7 +6721,7 @@ function maybeActivateProactive(options: unknown): void {
         proactive?: boolean;
       }
     ).proactive ||
-      isEnvTruthy(process.env.CLAUDE_CODE_PROACTIVE))
+      isEnvTruthy(process.env.MAXIMO_SYNTAX_PROACTIVE))
   ) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const proactiveModule = require("./proactive/index.js");
@@ -6737,12 +6737,12 @@ function maybeActivateBrief(options: unknown): void {
       brief?: boolean;
     }
   ).brief;
-  const briefEnv = isEnvTruthy(process.env.CLAUDE_CODE_BRIEF);
+  const briefEnv = isEnvTruthy(process.env.MAXIMO_SYNTAX_BRIEF);
   if (!briefFlag && !briefEnv) return;
-  // --brief / CLAUDE_CODE_BRIEF are explicit opt-ins: check entitlement,
+  // --brief / MAXIMO_SYNTAX_BRIEF are explicit opt-ins: check entitlement,
   // then set userMsgOptIn to activate the tool + prompt section. The env
   // var also grants entitlement (isBriefEntitled() reads it), so setting
-  // CLAUDE_CODE_BRIEF=1 alone force-enables for dev/testing — no GB gate
+  // MAXIMO_SYNTAX_BRIEF=1 alone force-enables for dev/testing — no GB gate
   // needed. initialIsBriefOnly reads getUserMsgOptIn() directly.
   // Conditional require: static import would leak the tool name string
   // into external builds via BriefTool.ts → prompt.ts.

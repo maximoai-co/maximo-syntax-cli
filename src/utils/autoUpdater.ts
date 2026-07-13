@@ -28,7 +28,7 @@ import {
 import { jsonParse } from "./slowOperations.js";
 
 const GCS_BUCKET_URL =
-  "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
+  "https://storage.googleapis.com/maximo-syntax-dist/maximo-syntax-releases";
 
 class AutoUpdaterError extends MaximoError {}
 
@@ -61,7 +61,7 @@ export type MaxVersionConfig = {
  *
  * Versioning approach:
  * 1. For version requirements/compatibility (assertMinVersion), we use semver comparison that ignores build metadata
- * 2. For updates ('claude update'), we use exact string comparison to detect any change, including SHA
+ * 2. For updates ('maximo update'), we use exact string comparison to detect any change, including SHA
  *    - This ensures users always get the latest build, even when only the SHA changes
  *    - The UI clearly shows both versions including build metadata
  *
@@ -87,7 +87,7 @@ It looks like your version of Maximo Syntax (${MACRO.VERSION}) needs an update.
 A newer version (${versionConfig.minVersion} or higher) is required to continue.
 
 To update, please run:
-    claude update
+    maximo update
 
 This will ensure you have access to the latest features and improvements.
 `);
@@ -486,7 +486,7 @@ This configuration is not supported for updates.
 To fix this issue:
   1. Install Node.js within your Linux distribution: e.g. sudo apt install nodejs npm
   2. Make sure Linux NPM is in your PATH before the Windows version
-  3. Try updating again with 'claude update'
+  3. Try updating again with 'maximo update'
 `);
       return "install_failed";
     }
@@ -531,7 +531,7 @@ To fix this issue:
 }
 
 /**
- * Remove claude aliases from shell configuration files
+ * Remove maximo aliases from shell configuration files
  * This helps clean up old installation methods when switching to native or npm global
  */
 async function removeMaximoAliasesFromShellConfigs(): Promise<void> {
@@ -547,7 +547,7 @@ async function removeMaximoAliasesFromShellConfigs(): Promise<void> {
 
       if (hadAlias) {
         await writeFileLines(configFile, filtered);
-        logForDebugging(`Removed claude alias from ${configFile}`);
+        logForDebugging(`Removed maximo alias from ${configFile}`);
       }
     } catch (error) {
       // Don't fail the whole operation if one file can't be processed

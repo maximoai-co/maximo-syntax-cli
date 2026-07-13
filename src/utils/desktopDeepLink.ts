@@ -33,7 +33,7 @@ function isDevMode(): boolean {
  * In dev mode: claude-dev://resume?session={sessionId}&cwd={cwd}
  */
 function buildDesktopDeepLink(sessionId: string): string {
-  const protocol = isDevMode() ? "claude-dev" : "claude";
+  const protocol = isDevMode() ? "claude-dev" : "maximo";
   const url = new URL(`${protocol}://resume`);
   url.searchParams.set("session", sessionId);
   url.searchParams.set("cwd", getCwd());
@@ -64,14 +64,14 @@ async function isDesktopInstalled(): Promise<boolean> {
     const { code, stdout } = await execFileNoThrow("xdg-mime", [
       "query",
       "default",
-      "x-scheme-handler/claude",
+      "x-scheme-handler/maximo",
     ]);
     return code === 0 && stdout.trim().length > 0;
   } else if (platform === "win32") {
     // On Windows, try to query the registry for the protocol handler
     const { code } = await execFileNoThrow("reg", [
       "query",
-      "HKEY_CLASSES_ROOT\\claude",
+      "HKEY_CLASSES_ROOT\\maximo",
       "/ve",
     ]);
     return code === 0;
@@ -216,7 +216,7 @@ export async function openCurrentSessionInDesktop(): Promise<{
     return {
       success: false,
       error:
-        "Maximo Desktop is not installed. Install it from https://claude.ai/download",
+        "Maximo Desktop is not installed. Install it from https://maximo.ai/download",
     };
   }
 

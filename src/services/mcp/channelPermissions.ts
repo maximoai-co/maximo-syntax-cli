@@ -6,11 +6,11 @@
  * local UI / bridge / hooks / classifier. First resolver wins via claim().
  *
  * Inbound is a structured event: the server parses the user's "yes tbxkq"
- * reply and emits notifications/claude/channel/permission with
+ * reply and emits notifications/maximo/channel/permission with
  * {request_id, behavior}. CC never sees the reply as text — approval
  * requires the server to deliberately emit that specific event, not just
  * relay content. Servers opt in by declaring
- * capabilities.experimental['claude/channel/permission'].
+ * capabilities.experimental['maximo/channel/permission'].
  *
  * Kenneth's "would this let Maximo self-approve?": the approving party is
  * the human via the channel, not Maximo. But the trust boundary isn't the
@@ -50,7 +50,7 @@ export type ChannelPermissionCallbacks = {
     handler: (response: ChannelPermissionResponse) => void
   ): () => void;
   /** Resolve a pending request from a structured channel event
-   *  (notifications/claude/channel/permission). Returns true if the ID
+   *  (notifications/maximo/channel/permission). Returns true if the ID
    *  was pending — the server parsed the user's reply and emitted
    *  {request_id, behavior}; we just match against the map. */
   resolve(
@@ -68,7 +68,7 @@ export type ChannelPermissionCallbacks = {
  * autocorrect). No bare yes/no (conversational). No prefix/suffix chatter.
  *
  * CC generates the ID and sends the prompt. The SERVER parses the user's
- * reply and emits notifications/claude/channel/permission with {request_id,
+ * reply and emits notifications/maximo/channel/permission with {request_id,
  * behavior} — CC doesn't regex-match text anymore. Exported so plugins can
  * import the exact regex rather than hand-copying it.
  */
@@ -188,20 +188,20 @@ export function filterPermissionRelayClients<
     (c): c is T & { type: "connected" } =>
       c.type === "connected" &&
       isInAllowlist(c.name) &&
-      c.capabilities?.experimental?.["claude/channel"] !== undefined &&
-      c.capabilities?.experimental?.["claude/channel/permission"] !== undefined
+      c.capabilities?.experimental?.["maximo/channel"] !== undefined &&
+      c.capabilities?.experimental?.["maximo/channel/permission"] !== undefined
   );
 }
 
 /**
  * Factory for the callbacks object. The pending Map is closed over — NOT
- * module-level (per src/CLAUDE.md), NOT in AppState (functions-in-state
+ * module-level (per src/MAXIMO.md), NOT in AppState (functions-in-state
  * causes issues with equality/serialization). Same lifetime pattern as
  * `replBridgePermissionCallbacks`: constructed once per session inside
  * a React hook, stable reference stored in AppState.
  *
  * resolve() is called from the dedicated notification handler
- * (notifications/claude/channel/permission) with the structured payload.
+ * (notifications/maximo/channel/permission) with the structured payload.
  * The server already parsed "yes tbxkq" → {request_id, behavior}; we just
  * match against the pending map. No regex on CC's side — text in the
  * general channel can't accidentally approve anything.

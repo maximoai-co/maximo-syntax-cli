@@ -76,7 +76,7 @@ export async function playAnimation(skillDir: string): Promise<{
   // Both files are prerequisites for the node subprocess. Read them here
   // (not at call sites) so all callers get consistent error messaging. The
   // subprocess runs with reject: false, so a missing file would otherwise
-  // silently return success. Using readFile (not access) per CLAUDE.md.
+  // silently return success. Using readFile (not access) per MAXIMO.md.
   //
   // Non-ENOENT errors (EACCES etc) are logged and returned as failures rather
   // than thrown — the old pathExists-based code never threw, and one caller
@@ -441,7 +441,7 @@ function ThinkbackMenu(t0) {
         title="Think Back on 2025 with Maximo Syntax"
         subtitle="Generate your 2025 Maximo Syntax Think Back (takes a few minutes to run)"
         onCancel={handleCancel}
-        color="claude"
+        color="maximo"
       >
         {t6}
       </Dialog>

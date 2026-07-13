@@ -7,7 +7,7 @@ import {
 import { getIsNonInteractiveSession, getSdkBetas } from "../bootstrap/state.js";
 import {
   BEDROCK_EXTRA_PARAMS_HEADERS,
-  CLAUDE_CODE_20250219_BETA_HEADER,
+  MAXIMO_SYNTAX_20250219_BETA_HEADER,
   CLI_INTERNAL_BETA_HEADER,
   CONTEXT_1M_BETA_HEADER,
   CONTEXT_MANAGEMENT_BETA_HEADER,
@@ -184,7 +184,7 @@ export function modelSupportsAutoMode(model: string): boolean {
       return true;
     }
     if (process.env.USER_TYPE === "ant") {
-      // Denylist: block known-unsupported claude models, allow everything else (ant-internal models etc.)
+      // Denylist: block known-unsupported maximo models, allow everything else (ant-internal models etc.)
       if (m.includes("claude-3-")) return false;
       // claude-*-4 not followed by -[6-9]: blocks bare -4, -4-YYYYMMDD, -4@, -4-0 thru -4-5
       if (/claude-(opus|sonnet|haiku)-4(?!-[6-9])/.test(m)) return false;
@@ -217,7 +217,7 @@ export function getToolSearchBetaHeader(): string {
 export function shouldIncludeFirstPartyOnlyBetas(): boolean {
   return (
     (getAPIProvider() === "firstParty" || getAPIProvider() === "foundry") &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS)
   );
 }
 
@@ -229,7 +229,7 @@ export function shouldIncludeFirstPartyOnlyBetas(): boolean {
 export function shouldUseGlobalCacheScope(): boolean {
   return (
     getAPIProvider() === "firstParty" &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS)
   );
 }
 
@@ -240,10 +240,10 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   const includeFirstPartyOnlyBetas = shouldIncludeFirstPartyOnlyBetas();
 
   if (!isHaiku) {
-    betaHeaders.push(CLAUDE_CODE_20250219_BETA_HEADER);
+    betaHeaders.push(MAXIMO_SYNTAX_20250219_BETA_HEADER);
     if (
       process.env.USER_TYPE === "ant" &&
-      process.env.CLAUDE_CODE_ENTRYPOINT === "cli"
+      process.env.MAXIMO_SYNTAX_ENTRYPOINT === "cli"
     ) {
       if (CLI_INTERNAL_BETA_HEADER) {
         betaHeaders.push(CLI_INTERNAL_BETA_HEADER);
@@ -313,7 +313,7 @@ export const getAllModelBetas = memoize((model: string): string[] => {
     betaHeaders.push(CONTEXT_MANAGEMENT_BETA_HEADER);
   }
   // Add strict tool use beta if experiment is enabled.
-  // Gate on includeFirstPartyOnlyBetas: CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS
+  // Gate on includeFirstPartyOnlyBetas: MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS
   // already strips schema.strict from tool bodies at api.ts's choke point, but
   // this header was escaping that kill switch. Proxy gateways that look like
   // firstParty but forward to Vertex reject this header with 400.
@@ -406,12 +406,12 @@ export function getMergedBetas(
   // For non-Haiku models these are already in baseBetas; for Haiku they're
   // excluded by getAllModelBetas() since non-agentic Haiku calls don't need them.
   if (options?.isAgenticQuery) {
-    if (!baseBetas.includes(CLAUDE_CODE_20250219_BETA_HEADER)) {
-      baseBetas.push(CLAUDE_CODE_20250219_BETA_HEADER);
+    if (!baseBetas.includes(MAXIMO_SYNTAX_20250219_BETA_HEADER)) {
+      baseBetas.push(MAXIMO_SYNTAX_20250219_BETA_HEADER);
     }
     if (
       process.env.USER_TYPE === "ant" &&
-      process.env.CLAUDE_CODE_ENTRYPOINT === "cli" &&
+      process.env.MAXIMO_SYNTAX_ENTRYPOINT === "cli" &&
       CLI_INTERNAL_BETA_HEADER &&
       !baseBetas.includes(CLI_INTERNAL_BETA_HEADER)
     ) {

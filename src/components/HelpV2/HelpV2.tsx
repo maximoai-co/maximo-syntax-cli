@@ -221,7 +221,7 @@ export function HelpV2(t0) {
     t7 = (
       <Box marginTop={1}>
         <Text>
-          For more help: <Link url="https://code.claude.com/docs/en/overview" />
+          For more help: <Link url="https://code.maximo.com/docs/en/overview" />
         </Text>
       </Box>
     );

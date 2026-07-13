@@ -6,5 +6,5 @@
  */
 
 export function getMaximoCodeUserAgent(): string {
-  return `claude-code/${MACRO.VERSION}`;
+  return `maximo-syntax/${MACRO.VERSION}`;
 }

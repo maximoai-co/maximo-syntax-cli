@@ -14,7 +14,7 @@ export const ConfigScopeSchema = lazySchema(() =>
     "project",
     "dynamic",
     "enterprise",
-    "claudeai",
+    "maximoai",
     "managed",
   ])
 );
@@ -115,7 +115,7 @@ export const McpSdkServerConfigSchema = lazySchema(() =>
 // Config type for Maximo.ai proxy servers
 export const McpMaximoAIProxyServerConfigSchema = lazySchema(() =>
   z.object({
-    type: z.literal("claudeai-proxy"),
+    type: z.literal("maximoai-proxy"),
     url: z.string(),
     id: z.string(),
   })

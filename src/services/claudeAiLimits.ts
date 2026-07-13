@@ -11,7 +11,7 @@ import { getAPIProvider } from "../utils/model/providers.js";
 import { isEssentialTrafficOnly } from "../utils/privacyLevel.js";
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from "./analytics/index.js";
 import { logEvent } from "./analytics/index.js";
-import { getAPIMetadata } from "./api/claude.js";
+import { getAPIMetadata } from "./api/maximo.js";
 import { getAnthropicClient } from "./api/client.js";
 import {
   processRateLimitHeaders,
@@ -189,7 +189,7 @@ export function emitStatusChange(limits: MaximoAILimits) {
     (limits.resetsAt ? limits.resetsAt - Date.now() / 1000 : 0) / (60 * 60)
   );
 
-  logEvent("tengu_claudeai_limits_status_changed", {
+  logEvent("tengu_maximoai_limits_status_changed", {
     status:
       limits.status as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     unifiedRateLimitFallbackAvailable: limits.unifiedRateLimitFallbackAvailable,
@@ -235,7 +235,7 @@ export async function checkQuotaStatus(): Promise<void> {
 
   // In non-interactive mode (-p), the real query follows immediately and
   // extractQuotaStatusFromHeaders() will update limits from its response
-  // headers (claude.ts), so skip this pre-check API call.
+  // headers (maximo.ts), so skip this pre-check API call.
   if (getIsNonInteractiveSession()) {
     return;
   }

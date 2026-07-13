@@ -5,7 +5,7 @@ import {
   getLargeMemoryFiles,
   MAX_MEMORY_CHARACTER_COUNT,
   type MemoryFileInfo,
-} from "./claudemd.js";
+} from "./maximomd.js";
 import figures from "figures";
 import { getCwd } from "./cwd.js";
 import { relative } from "path";
@@ -91,7 +91,7 @@ const claudeAiSubscriberExternalTokenNotice: StatusNoticeDefinition = {
         <Text color="warning">
           Auth conflict: Using {authTokenInfo.source} instead of Maximo account
           subscription token. Either unset {authTokenInfo.source}, or run
-          `claude /logout`.
+          `maximo /logout`.
         </Text>
       </Box>
     );
@@ -118,7 +118,7 @@ const apiKeyConflictNotice: StatusNoticeDefinition = {
         <Text color="warning">{figures.warning}</Text>
         <Text color="warning">
           Auth conflict: Using {apiKeySource} instead of Anthropic Console key.
-          Either unset {apiKeySource}, or run `claude /logout`.
+          Either unset {apiKeySource}, or run `maximo /logout`.
         </Text>
       </Box>
     );
@@ -158,20 +158,20 @@ const bothAuthMethodsNotice: StatusNoticeDefinition = {
         <Box flexDirection="column" marginLeft={3}>
           <Text color="warning">
             · Trying to use{" "}
-            {authTokenInfo.source === "claude.ai"
-              ? "claude.ai"
+            {authTokenInfo.source === "maximo.ai"
+              ? "maximo.ai"
               : authTokenInfo.source}
             ?{" "}
             {apiKeySource === "ANTHROPIC_API_KEY"
-              ? 'Unset the ANTHROPIC_API_KEY environment variable, or claude /logout then say "No" to the API key approval before login.'
+              ? 'Unset the ANTHROPIC_API_KEY environment variable, or maximo /logout then say "No" to the API key approval before login.'
               : apiKeySource === "apiKeyHelper"
               ? "Unset the apiKeyHelper setting."
-              : "claude /logout"}
+              : "maximo /logout"}
           </Text>
           <Text color="warning">
             · Trying to use {apiKeySource}?{" "}
-            {authTokenInfo.source === "claude.ai"
-              ? "claude /logout to sign out of claude.ai."
+            {authTokenInfo.source === "maximo.ai"
+              ? "maximo /logout to sign out of maximo.ai."
               : `Unset the ${authTokenInfo.source} environment variable.`}
           </Text>
         </Box>
@@ -231,7 +231,7 @@ const jetbrainsPluginNotice: StatusNoticeDefinition = {
         <Text>
           Install the <Text color="ide">{ideName}</Text> plugin from the
           JetBrains Marketplace:{" "}
-          <Text bold>https://docs.claude.com/s/claude-code-jetbrains</Text>
+          <Text bold>https://docs.maximo.com/s/claude-code-jetbrains</Text>
         </Text>
       </Box>
     );

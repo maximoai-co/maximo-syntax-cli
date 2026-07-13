@@ -57,7 +57,7 @@ export function logForDiagnosticsNoPII(
 }
 
 function getDiagnosticLogFile(): string | undefined {
-  return process.env.CLAUDE_CODE_DIAGNOSTICS_FILE
+  return process.env.MAXIMO_SYNTAX_DIAGNOSTICS_FILE
 }
 
 /**

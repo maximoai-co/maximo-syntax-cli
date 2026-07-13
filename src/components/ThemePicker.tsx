@@ -161,7 +161,7 @@ export function ThemePicker(t0) {
   let t11;
   if ($[8] !== showIntroText) {
     t11 = showIntroText ? (
-      <Text bold={true} color="claude">Quick setup</Text>
+      <Text bold={true} color="maximo">Quick setup</Text>
     ) : (
       <Text bold={true} color="permission">
         Theme
@@ -339,7 +339,7 @@ export function ThemePicker(t0) {
   }
   const t22 =
     colorModuleUnavailableReason === "env"
-      ? `Syntax highlighting disabled (via CLAUDE_CODE_SYNTAX_HIGHLIGHT=${process.env.CLAUDE_CODE_SYNTAX_HIGHLIGHT})`
+      ? `Syntax highlighting disabled (via MAXIMO_SYNTAX_SYNTAX_HIGHLIGHT=${process.env.MAXIMO_SYNTAX_SYNTAX_HIGHLIGHT})`
       : syntaxHighlightingDisabled
       ? `Syntax highlighting disabled (${syntaxToggleShortcut} to enable)`
       : syntaxTheme

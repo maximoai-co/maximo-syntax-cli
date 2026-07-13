@@ -44,15 +44,15 @@ export class BigQueryMetricsExporter implements PushMetricExporter {
   private isShutdown = false;
 
   constructor(options: { timeout?: number } = {}) {
-    const defaultEndpoint = "https://api.anthropic.com/api/claude_code/metrics";
+    const defaultEndpoint = "https://api.anthropic.com/api/maximo_syntax/metrics";
 
     if (
       process.env.USER_TYPE === "ant" &&
-      process.env.ANT_CLAUDE_CODE_METRICS_ENDPOINT
+      process.env.ANT_MAXIMO_SYNTAX_METRICS_ENDPOINT
     ) {
       this.endpoint =
-        process.env.ANT_CLAUDE_CODE_METRICS_ENDPOINT +
-        "/api/claude_code/metrics";
+        process.env.ANT_MAXIMO_SYNTAX_METRICS_ENDPOINT +
+        "/api/maximo_syntax/metrics";
     } else {
       this.endpoint = defaultEndpoint;
     }
@@ -153,7 +153,7 @@ export class BigQueryMetricsExporter implements PushMetricExporter {
     const attrs = metrics.resource.attributes;
 
     const resourceAttributes: Record<string, string> = {
-      "service.name": (attrs["service.name"] as string) || "claude-code",
+      "service.name": (attrs["service.name"] as string) || "maximo-syntax",
       "service.version": (attrs["service.version"] as string) || "unknown",
       "os.type": (attrs["os.type"] as string) || "unknown",
       "os.version": (attrs["os.version"] as string) || "unknown",

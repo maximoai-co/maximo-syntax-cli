@@ -58,8 +58,16 @@ const result = await Bun.build({
     "MACRO.VERSION": JSON.stringify("99.0.0"),
     "MACRO.DISPLAY_VERSION": JSON.stringify(version),
     "MACRO.BUILD_TIME": JSON.stringify(new Date().toISOString()),
+    // Distribution package identifiers. These MUST be defined so the updater,
+    // installer, and doctor diagnostics reference Maximo's own packages instead
+    // of falling back to @anthropic-ai/claude-code (which would make the two
+    // CLIs fight over the same global install).
+    "MACRO.PACKAGE_URL": JSON.stringify("@maximoai/maximo-syntax-cli"),
+    "MACRO.NATIVE_PACKAGE_URL": JSON.stringify(
+      "@maximoai/maximo-syntax-cli-native"
+    ),
     "MACRO.ISSUES_EXPLAINER": JSON.stringify(
-      "report the issue at https://github.com/anthropics/claude-code/issues"
+      "report the issue at https://github.com/maximoai-co/maximo-syntax-cli/issues"
     ),
   },
   plugins: [

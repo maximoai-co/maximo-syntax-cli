@@ -9,7 +9,7 @@
  * user's current session if they started Maximo from within tmux.
  *
  * HOW IT WORKS:
- * 1. Maximo creates its own tmux socket: `claude-<PID>` (e.g., `claude-12345`)
+ * 1. Maximo creates its own tmux socket: `maximo-<PID>` (e.g., `maximo-12345`)
  * 2. ALL Tmux tool commands use this socket via the `-L` flag
  * 3. ALL Bash tool commands inherit TMUX env var pointing to this socket
  *    (set in Shell.ts via getMaximoTmuxEnv())
@@ -33,7 +33,7 @@ import { getPlatform } from "./platform.js";
 
 // Constants for tmux socket management
 const TMUX_COMMAND = "tmux";
-const CLAUDE_SOCKET_PREFIX = "claude";
+const CLAUDE_SOCKET_PREFIX = "maximo";
 
 /**
  * Executes a tmux command, routing through WSL on Windows.
@@ -86,7 +86,7 @@ let tmuxToolUsed = false;
 
 /**
  * Gets the socket name for Maximo's isolated tmux session.
- * Format: claude-<PID>
+ * Format: maximo-<PID>
  */
 export function getMaximoSocketName(): string {
   if (!socketName) {
@@ -127,7 +127,7 @@ export function isSocketInitialized(): boolean {
  * the Bash tool will operate on Maximo's socket, NOT the user's session.
  *
  * Format: "socket_path,server_pid,pane_index" (matches tmux's TMUX env var)
- * Example: "/tmp/tmux-501/claude-12345,54321,0"
+ * Example: "/tmp/tmux-501/maximo-12345,54321,0"
  *
  * Returns null if socket is not yet initialized.
  * When null, Shell.ts does not override TMUX, preserving user's environment.
@@ -269,7 +269,7 @@ async function doInitialize(): Promise<void> {
   const socket = getMaximoSocketName();
 
   // Create a new session with our custom socket
-  // Pass CLAUDE_CODE_SKIP_PROMPT_HISTORY via -e so it's set in the initial shell environment
+  // Pass MAXIMO_SYNTAX_SKIP_PROMPT_HISTORY via -e so it's set in the initial shell environment
   //
   // On Windows, the tmux server inherits WSL_INTEROP from the short-lived
   // wsl.exe that spawns it; once `new-session -d` detaches and wsl.exe exits,
@@ -287,7 +287,7 @@ async function doInitialize(): Promise<void> {
     "-s",
     "base",
     "-e",
-    "CLAUDE_CODE_SKIP_PROMPT_HISTORY=true",
+    "MAXIMO_SYNTAX_SKIP_PROMPT_HISTORY=true",
     ...(getPlatform() === "windows"
       ? ["-e", "WSL_INTEROP=/run/WSL/1_interop"]
       : []),
@@ -313,7 +313,7 @@ async function doInitialize(): Promise<void> {
   // Register cleanup to kill the tmux server on exit
   registerCleanup(killTmuxServer);
 
-  // Set CLAUDE_CODE_SKIP_PROMPT_HISTORY in the tmux GLOBAL environment (-g).
+  // Set MAXIMO_SYNTAX_SKIP_PROMPT_HISTORY in the tmux GLOBAL environment (-g).
   // Without -g this would only apply to the 'base' session, and new sessions
   // created by TungstenTool (e.g. 'test', 'verify') would not inherit it.
   // Any Maximo Syntax instance spawned on this socket will inherit this env var,
@@ -324,7 +324,7 @@ async function doInitialize(): Promise<void> {
     socket,
     "set-environment",
     "-g",
-    "CLAUDE_CODE_SKIP_PROMPT_HISTORY",
+    "MAXIMO_SYNTAX_SKIP_PROMPT_HISTORY",
     "true",
   ]);
 

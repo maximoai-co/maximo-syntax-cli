@@ -58,8 +58,8 @@ export type Props = {
   /**
    * When true, skip writing effortLevel to userSettings on selection.
    * Used by the assistant installer wizard where the model choice is
-   * project-scoped (written to the assistant's .claude/settings.json via
-   * install.ts) and should not leak to the user's global ~/.claude/settings.
+   * project-scoped (written to the assistant's .maximo/settings.json via
+   * install.ts) and should not leak to the user's global ~/.maximo/settings.
    */
   skipSettingsWrite?: boolean;
 };
@@ -608,7 +608,7 @@ function resolveOptionModel(value?: string): string | undefined {
 function EffortLevelIndicator(t0) {
   const $ = _c(5);
   const { effort } = t0;
-  const t1 = effort ? "claude" : "subtle";
+  const t1 = effort ? "maximo" : "subtle";
   const t2 = effort ?? "low";
   let t3;
   if ($[0] !== t2) {

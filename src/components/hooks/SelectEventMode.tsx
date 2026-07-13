@@ -52,8 +52,8 @@ export function SelectEventMode(t0) {
         </Text>
         <Text dimColor={true}>
           Only hooks from managed settings can run. User-defined hooks from
-          ~/.claude/settings.json, .claude/settings.json, and
-          .claude/settings.local.json are blocked.
+          ~/.maximo/settings.json, .maximo/settings.json, and
+          .maximo/settings.local.json are blocked.
         </Text>
       </Box>
     );
@@ -69,7 +69,7 @@ export function SelectEventMode(t0) {
         <Text dimColor={true}>
           {figures.info} This menu is read-only. To add or modify hooks, edit
           settings.json directly or ask Maximo.{" "}
-          <Link url="https://code.claude.com/docs/en/hooks">Learn more</Link>
+          <Link url="https://code.maximo.com/docs/en/hooks">Learn more</Link>
         </Text>
       </Box>
     );

@@ -95,7 +95,7 @@ function isLocalBaseUrl(baseUrl: string): boolean {
 const GEMINI_DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai'
 
 function currentBaseUrl(): string {
-  if (isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)) {
+  if (isTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)) {
     return process.env.GEMINI_BASE_URL ?? GEMINI_DEFAULT_BASE_URL
   }
   return process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
@@ -128,15 +128,15 @@ function checkGeminiEnv(): CheckResult[] {
 
 function checkOpenAIEnv(): CheckResult[] {
   const results: CheckResult[] = []
-  const useGemini = isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)
-  const useOpenAI = isTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
+  const useGemini = isTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)
+  const useOpenAI = isTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)
 
   if (useGemini) {
     return checkGeminiEnv()
   }
 
   if (!useOpenAI) {
-    results.push(pass('Provider mode', 'Anthropic login flow enabled (CLAUDE_CODE_USE_OPENAI is off).'))
+    results.push(pass('Provider mode', 'Anthropic login flow enabled (MAXIMO_SYNTAX_USE_OPENAI is off).'))
     return results
   }
 
@@ -195,8 +195,8 @@ function checkOpenAIEnv(): CheckResult[] {
 }
 
 async function checkBaseUrlReachability(): Promise<CheckResult> {
-  const useGemini = isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)
-  const useOpenAI = isTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
+  const useGemini = isTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)
+  const useOpenAI = isTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)
 
   if (!useGemini && !useOpenAI) {
     return pass('Provider reachability', 'Skipped (OpenAI-compatible mode disabled).')
@@ -272,7 +272,7 @@ async function checkBaseUrlReachability(): Promise<CheckResult> {
 }
 
 function checkOllamaProcessorMode(): CheckResult {
-  if (!isTruthy(process.env.CLAUDE_CODE_USE_OPENAI) || isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)) {
+  if (!isTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI) || isTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)) {
     return pass('Ollama processor mode', 'Skipped (OpenAI-compatible mode disabled).')
   }
 
@@ -311,9 +311,9 @@ function checkOllamaProcessorMode(): CheckResult {
 }
 
 function serializeSafeEnvSummary(): Record<string, string | boolean> {
-  if (isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)) {
+  if (isTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)) {
     return {
-      CLAUDE_CODE_USE_GEMINI: true,
+      MAXIMO_SYNTAX_USE_GEMINI: true,
       GEMINI_MODEL: process.env.GEMINI_MODEL ?? '(unset, default: gemini-2.0-flash)',
       GEMINI_BASE_URL: process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta/openai',
       GEMINI_API_KEY_SET: Boolean(process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY),
@@ -324,7 +324,7 @@ function serializeSafeEnvSummary(): Record<string, string | boolean> {
     baseUrl: process.env.OPENAI_BASE_URL,
   })
   return {
-    CLAUDE_CODE_USE_OPENAI: isTruthy(process.env.CLAUDE_CODE_USE_OPENAI),
+    MAXIMO_SYNTAX_USE_OPENAI: isTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI),
     OPENAI_MODEL: process.env.OPENAI_MODEL ?? '(unset)',
     OPENAI_BASE_URL: request.baseUrl,
     OPENAI_API_KEY_SET: Boolean(process.env.OPENAI_API_KEY),

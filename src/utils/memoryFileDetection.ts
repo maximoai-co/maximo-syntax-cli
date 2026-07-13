@@ -34,7 +34,7 @@ function toComparable(p: string): string {
 }
 
 /**
- * Detects if a file path is a session-related file under ~/.claude.
+ * Detects if a file path is a session-related file under ~/.maximo.
  * Returns the type of session file or null if not a session file.
  */
 export function detectSessionFileType(
@@ -126,7 +126,7 @@ function isAgentMemFile(filePath: string): boolean {
 /**
  * Check if a file is a Maximo-managed memory file (NOT user-managed instruction files).
  * Includes: auto-memory (memdir), agent memory, session memory/transcripts.
- * Excludes: CLAUDE.md, CLAUDE.local.md, .claude/rules/*.md (user-managed).
+ * Excludes: MAXIMO.md, MAXIMO.local.md, .maximo/rules/*.md (user-managed).
  *
  * Use this for collapse/badge logic where user-managed files should show full diffs.
  */
@@ -173,7 +173,7 @@ export function isMemoryDirectory(dirPath: string): boolean {
   ) {
     return true;
   }
-  // Check the auto-memory path override (CLAUDE_COWORK_MEMORY_PATH_OVERRIDE)
+  // Check the auto-memory path override (MAXIMO_SYNTAX_COWORK_MEMORY_PATH_OVERRIDE)
   if (isAutoMemoryEnabled()) {
     const autoMemPath = getAutoMemPath();
     const autoMemDirCmp = toComparable(autoMemPath.replace(/[/\\]+$/, ""));
@@ -271,7 +271,7 @@ export function isShellCommandTargetingMemory(command: string): boolean {
 }
 
 // Check if a glob/pattern targets auto-managed memory files only.
-// Excludes CLAUDE.md, CLAUDE.local.md, .claude/rules/ (user-managed).
+// Excludes MAXIMO.md, MAXIMO.local.md, .maximo/rules/ (user-managed).
 // Used for collapse badge logic where user-managed files should not be
 // counted as "memory" operations.
 export function isAutoManagedMemoryPattern(pattern: string): boolean {

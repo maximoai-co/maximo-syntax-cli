@@ -29,7 +29,7 @@ async function _temp() {
       key: "chrome-requires-subscription",
       jsx: (
         <Text color="error">
-          Maximo in Chrome requires a claude.ai subscription
+          Maximo in Chrome requires a maximo.ai subscription
         </Text>
       ),
       priority: "immediate",
@@ -42,7 +42,7 @@ async function _temp() {
       key: "chrome-extension-not-detected",
       jsx: (
         <Text color="warning">
-          Chrome extension not detected · https://claude.ai/chrome to install
+          Chrome extension not detected · https://maximo.ai/chrome to install
         </Text>
       ),
       priority: "immediate",

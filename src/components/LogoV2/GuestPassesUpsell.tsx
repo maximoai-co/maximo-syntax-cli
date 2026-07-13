@@ -64,8 +64,8 @@ export function GuestPassesUpsell() {
     const reward = getCachedReferrerReward();
     t0 = (
       <Text dimColor={true}>
-        <Text color="claude">[✻]</Text> <Text color="claude">[✻]</Text>{" "}
-        <Text color="claude">[✻]</Text> ·{" "}
+        <Text color="maximo">[✻]</Text> <Text color="maximo">[✻]</Text>{" "}
+        <Text color="maximo">[✻]</Text> ·{" "}
         {reward
           ? `Share Maximo Syntax and earn ${formatCreditAmount(
               reward

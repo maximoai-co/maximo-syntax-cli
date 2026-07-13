@@ -80,10 +80,10 @@ export function CondensedLogo(): ReactNode {
   const details = (
     <Box flexDirection="column" flexShrink={1}>
       <Text>
-        <Text bold color="claude">MAXIMO SYNTAX</Text>
+        <Text bold color="maximo">MAXIMO SYNTAX</Text>
         <Text dimColor> v{truncatedVersion}</Text>
       </Text>
-      <Text color="claude">Move at Maximo Speed</Text>
+      <Text color="maximo">Move at Maximo Speed</Text>
       <Text dimColor>Build, ship, and iterate from your terminal</Text>
       <Box marginTop={1} flexDirection="column">
         {shouldSplit ? (
@@ -122,7 +122,7 @@ export function CondensedLogo(): ReactNode {
     <OffscreenFreeze>
       <Box
         borderStyle="round"
-        borderColor="claude"
+        borderColor="maximo"
         paddingX={2}
         paddingY={1}
         width={cardWidth}

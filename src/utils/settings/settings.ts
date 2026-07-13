@@ -232,7 +232,7 @@ function parseSettingsFileUncached(path: string): {
 
 /**
  * Get the absolute path to the associated file root for a given settings source
- * (e.g. for $PROJ_DIR/.claude/settings.json, returns $PROJ_DIR)
+ * (e.g. for $PROJ_DIR/.maximo/settings.json, returns $PROJ_DIR)
  * @param source The source of the settings
  * @returns The root path of the settings file
  */
@@ -258,13 +258,13 @@ export function getSettingsRootPathForSource(source: SettingSource): string {
  *
  * Priority:
  * 1. Session state (set by CLI flag --cowork)
- * 2. Environment variable CLAUDE_CODE_USE_COWORK_PLUGINS
+ * 2. Environment variable MAXIMO_SYNTAX_USE_COWORK_PLUGINS
  * 3. Default: 'settings.json'
  */
 function getUserSettingsFilePath(): string {
   if (
     getUseCoworkPlugins() ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_COWORK_PLUGINS)
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_COWORK_PLUGINS)
   ) {
     return "cowork_settings.json";
   }
@@ -300,9 +300,9 @@ export function getRelativeSettingsFilePathForSource(
 ): string {
   switch (source) {
     case "projectSettings":
-      return join(".claude", "settings.json");
+      return join(".maximo", "settings.json");
     case "localSettings":
-      return join(".claude", "settings.local.json");
+      return join(".maximo", "settings.local.json");
   }
 }
 

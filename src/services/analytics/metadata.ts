@@ -93,9 +93,9 @@ export function isToolDetailsLoggingEnabled(): boolean {
  *
  * Per go/taxonomy, MCP names are medium PII. We log them for:
  * - Cowork (entrypoint=local-agent) — no ZDR concept, log all MCPs
- * - claude.ai-proxied connectors — always official (from claude.ai's list)
+ * - maximo.ai-proxied connectors — always official (from maximo.ai's list)
  * - Servers whose URL matches the official MCP registry — directory
- *   connectors added via `claude mcp add`, not customer-specific config
+ *   connectors added via `maximo mcp add`, not customer-specific config
  *
  * Custom/user-configured MCPs stay sanitized (toolName='mcp_tool').
  */
@@ -103,10 +103,10 @@ export function isAnalyticsToolDetailsLoggingEnabled(
   mcpServerType: string | undefined,
   mcpServerBaseUrl: string | undefined
 ): boolean {
-  if (process.env.CLAUDE_CODE_ENTRYPOINT === "local-agent") {
+  if (process.env.MAXIMO_SYNTAX_ENTRYPOINT === "local-agent") {
     return true;
   }
-  if (mcpServerType === "claudeai-proxy") {
+  if (mcpServerType === "maximoai-proxy") {
     return true;
   }
   if (mcpServerBaseUrl && isOfficialMcpUrl(mcpServerBaseUrl)) {
@@ -486,8 +486,8 @@ export type EventMetadata = {
   sweBenchInstanceId: string;
   sweBenchTaskId: string;
   // Swarm/team agent identification for analytics attribution
-  agentId?: string; // CLAUDE_CODE_AGENT_ID (format: agentName@teamName) or subagent UUID
-  parentSessionId?: string; // CLAUDE_CODE_PARENT_SESSION_ID (team lead's session)
+  agentId?: string; // MAXIMO_SYNTAX_AGENT_ID (format: agentName@teamName) or subagent UUID
+  parentSessionId?: string; // MAXIMO_SYNTAX_PARENT_SESSION_ID (team lead's session)
   agentType?: "teammate" | "subagent" | "standalone"; // Distinguishes swarm teammates, Agent tool subagents, and standalone agents
   teamName?: string; // Team name for swarm agents (from env var or AsyncLocalStorage)
   subscriptionType?: string; // OAuth subscription tier (max, pro, enterprise, team)
@@ -585,8 +585,8 @@ const buildEnvContext = memoize(async (): Promise<EnvContext> => {
     platform: getHostPlatformForAnalytics(),
     // Raw process.platform so freebsd/openbsd/aix/sunos are visible in BQ.
     // getHostPlatformForAnalytics() buckets those into 'linux'; here we want
-    // the truth. CLAUDE_CODE_HOST_PLATFORM still overrides for container/remote.
-    platformRaw: process.env.CLAUDE_CODE_HOST_PLATFORM || process.platform,
+    // the truth. MAXIMO_SYNTAX_HOST_PLATFORM still overrides for container/remote.
+    platformRaw: process.env.MAXIMO_SYNTAX_HOST_PLATFORM || process.platform,
     arch: env.arch,
     nodeVersion: env.nodeVersion,
     terminal: envDynamic.terminal,
@@ -595,29 +595,29 @@ const buildEnvContext = memoize(async (): Promise<EnvContext> => {
     isRunningWithBun: env.isRunningWithBun(),
     isCi: isEnvTruthy(process.env.CI),
     isClaubbit: isEnvTruthy(process.env.CLAUBBIT),
-    isMaximoCodeRemote: isEnvTruthy(process.env.CLAUDE_CODE_REMOTE),
-    isLocalAgentMode: process.env.CLAUDE_CODE_ENTRYPOINT === "local-agent",
+    isMaximoCodeRemote: isEnvTruthy(process.env.MAXIMO_SYNTAX_REMOTE),
+    isLocalAgentMode: process.env.MAXIMO_SYNTAX_ENTRYPOINT === "local-agent",
     isConductor: env.isConductor(),
-    ...(process.env.CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE && {
-      remoteEnvironmentType: process.env.CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE,
+    ...(process.env.MAXIMO_SYNTAX_REMOTE_ENVIRONMENT_TYPE && {
+      remoteEnvironmentType: process.env.MAXIMO_SYNTAX_REMOTE_ENVIRONMENT_TYPE,
     }),
     // Gated by feature flag to prevent leaking "coworkerType" string in external builds
     ...(feature("COWORKER_TYPE_TELEMETRY")
-      ? process.env.CLAUDE_CODE_COWORKER_TYPE
-        ? { coworkerType: process.env.CLAUDE_CODE_COWORKER_TYPE }
+      ? process.env.MAXIMO_SYNTAX_COWORKER_TYPE
+        ? { coworkerType: process.env.MAXIMO_SYNTAX_COWORKER_TYPE }
         : {}
       : {}),
-    ...(process.env.CLAUDE_CODE_CONTAINER_ID && {
-      claudeCodeContainerId: process.env.CLAUDE_CODE_CONTAINER_ID,
+    ...(process.env.MAXIMO_SYNTAX_CONTAINER_ID && {
+      claudeCodeContainerId: process.env.MAXIMO_SYNTAX_CONTAINER_ID,
     }),
-    ...(process.env.CLAUDE_CODE_REMOTE_SESSION_ID && {
-      claudeCodeRemoteSessionId: process.env.CLAUDE_CODE_REMOTE_SESSION_ID,
+    ...(process.env.MAXIMO_SYNTAX_REMOTE_SESSION_ID && {
+      claudeCodeRemoteSessionId: process.env.MAXIMO_SYNTAX_REMOTE_SESSION_ID,
     }),
-    ...(process.env.CLAUDE_CODE_TAGS && {
-      tags: process.env.CLAUDE_CODE_TAGS,
+    ...(process.env.MAXIMO_SYNTAX_TAGS && {
+      tags: process.env.MAXIMO_SYNTAX_TAGS,
     }),
     isGithubAction: isEnvTruthy(process.env.GITHUB_ACTIONS),
-    isMaximoCodeAction: isEnvTruthy(process.env.CLAUDE_CODE_ACTION),
+    isMaximoCodeAction: isEnvTruthy(process.env.MAXIMO_SYNTAX_ACTION),
     isMaximoAiAuth: isMaximoAISubscriber(),
     version: MACRO.VERSION,
     versionBase: getVersionBase(),
@@ -712,8 +712,8 @@ export async function getEventMetadata(
     userType: process.env.USER_TYPE || "",
     ...(betas.length > 0 ? { betas: betas } : {}),
     envContext,
-    ...(process.env.CLAUDE_CODE_ENTRYPOINT && {
-      entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT,
+    ...(process.env.MAXIMO_SYNTAX_ENTRYPOINT && {
+      entrypoint: process.env.MAXIMO_SYNTAX_ENTRYPOINT,
     }),
     ...(process.env.CLAUDE_AGENT_SDK_VERSION && {
       agentSdkVersion: process.env.CLAUDE_AGENT_SDK_VERSION,
@@ -816,7 +816,7 @@ export function to1PEventFormat(
   // parallel type previously let #11318, #13924, #19448, and coworker_type all
   // ship fields that never reached BQ.
   // Adding a field? Update the monorepo proto first (go/cc-logging):
-  //   event_schemas/.../claude_code/v1/claude_code_internal_event.proto
+  //   event_schemas/.../maximo_syntax/v1/maximo_syntax_internal_event.proto
   // then run `bun run generate:proto` here.
   const env: EnvironmentMetadata = {
     platform: envContext.platform,
@@ -829,11 +829,11 @@ export function to1PEventFormat(
     is_running_with_bun: envContext.isRunningWithBun,
     is_ci: envContext.isCi,
     is_claubbit: envContext.isClaubbit,
-    is_claude_code_remote: envContext.isMaximoCodeRemote,
+    is_maximo_syntax_remote: envContext.isMaximoCodeRemote,
     is_local_agent_mode: envContext.isLocalAgentMode,
     is_conductor: envContext.isConductor,
     is_github_action: envContext.isGithubAction,
-    is_claude_code_action: envContext.isMaximoCodeAction,
+    is_maximo_syntax_action: envContext.isMaximoCodeAction,
     is_claude_ai_auth: envContext.isMaximoAiAuth,
     version: envContext.version,
     build_time: envContext.buildTime,
@@ -848,10 +848,10 @@ export function to1PEventFormat(
     env.coworker_type = envContext.coworkerType;
   }
   if (envContext.claudeCodeContainerId) {
-    env.claude_code_container_id = envContext.claudeCodeContainerId;
+    env.maximo_syntax_container_id = envContext.claudeCodeContainerId;
   }
   if (envContext.claudeCodeRemoteSessionId) {
-    env.claude_code_remote_session_id = envContext.claudeCodeRemoteSessionId;
+    env.maximo_syntax_remote_session_id = envContext.claudeCodeRemoteSessionId;
   }
   if (envContext.tags) {
     env.tags = envContext.tags

@@ -4,15 +4,15 @@ import { isEnvTruthy } from '../envUtils.js'
 export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'openai' | 'gemini'
 
 export function getAPIProvider(): APIProvider {
-  return isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI)
+  return isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)
     ? 'gemini'
-    : isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
+    : isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)
       ? 'openai'
-      : isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
+      : isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_BEDROCK)
         ? 'bedrock'
-        : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)
+        : isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_VERTEX)
           ? 'vertex'
-          : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+          : isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_FOUNDRY)
             ? 'foundry'
             : 'firstParty'
 }

@@ -1,6 +1,6 @@
 /**
  * Utilities for managing shell configuration files (like .bashrc, .zshrc)
- * Used for managing claude aliases and PATH entries
+ * Used for managing maximo aliases and PATH entries
  */
 
 import { open, readFile, stat } from "fs/promises";
@@ -9,7 +9,7 @@ import { join } from "path";
 import { isFsInaccessible } from "./errors.js";
 import { getLocalMaximoPath } from "./localInstaller.js";
 
-export const CLAUDE_ALIAS_REGEX = /^\s*alias\s+claude\s*=/;
+export const MAXIMO_ALIAS_REGEX = /^\s*alias\s+maximo\s*=/;
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -37,8 +37,8 @@ export function getShellConfigPaths(
 }
 
 /**
- * Filter out installer-created claude aliases from an array of lines
- * Only removes aliases pointing to $HOME/.claude/local/claude
+ * Filter out installer-created maximo aliases from an array of lines
+ * Only removes aliases pointing to $HOME/.maximo/local/claude
  * Preserves custom user aliases that point to other locations
  * Returns the filtered lines and whether our default installer alias was found
  */
@@ -48,14 +48,14 @@ export function filterMaximoAliases(lines: string[]): {
 } {
   let hadAlias = false;
   const filtered = lines.filter((line) => {
-    // Check if this is a claude alias
-    if (CLAUDE_ALIAS_REGEX.test(line)) {
+    // Check if this is a maximo alias
+    if (MAXIMO_ALIAS_REGEX.test(line)) {
       // Extract the alias target - handle spaces, quotes, and various formats
       // First try with quotes
-      let match = line.match(/alias\s+claude\s*=\s*["']([^"']+)["']/);
+      let match = line.match(/alias\s+maximo\s*=\s*["']([^"']+)["']/);
       if (!match) {
         // Try without quotes (capturing until end of line or comment)
-        match = line.match(/alias\s+claude\s*=\s*([^#\n]+)/);
+        match = line.match(/alias\s+maximo\s*=\s*([^#\n]+)/);
       }
 
       if (match && match[1]) {
@@ -107,7 +107,7 @@ export async function writeFileLines(
 }
 
 /**
- * Check if a claude alias exists in any shell config file
+ * Check if a maximo alias exists in any shell config file
  * Returns the alias target if found, null otherwise
  * @param options Optional overrides for testing (env, homedir)
  */
@@ -121,9 +121,9 @@ export async function findMaximoAlias(
     if (!lines) continue;
 
     for (const line of lines) {
-      if (CLAUDE_ALIAS_REGEX.test(line)) {
+      if (MAXIMO_ALIAS_REGEX.test(line)) {
         // Extract the alias target
-        const match = line.match(/alias\s+claude=["']?([^"'\s]+)/);
+        const match = line.match(/alias\s+maximo=["']?([^"'\s]+)/);
         if (match && match[1]) {
           return match[1];
         }
@@ -135,7 +135,7 @@ export async function findMaximoAlias(
 }
 
 /**
- * Check if a claude alias exists and points to a valid executable
+ * Check if a maximo alias exists and points to a valid executable
  * Returns the alias target if valid, null otherwise
  * @param options Optional overrides for testing (env, homedir)
  */

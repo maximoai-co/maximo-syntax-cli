@@ -131,7 +131,7 @@ import {
   hasMcpDiscoveryButNoToken,
   wrapFetchWithStepUpDetection,
 } from "./auth.js";
-import { markMaximoAiMcpConnected } from "./claudeai.js";
+import { markMaximoAiMcpConnected } from "./maximoai.js";
 import { getAllMcpConfigs, isMcpServerDisabled } from "./config.js";
 import { getMcpServerHeaders } from "./headersHelper.js";
 import { SdkControlClientTransport } from "./SdkControlTransport.js";
@@ -333,14 +333,14 @@ function mcpBaseUrlAnalytics(serverRef: ScopedMcpServerConfig): {
 }
 
 /**
- * Shared handler for sse/http/claudeai-proxy auth failures during connect:
+ * Shared handler for sse/http/maximoai-proxy auth failures during connect:
  * emits tengu_mcp_server_needs_auth, caches the needs-auth entry, and returns
  * the needs-auth connection result.
  */
 function handleRemoteAuthFailure(
   name: string,
   serverRef: ScopedMcpServerConfig,
-  transportType: "sse" | "http" | "claudeai-proxy"
+  transportType: "sse" | "http" | "maximoai-proxy"
 ): MCPServerConnection {
   logEvent("tengu_mcp_server_needs_auth", {
     transportType:
@@ -350,7 +350,7 @@ function handleRemoteAuthFailure(
   const label: Record<typeof transportType, string> = {
     sse: "SSE",
     http: "HTTP",
-    "claudeai-proxy": "claude.ai proxy",
+    "maximoai-proxy": "maximo.ai proxy",
   };
   logMCPDebug(
     name,
@@ -361,12 +361,12 @@ function handleRemoteAuthFailure(
 }
 
 /**
- * Fetch wrapper for claude.ai proxy connections. Attaches the OAuth bearer
+ * Fetch wrapper for maximo.ai proxy connections. Attaches the OAuth bearer
  * token and retries once on 401 via handleOAuth401Error (force-refresh).
  *
  * The Anthropic API path has this retry (withRetry.ts, grove.ts) to handle
  * memoize-cache staleness and clock drift. Without the same here, a single
- * stale token mass-401s every claude.ai connector and sticks them all in the
+ * stale token mass-401s every maximo.ai connector and sticks them all in the
  * 15-min needs-auth cache.
  */
 export function createMaximoAiProxyFetch(innerFetch: FetchLike): FetchLike {
@@ -375,7 +375,7 @@ export function createMaximoAiProxyFetch(innerFetch: FetchLike): FetchLike {
       await checkAndRefreshOAuthTokenIfNeeded();
       const currentTokens = getMaximoAIOAuthTokens();
       if (!currentTokens) {
-        throw new Error("No claude.ai OAuth token available");
+        throw new Error("No maximo.ai OAuth token available");
       }
       // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
       const headers = new Headers(init?.headers);
@@ -402,7 +402,7 @@ export function createMaximoAiProxyFetch(innerFetch: FetchLike): FetchLike {
     const tokenChanged = await handleOAuth401Error(sentToken).catch(
       () => false
     );
-    logEvent("tengu_mcp_claudeai_proxy_401", {
+    logEvent("tengu_mcp_maximoai_proxy_401", {
       tokenChanged:
         tokenChanged as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     });
@@ -869,15 +869,15 @@ export const connectToServer = memoize(
         logMCPDebug(name, `HTTP transport created successfully`);
       } else if (serverRef.type === "sdk") {
         throw new Error("SDK servers should be handled in print.ts");
-      } else if (serverRef.type === "claudeai-proxy") {
+      } else if (serverRef.type === "maximoai-proxy") {
         logMCPDebug(
           name,
-          `Initializing claude.ai proxy transport for server ${serverRef.id}`
+          `Initializing maximo.ai proxy transport for server ${serverRef.id}`
         );
 
         const tokens = getMaximoAIOAuthTokens();
         if (!tokens) {
-          throw new Error("No claude.ai OAuth token found");
+          throw new Error("No maximo.ai OAuth token found");
         }
 
         const oauthConfig = getOauthConfig();
@@ -885,7 +885,7 @@ export const connectToServer = memoize(
           oauthConfig.MCP_PROXY_URL
         }${oauthConfig.MCP_PROXY_PATH.replace("{server_id}", serverRef.id)}`;
 
-        logMCPDebug(name, `Using claude.ai proxy at ${proxyUrl}`);
+        logMCPDebug(name, `Using maximo.ai proxy at ${proxyUrl}`);
 
         // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
         const fetchWithAuth = createMaximoAiProxyFetch(globalThis.fetch);
@@ -907,7 +907,7 @@ export const connectToServer = memoize(
           new URL(proxyUrl),
           transportOptions
         );
-        logMCPDebug(name, `claude.ai proxy transport created successfully`);
+        logMCPDebug(name, `maximo.ai proxy transport created successfully`);
       } else if (
         (serverRef.type === "stdio" || !serverRef.type) &&
         isMaximoInChromeMCPServer(name)
@@ -949,8 +949,8 @@ export const connectToServer = memoize(
         logMCPDebug(name, `In-process Computer Use MCP server started`);
       } else if (serverRef.type === "stdio" || !serverRef.type) {
         const finalCommand =
-          process.env.CLAUDE_CODE_SHELL_PREFIX || serverRef.command;
-        const finalArgs = process.env.CLAUDE_CODE_SHELL_PREFIX
+          process.env.MAXIMO_SYNTAX_SHELL_PREFIX || serverRef.command;
+        const finalArgs = process.env.MAXIMO_SYNTAX_SHELL_PREFIX
           ? [[serverRef.command, ...serverRef.args].join(" ")]
           : serverRef.args;
         transport = new StdioClientTransport({
@@ -990,7 +990,7 @@ export const connectToServer = memoize(
 
       const client = new Client(
         {
-          name: "claude-code",
+          name: "maximo-syntax",
           title: "Maximo Syntax",
           version: MACRO.VERSION ?? "unknown",
           description: "Anthropic's agentic coding tool",
@@ -1139,19 +1139,19 @@ export const connectToServer = memoize(
             return handleRemoteAuthFailure(name, serverRef, "http");
           }
         } else if (
-          serverRef.type === "claudeai-proxy" &&
+          serverRef.type === "maximoai-proxy" &&
           error instanceof Error
         ) {
           logMCPDebug(
             name,
-            `claude.ai proxy connection failed after ${elapsed}ms: ${error.message}`
+            `maximo.ai proxy connection failed after ${elapsed}ms: ${error.message}`
           );
           logMCPError(name, error);
 
           // StreamableHTTPError has a `code` property with the HTTP status
           const errorCode = (error as Error & { code?: number }).code;
           if (errorCode === 401) {
-            return handleRemoteAuthFailure(name, serverRef, "claudeai-proxy");
+            return handleRemoteAuthFailure(name, serverRef, "maximoai-proxy");
           }
         } else if (
           serverRef.type === "sse-ide" ||
@@ -1337,7 +1337,7 @@ export const connectToServer = memoize(
         // and close the transport so pending tool calls reject and the next
         // call reconnects with a fresh session ID.
         if (
-          (transportType === "http" || transportType === "claudeai-proxy") &&
+          (transportType === "http" || transportType === "maximoai-proxy") &&
           isMcpSessionExpiredError(error)
         ) {
           logMCPDebug(
@@ -1356,7 +1356,7 @@ export const connectToServer = memoize(
         if (
           transportType === "sse" ||
           transportType === "http" ||
-          transportType === "claudeai-proxy"
+          transportType === "maximoai-proxy"
         ) {
           // The SDK's StreamableHTTP transport fires this after exhausting its
           // own SSE reconnect attempts (default maxRetries: 2) — but it never
@@ -2194,7 +2194,7 @@ export async function reconnectMcpServerImpl(
       };
     }
 
-    if (config.type === "claudeai-proxy") {
+    if (config.type === "maximoai-proxy") {
       markMaximoAiMcpConnected(name);
     }
 
@@ -2337,7 +2337,7 @@ export async function getMcpToolsCommandsAndResources(
       // Each probe is a network round-trip for connect-401 plus OAuth
       // discovery, and print mode awaits the whole batch (main.tsx:3503).
       if (
-        (config.type === "claudeai-proxy" ||
+        (config.type === "maximoai-proxy" ||
           config.type === "http" ||
           config.type === "sse") &&
         ((await isMcpAuthCached(name)) ||
@@ -2367,7 +2367,7 @@ export async function getMcpToolsCommandsAndResources(
         return;
       }
 
-      if (config.type === "claudeai-proxy") {
+      if (config.type === "maximoai-proxy") {
         markMaximoAiMcpConnected(name);
       }
 
@@ -3286,7 +3286,7 @@ async function callMCPTool({
         "code" in e &&
         (e as Error & { code?: number }).code === -32000 &&
         e.message.includes("Connection closed") &&
-        (config.type === "http" || config.type === "claudeai-proxy");
+        (config.type === "http" || config.type === "maximoai-proxy");
       if (isSessionExpired || isConnectionClosedOnHttp) {
         logMCPDebug(
           name,
@@ -3348,7 +3348,7 @@ export async function setupSdkMcpClients(
 
       const client = new Client(
         {
-          name: "claude-code",
+          name: "maximo-syntax",
           title: "Maximo Syntax",
           version: MACRO.VERSION ?? "unknown",
           description: "Anthropic's agentic coding tool",

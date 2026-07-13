@@ -24,7 +24,7 @@ import {
   checkAndRefreshOAuthTokenIfNeeded,
   getMaximoAIOAuthTokens,
 } from "../../utils/auth.js";
-import { clearMemoryFileCaches } from "../../utils/claudemd.js";
+import { clearMemoryFileCaches } from "../../utils/maximomd.js";
 import { getMemoryPath } from "../../utils/config.js";
 import { logForDiagnosticsNoPII } from "../../utils/diagLogs.js";
 import { classifyAxiosError } from "../../utils/errors.js";
@@ -221,7 +221,7 @@ function isUsingOAuth(): boolean {
 }
 
 function getSettingsSyncEndpoint(): string {
-  return `${getOauthConfig().BASE_API_URL}/api/claude_code/user_settings`;
+  return `${getOauthConfig().BASE_API_URL}/api/maximo_syntax/user_settings`;
 }
 
 function getSettingsSyncAuthHeaders(): {
@@ -483,7 +483,7 @@ async function writeFileForSync(
  *
  * After writing, invalidates relevant caches:
  * - resetSettingsCache() for settings files
- * - clearMemoryFileCaches() for memory files (CLAUDE.md)
+ * - clearMemoryFileCaches() for memory files (MAXIMO.md)
  */
 async function applyRemoteEntriesToLocal(
   entries: Record<string, string>,

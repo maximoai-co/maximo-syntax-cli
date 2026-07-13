@@ -257,7 +257,7 @@ export function ApiKeyStep(t0) {
         onPaste={onApiKeyChange}
         focus={true}
         placeholder={
-          "sk-ant\u2026 (Create a new key at https://platform.claude.com/settings/keys)"
+          "sk-ant\u2026 (Create a new key at https://platform.maximo.com/settings/keys)"
         }
         mask="*"
         columns={terminalSize.columns}

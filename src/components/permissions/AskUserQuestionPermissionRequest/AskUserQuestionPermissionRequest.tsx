@@ -372,7 +372,7 @@ function AskUserQuestionPermissionRequestBody(t0) {
 
     Questions asked:\n${questionsWithAnswers}`;
       if (metadataSource) {
-        logEvent("tengu_ask_user_question_respond_to_claude", {
+        logEvent("tengu_ask_user_question_respond_to_maximo", {
           source:
             metadataSource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
           questionCount: questions.length,

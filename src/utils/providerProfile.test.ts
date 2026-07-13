@@ -140,8 +140,8 @@ test('matching persisted gemini env is reused for gemini launch', async () => {
     processEnv: {},
   })
 
-  assert.equal(env.CLAUDE_CODE_USE_GEMINI, '1')
-  assert.equal(env.CLAUDE_CODE_USE_OPENAI, undefined)
+  assert.equal(env.MAXIMO_SYNTAX_USE_GEMINI, '1')
+  assert.equal(env.MAXIMO_SYNTAX_USE_OPENAI, undefined)
   assert.equal(env.GEMINI_MODEL, 'gemini-2.5-flash')
   assert.equal(env.GEMINI_API_KEY, 'gem-persisted')
   assert.equal(env.GEMINI_BASE_URL, 'https://example.test/v1beta/openai')
@@ -164,12 +164,12 @@ test('gemini launch ignores mismatched persisted openai env and strips other pro
       OPENAI_MODEL: 'gpt-4o-mini',
       CODEX_API_KEY: 'codex-live',
       CHATGPT_ACCOUNT_ID: 'acct_live',
-      CLAUDE_CODE_USE_OPENAI: '1',
+      MAXIMO_SYNTAX_USE_OPENAI: '1',
     },
   })
 
-  assert.equal(env.CLAUDE_CODE_USE_GEMINI, '1')
-  assert.equal(env.CLAUDE_CODE_USE_OPENAI, undefined)
+  assert.equal(env.MAXIMO_SYNTAX_USE_GEMINI, '1')
+  assert.equal(env.MAXIMO_SYNTAX_USE_OPENAI, undefined)
   assert.equal(env.GEMINI_MODEL, 'gemini-2.0-flash')
   assert.equal(env.GEMINI_API_KEY, 'gem-live')
   assert.equal(

@@ -658,7 +658,7 @@ type XaaFailureStage =
  * 3. Save tokens to the same keychain slot as normal OAuth
  *
  * IdP connection details come from settings.xaaIdp (configured once via
- * `claude mcp xaa setup`). Per-server config is just `oauth.xaa: true`
+ * `maximo mcp xaa setup`). Per-server config is just `oauth.xaa: true`
  * plus the AS clientId/clientSecret.
  *
  * No silent fallback: if `oauth.xaa` is set, XAA is the only path.
@@ -679,7 +679,7 @@ async function performMCPXaaAuth(
   const idp = getXaaIdpSettings();
   if (!idp) {
     throw new Error(
-      "XAA: no IdP connection configured. Run 'claude mcp xaa setup --issuer <url> --client-id <id> --client-secret' to configure."
+      "XAA: no IdP connection configured. Run 'maximo mcp xaa setup --issuer <url> --client-id <id> --client-secret' to configure."
     );
   }
 
@@ -871,12 +871,12 @@ export async function performMCPOAuthFlow(
   // user explicitly asked for XAA) and security-relevant (consent flow may
   // have a different trust/scope posture than the org's IdP policy).
   //
-  // Servers with `oauth.xaa` but CLAUDE_CODE_ENABLE_XAA unset hard-fail with
+  // Servers with `oauth.xaa` but MAXIMO_SYNTAX_ENABLE_XAA unset hard-fail with
   // actionable copy rather than silently degrade to consent.
   if (serverConfig.oauth?.xaa) {
     if (!isXaaEnabled()) {
       throw new Error(
-        `XAA is not enabled (set CLAUDE_CODE_ENABLE_XAA=1). Remove 'oauth.xaa' from server '${serverName}' to use the standard consent flow.`
+        `XAA is not enabled (set MAXIMO_SYNTAX_ENABLE_XAA=1). Remove 'oauth.xaa' from server '${serverName}' to use the standard consent flow.`
       );
     }
     logEvent("tengu_mcp_oauth_flow_start", {
@@ -1769,7 +1769,7 @@ export class MaximoAuthProvider implements OAuthClientProvider {
    * both fire the full 4-request XAA chain and race on storage.update().
    * Unlike inc-4829 the id_token is not single-use so both access_tokens
    * stay valid (wasted round-trips + keychain write race, not brickage),
-   * but this is the shape CLAUDE.md flags under "Token/auth caching across
+   * but this is the shape MAXIMO.md flags under "Token/auth caching across
    * process boundaries". Mirror refreshAuthorization()'s lockfile pattern.
    */
   private async xaaRefresh(): Promise<OAuthTokens | undefined> {

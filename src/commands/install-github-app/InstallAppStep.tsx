@@ -112,7 +112,7 @@ export function InstallAppStep(t0) {
       <Box marginTop={1}>
         <Text dimColor={true}>
           Having trouble? See manual setup instructions at:{" "}
-          <Text color="claude">{GITHUB_ACTION_SETUP_DOCS_URL}</Text>
+          <Text color="maximo">{GITHUB_ACTION_SETUP_DOCS_URL}</Text>
         </Text>
       </Box>
     );

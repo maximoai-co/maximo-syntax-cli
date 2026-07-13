@@ -14,13 +14,13 @@ import { jsonStringify } from "./slowOperations.js";
 
 // Lazy getters: getMaximoConfigHomeDir() is memoized and reads process.env.
 // Evaluating at module scope would capture the value before entrypoints like
-// hfi.tsx get a chance to set CLAUDE_CONFIG_DIR in main(), and would also
+// hfi.tsx get a chance to set MAXIMO_CONFIG_DIR in main(), and would also
 // populate the memoize cache with that stale value for all 150+ other callers.
 function getLocalInstallDir(): string {
   return join(getMaximoConfigHomeDir(), "local");
 }
 export function getLocalMaximoPath(): string {
-  return join(getLocalInstallDir(), "claude");
+  return join(getLocalInstallDir(), "maximo");
 }
 
 /**
@@ -28,7 +28,7 @@ export function getLocalMaximoPath(): string {
  */
 export function isRunningFromLocalInstallation(): boolean {
   const execPath = process.argv[1] || "";
-  return execPath.includes("/.claude/local/node_modules/");
+  return execPath.includes("/.maximo/local/node_modules/");
 }
 
 /**
@@ -64,17 +64,17 @@ export async function ensureLocalPackageEnvironment(): Promise<boolean> {
     await writeIfMissing(
       join(localInstallDir, "package.json"),
       jsonStringify(
-        { name: "claude-local", version: "0.0.1", private: true },
+        { name: "maximo-local", version: "0.0.1", private: true },
         null,
         2
       )
     );
 
     // Create the wrapper script if it doesn't exist
-    const wrapperPath = join(localInstallDir, "claude");
+    const wrapperPath = join(localInstallDir, "maximo");
     const created = await writeIfMissing(
       wrapperPath,
-      `#!/bin/sh\nexec "${localInstallDir}/node_modules/.bin/claude" "$@"`,
+      `#!/bin/sh\nexec "${localInstallDir}/node_modules/.bin/maximo" "$@"`,
       0o755
     );
     if (created) {
@@ -143,7 +143,7 @@ export async function installOrUpdateMaximoPackage(
  */
 export async function localInstallationExists(): Promise<boolean> {
   try {
-    await access(join(getLocalInstallDir(), "node_modules", ".bin", "claude"));
+    await access(join(getLocalInstallDir(), "node_modules", ".bin", "maximo"));
     return true;
   } catch {
     return false;

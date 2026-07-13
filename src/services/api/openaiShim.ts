@@ -9,7 +9,7 @@
  * Together, Groq, Fireworks, DeepSeek, Mistral, and any OpenAI-compatible API.
  *
  * Environment variables:
- *   CLAUDE_CODE_USE_OPENAI=1          — enable this provider
+ *   MAXIMO_SYNTAX_USE_OPENAI=1          — enable this provider
  *   OPENAI_API_KEY=sk-...             — API key (optional for local models)
  *   OPENAI_BASE_URL=http://...        — base URL (default: https://api.openai.com/v1)
  *   OPENAI_MODEL=gpt-4o              — default model override
@@ -532,7 +532,7 @@ async function* openaiStreamToAnthropic(
 
 class OpenAIShimStream {
   private generator: AsyncGenerator<AnthropicStreamEvent>;
-  // The controller property is checked by claude.ts to distinguish streams from error messages
+  // The controller property is checked by maximo.ts to distinguish streams from error messages
   controller = new AbortController();
 
   constructor(generator: AsyncGenerator<AnthropicStreamEvent>) {
@@ -798,8 +798,8 @@ export function createOpenAIShimClient(options: {
   // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
   // so the existing providerConfig.ts infrastructure picks them up correctly.
   if (
-    process.env.CLAUDE_CODE_USE_GEMINI === "1" ||
-    process.env.CLAUDE_CODE_USE_GEMINI === "true"
+    process.env.MAXIMO_SYNTAX_USE_GEMINI === "1" ||
+    process.env.MAXIMO_SYNTAX_USE_GEMINI === "true"
   ) {
     process.env.OPENAI_BASE_URL ??=
       process.env.GEMINI_BASE_URL ??

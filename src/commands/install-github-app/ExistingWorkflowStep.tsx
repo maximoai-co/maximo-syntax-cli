@@ -78,7 +78,7 @@ export function ExistingWorkflowStep(t0) {
       <Box flexDirection="column" marginBottom={1}>
         <Text>
           A Maximo workflow file already exists at{" "}
-          <Text color="claude">.github/workflows/claude.yml</Text>
+          <Text color="maximo">.github/workflows/maximo.yml</Text>
         </Text>
         <Text dimColor={true}>What would you like to do?</Text>
       </Box>
@@ -110,8 +110,8 @@ export function ExistingWorkflowStep(t0) {
       <Box marginTop={1}>
         <Text dimColor={true}>
           View the latest workflow template at:{" "}
-          <Text color="claude">
-            https://github.com/anthropics/claude-code-action/blob/main/examples/claude.yml
+          <Text color="maximo">
+            https://github.com/anthropics/claude-code-action/blob/main/examples/maximo.yml
           </Text>
         </Text>
       </Box>

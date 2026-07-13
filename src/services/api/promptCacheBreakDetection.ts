@@ -45,18 +45,18 @@ type PreviousState = {
   /** Sorted beta header list. Diffed to show which headers were added/removed. */
   betas: string[];
   /** AFK_MODE_BETA_HEADER presence — should NOT break cache anymore
-   *  (sticky-on latched in claude.ts). Tracked to verify the fix. */
+   *  (sticky-on latched in maximo.ts). Tracked to verify the fix. */
   autoModeActive: boolean;
   /** Overage state flip — should NOT break cache anymore (eligibility is
    *  latched session-stable in should1hCacheTTL). Tracked to verify the fix. */
   isUsingOverage: boolean;
   /** Cache-editing beta header presence — should NOT break cache anymore
-   *  (sticky-on latched in claude.ts). Tracked to verify the fix. */
+   *  (sticky-on latched in maximo.ts). Tracked to verify the fix. */
   cachedMCEnabled: boolean;
   /** Resolved effort (env → options → model default). Goes into output_config
    *  or anthropic_internal.effort_override. */
   effortValue: string;
-  /** Hash of getExtraBodyParams() — catches CLAUDE_CODE_EXTRA_BODY and
+  /** Hash of getExtraBodyParams() — catches MAXIMO_SYNTAX_EXTRA_BODY and
    *  anthropic_internal changes. */
   extraBodyHash: number;
   callCount: number;

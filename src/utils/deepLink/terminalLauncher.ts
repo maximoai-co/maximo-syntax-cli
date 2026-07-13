@@ -208,7 +208,7 @@ export async function detectTerminal(): Promise<TerminalInfo | null> {
  *
  * For pure-argv paths: claudePath, --prefill, query, cwd travel as distinct
  * argv elements end-to-end. No sh -c. No shellQuote(). The terminal does
- * chdir(cwd) and execvp(claude, argv). Spaces/quotes/metacharacters in
+ * chdir(cwd) and execvp(maximo, argv). Spaces/quotes/metacharacters in
  * query or cwd are preserved by argv boundaries with zero interpretation.
  */
 export async function launchInTerminal(
@@ -438,7 +438,7 @@ async function launchWindowsTerminal(
 
     // --- SHELL-STRING PATHS ---
     // PowerShell -Command and cmd /k take a command string. No argv exec
-    // mode that also keeps the session interactive after claude exits.
+    // mode that also keeps the session interactive after maximo exits.
     // User input is escaped per-shell; correctness of that escaping is
     // load-bearing here.
 
@@ -554,7 +554,7 @@ function psQuote(s: string): string {
  * cmd.exe double-quoted string). Escape % as %% to prevent environment
  * variable expansion (%PATH% etc.) which cmd.exe performs even inside
  * double quotes. Trailing backslashes are still doubled because the
- * *child process* (claude.exe) uses CommandLineToArgvW, where a trailing
+ * *child process* (maximo.exe) uses CommandLineToArgvW, where a trailing
  * \ before our closing " would eat the close-quote.
  */
 function cmdQuote(arg: string): string {

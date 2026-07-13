@@ -106,7 +106,7 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
     }));
 
     // Set environment variables for immediate use in this session
-    process.env.CLAUDE_CODE_USE_OPENAI = "true";
+    process.env.MAXIMO_SYNTAX_USE_OPENAI = "true";
     process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
     process.env.OPENAI_API_KEY = tokens.accessToken;
   } else {
@@ -126,38 +126,38 @@ export async function authLogin({
   email,
   sso,
   console: useConsole,
-  claudeai,
+  maximoai,
 }: {
   email?: string;
   sso?: boolean;
   console?: boolean;
-  claudeai?: boolean;
+  maximoai?: boolean;
 }): Promise<void> {
-  if (useConsole && claudeai) {
+  if (useConsole && maximoai) {
     process.stderr.write(
-      "Error: --console and --claudeai cannot be used together.\n"
+      "Error: --console and --maximoai cannot be used together.\n"
     );
     process.exit(1);
   }
 
   const settings = getInitialSettings();
   // forceLoginMethod is a hard constraint (enterprise setting) — matches ConsoleOAuthFlow behavior.
-  // Without it, --console selects Console; --claudeai (or no flag) selects claude.ai.
+  // Without it, --console selects Console; --maximoai (or no flag) selects maximo.ai.
   const loginWithMaximoAi = settings.forceLoginMethod
-    ? settings.forceLoginMethod === "claudeai"
+    ? settings.forceLoginMethod === "maximoai"
     : !useConsole;
   const orgUUID = settings.forceLoginOrgUUID;
 
   // Fast path: if a refresh token is provided via env var, skip the browser
   // OAuth flow and exchange it directly for tokens.
-  const envRefreshToken = process.env.CLAUDE_CODE_OAUTH_REFRESH_TOKEN;
+  const envRefreshToken = process.env.MAXIMO_SYNTAX_OAUTH_REFRESH_TOKEN;
   if (envRefreshToken) {
-    const envScopes = process.env.CLAUDE_CODE_OAUTH_SCOPES;
+    const envScopes = process.env.MAXIMO_SYNTAX_OAUTH_SCOPES;
     if (!envScopes) {
       process.stderr.write(
-        "CLAUDE_CODE_OAUTH_SCOPES is required when using CLAUDE_CODE_OAUTH_REFRESH_TOKEN.\n" +
+        "MAXIMO_SYNTAX_OAUTH_SCOPES is required when using MAXIMO_SYNTAX_OAUTH_REFRESH_TOKEN.\n" +
           "Set it to the space-separated scopes the refresh token was issued with\n" +
-          '(e.g. "user:inference" or "user:profile user:inference user:sessions:claude_code user:mcp_servers").\n'
+          '(e.g. "user:inference" or "user:profile user:inference user:sessions:maximo_syntax user:mcp_servers").\n'
       );
       process.exit(1);
     }
@@ -260,8 +260,8 @@ export async function authStatus(opts: {
   let authMethod: string = "none";
   if (using3P) {
     authMethod = "third_party";
-  } else if (authTokenSource === "claude.ai") {
-    authMethod = "claude.ai";
+  } else if (authTokenSource === "maximo.ai") {
+    authMethod = "maximo.ai";
   } else if (authTokenSource === "apiKeyHelper") {
     authMethod = "api_key_helper";
   } else if (authTokenSource !== "none") {
@@ -269,7 +269,7 @@ export async function authStatus(opts: {
   } else if (apiKeySource === "ANTHROPIC_API_KEY" || hasApiKeyEnvVar) {
     authMethod = "api_key";
   } else if (apiKeySource === "/login managed key") {
-    authMethod = "claude.ai";
+    authMethod = "maximo.ai";
   }
 
   if (opts.text) {
@@ -300,7 +300,7 @@ export async function authStatus(opts: {
     }
     if (!loggedIn) {
       process.stdout.write(
-        "Not logged in. Run claude auth login to authenticate.\n"
+        "Not logged in. Run maximo auth login to authenticate.\n"
       );
     }
   } else {
@@ -319,7 +319,7 @@ export async function authStatus(opts: {
     if (resolvedApiKeySource) {
       output.apiKeySource = resolvedApiKeySource;
     }
-    if (authMethod === "claude.ai") {
+    if (authMethod === "maximo.ai") {
       output.email = oauthAccount?.emailAddress ?? null;
       output.orgId = oauthAccount?.organizationUuid ?? null;
       output.orgName = oauthAccount?.organizationName ?? null;

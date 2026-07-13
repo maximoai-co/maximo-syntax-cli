@@ -744,7 +744,7 @@ function isLegacyOpusFirstParty(model: string): boolean {
  * Opt-out for the legacy Opus 4.0/4.1 → current Opus remap.
  */
 export function isLegacyModelRemapEnabled(): boolean {
-  return !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP);
+  return !isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_LEGACY_MODEL_REMAP);
 }
 
 export function modelDisplayString(model: ModelSetting): string {

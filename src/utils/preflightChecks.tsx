@@ -156,7 +156,7 @@ export function PreflightStep(t0) {
               <Box flexDirection="column" gap={1}>
                 <Text>{result.sslHint}</Text>
                 <Text color="suggestion">
-                  See https://code.claude.com/docs/en/network-config
+                  See https://code.maximo.com/docs/en/network-config
                 </Text>
               </Box>
             ) : (

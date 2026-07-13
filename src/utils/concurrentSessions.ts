@@ -30,21 +30,21 @@ function getSessionsDir(): string {
 }
 
 /**
- * Kind override from env. Set by the spawner (`claude --bg`, daemon
+ * Kind override from env. Set by the spawner (`maximo --bg`, daemon
  * supervisor) so the child can register without the parent having to
  * write the file for it — cleanup-on-exit wiring then works for free.
  * Gated so the env-var string is DCE'd from external builds.
  */
 function envSessionKind(): SessionKind | undefined {
   if (feature("BG_SESSIONS")) {
-    const k = process.env.CLAUDE_CODE_SESSION_KIND;
+    const k = process.env.MAXIMO_SYNTAX_SESSION_KIND;
     if (k === "bg" || k === "daemon" || k === "daemon-worker") return k;
   }
   return undefined;
 }
 
 /**
- * True when this REPL is running inside a `claude --bg` tmux session.
+ * True when this REPL is running inside a `maximo --bg` tmux session.
  * Exit paths (/exit, ctrl+c, ctrl+d) should detach the attached client
  * instead of killing the process.
  */
@@ -56,7 +56,7 @@ export function isBgSession(): boolean {
  * Write a PID file for this session and register cleanup.
  *
  * Registers all top-level sessions — interactive CLI, SDK (vscode, desktop,
- * typescript, python, -p), bg/daemon spawns — so `claude ps` sees everything
+ * typescript, python, -p), bg/daemon spawns — so `maximo ps` sees everything
  * the user might be running. Skips only teammates/subagents, which would
  * conflate swarm usage with genuine concurrency and pollute ps with noise.
  *
@@ -89,21 +89,21 @@ export async function registerSession(): Promise<boolean> {
         cwd: getOriginalCwd(),
         startedAt: Date.now(),
         kind,
-        entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT,
+        entrypoint: process.env.MAXIMO_SYNTAX_ENTRYPOINT,
         ...(feature("UDS_INBOX")
-          ? { messagingSocketPath: process.env.CLAUDE_CODE_MESSAGING_SOCKET }
+          ? { messagingSocketPath: process.env.MAXIMO_SYNTAX_MESSAGING_SOCKET }
           : {}),
         ...(feature("BG_SESSIONS")
           ? {
-              name: process.env.CLAUDE_CODE_SESSION_NAME,
-              logPath: process.env.CLAUDE_CODE_SESSION_LOG,
-              agent: process.env.CLAUDE_CODE_AGENT,
+              name: process.env.MAXIMO_SYNTAX_SESSION_NAME,
+              logPath: process.env.MAXIMO_SYNTAX_SESSION_LOG,
+              agent: process.env.MAXIMO_SYNTAX_AGENT,
             }
           : {}),
       })
     );
     // --resume / /resume mutates getSessionId() via switchSession. Without
-    // this, the PID file's sessionId goes stale and `claude ps` sparkline
+    // this, the PID file's sessionId goes stale and `maximo ps` sparkline
     // reads the wrong transcript.
     onSessionSwitch((id) => {
       void updatePidFile({ sessionId: id });
@@ -155,7 +155,7 @@ export async function updateSessionBridgeId(
 }
 
 /**
- * Push live activity state for `claude ps`. Fire-and-forget from REPL's
+ * Push live activity state for `maximo ps`. Fire-and-forget from REPL's
  * status-change effect — a dropped write just means ps falls back to
  * transcript-tail derivation for one refresh.
  */
@@ -202,8 +202,8 @@ export async function countConcurrentSessions(): Promise<number> {
       count++;
     } else if (getPlatform() !== "wsl") {
       // Stale file from a crashed session — sweep it. Skip on WSL: if
-      // ~/.claude/sessions/ is shared with Windows-native Maximo (symlink
-      // or CLAUDE_CONFIG_DIR), a Windows PID won't be probeable from WSL
+      // ~/.maximo/sessions/ is shared with Windows-native Maximo (symlink
+      // or MAXIMO_CONFIG_DIR), a Windows PID won't be probeable from WSL
       // and we'd falsely delete a live session's file. This is just
       // telemetry so conservative undercount is acceptable.
       void unlink(join(dir, file)).catch(() => {});

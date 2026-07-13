@@ -85,7 +85,7 @@ export function Passes({ onDone }: Props): React.ReactNode {
         // Use the campaign returned from eligibility for redemptions
         const campaign =
           eligibilityData.referral_code_details?.campaign ??
-          "claude_code_guest_pass";
+          "maximo_syntax_guest_pass";
 
         // Fetch redemptions data
         let redemptionsData: ReferralRedemptionsResponse;
@@ -177,7 +177,7 @@ export function Passes({ onDone }: Props): React.ReactNode {
         <Text>{"┌──────────┐"}</Text>
         <Text>
           {" ) CC "}
-          <Text color="claude">{TEARDROP_ASTERISK}</Text>
+          <Text color="maximo">{TEARDROP_ASTERISK}</Text>
           {" ┊ ( "}
         </Text>
         <Text>{"└──────────┘"}</Text>
@@ -209,8 +209,8 @@ export function Passes({ onDone }: Props): React.ReactNode {
             <Link
               url={
                 referrerReward
-                  ? "https://support.claude.com/en/articles/13456702-claude-code-guest-passes"
-                  : "https://support.claude.com/en/articles/12875061-claude-code-guest-passes"
+                  ? "https://support.maximo.com/en/articles/13456702-claude-code-guest-passes"
+                  : "https://support.maximo.com/en/articles/12875061-claude-code-guest-passes"
               }
             >
               Terms apply.

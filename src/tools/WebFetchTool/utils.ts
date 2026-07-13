@@ -4,7 +4,7 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from "../../services/analytics/index.js";
-import { queryHaiku } from "../../services/api/claude.js";
+import { queryHaiku } from "../../services/api/maximo.js";
 import { AbortError } from "../../utils/errors.js";
 import { getWebFetchUserAgent } from "../../utils/http.js";
 import { logError } from "../../utils/log.js";
@@ -28,7 +28,7 @@ class DomainBlockedError extends Error {
 class DomainCheckFailedError extends Error {
   constructor(domain: string) {
     super(
-      `Unable to verify if domain ${domain} is safe to fetch. This may be due to network restrictions or enterprise security policies blocking claude.ai.`
+      `Unable to verify if domain ${domain} is safe to fetch. This may be due to network restrictions or enterprise security policies blocking maximo.ai.`
     );
     this.name = "DomainCheckFailedError";
   }
@@ -384,7 +384,7 @@ export async function getURLMarkdownContent(
 
     // Check if the user has opted to skip the blocklist check
     // This is for enterprise customers with restrictive security policies
-    // that prevent outbound connections to claude.ai
+    // that prevent outbound connections to maximo.ai
     const settings = getSettings_DEPRECATED();
     if (!settings.skipWebFetchPreflight) {
       const checkResult = await checkDomainBlocklist(hostname);

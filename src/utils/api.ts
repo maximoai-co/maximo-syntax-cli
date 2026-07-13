@@ -200,7 +200,7 @@ export async function toolToAPISchema(
       getAPIProvider() === "firstParty" &&
       isFirstPartyAnthropicBaseUrl() &&
       (getFeatureValue_CACHED_MAY_BE_STALE("tengu_fgts", false) ||
-        isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING))
+        isEnvTruthy(process.env.MAXIMO_SYNTAX_ENABLE_FINE_GRAINED_TOOL_STREAMING))
     ) {
       base.eager_input_streaming = true;
     }
@@ -229,7 +229,7 @@ export async function toolToAPISchema(
     schema.cache_control = options.cacheControl;
   }
 
-  // CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS is the kill switch for beta API
+  // MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS is the kill switch for beta API
   // shapes. Proxy gateways (ANTHROPIC_BASE_URL → LiteLLM → Bedrock) reject
   // fields like defer_loading with "Extra inputs are not permitted". The gates
   // above each field are scattered and not all provider-aware, so this strips
@@ -240,7 +240,7 @@ export async function toolToAPISchema(
   // (scope, ttl) are already gated upstream by shouldIncludeFirstPartyOnlyBetas
   // which independently respects this kill switch.
   // github.com/anthropics/claude-code/issues/20031
-  if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS)) {
     const allowed = new Set([
       "name",
       "description",
@@ -272,7 +272,7 @@ function logStripOnce(stripped: string[]): void {
   logForDebugging(
     `[betas] Stripped from tool schemas: [${stripped.join(
       ", "
-    )}] (CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1)`
+    )}] (MAXIMO_SYNTAX_DISABLE_EXPERIMENTAL_BETAS=1)`
   );
 }
 
@@ -601,7 +601,7 @@ export function normalizeToolInput<T extends Tool>(
         logEvent("tengu_bash_tool_simple_echo", {});
       }
 
-      // Check for run_in_background (may not exist in schema if CLAUDE_CODE_DISABLE_BACKGROUND_TASKS is set)
+      // Check for run_in_background (may not exist in schema if MAXIMO_SYNTAX_DISABLE_BACKGROUND_TASKS is set)
       const run_in_background =
         "run_in_background" in parsed ? parsed.run_in_background : undefined;
 
@@ -625,7 +625,7 @@ export function normalizeToolInput<T extends Tool>(
       // Validated upstream, won't throw
       const parsedInput = FileEditTool.inputSchema.parse(input);
 
-      // This is a workaround for tokens claude can't see
+      // This is a workaround for tokens maximo can't see
       const { file_path, edits } = normalizeFileEditInput({
         file_path: parsedInput.file_path,
         edits: [

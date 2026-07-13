@@ -14,11 +14,11 @@ import type {
   BuiltInAgentDefinition,
 } from "../loadAgentsDir.js";
 
-const CLAUDE_CODE_DOCS_MAP_URL =
-  "https://code.claude.com/docs/en/claude_code_docs_map.md";
-const CDP_DOCS_MAP_URL = "https://platform.claude.com/llms.txt";
+const MAXIMO_SYNTAX_DOCS_MAP_URL =
+  "https://code.maximo.com/docs/en/maximo_syntax_docs_map.md";
+const CDP_DOCS_MAP_URL = "https://platform.maximo.com/llms.txt";
 
-export const CLAUDE_CODE_GUIDE_AGENT_TYPE = "claude-code-guide";
+export const MAXIMO_SYNTAX_GUIDE_AGENT_TYPE = "claude-code-guide";
 
 function getMaximoCodeGuideBasePrompt(): string {
   // Ant-native builds alias find/grep to embedded bfs/ugrep and remove the
@@ -39,7 +39,7 @@ function getMaximoCodeGuideBasePrompt(): string {
 
 **Documentation sources:**
 
-- **Maximo Syntax docs** (${CLAUDE_CODE_DOCS_MAP_URL}): Fetch this for questions about the Maximo Syntax CLI tool, including:
+- **Maximo Syntax docs** (${MAXIMO_SYNTAX_DOCS_MAP_URL}): Fetch this for questions about the Maximo Syntax CLI tool, including:
   - Installation, setup, and getting started
   - Hooks (pre/post command execution)
   - Custom skills
@@ -74,7 +74,7 @@ function getMaximoCodeGuideBasePrompt(): string {
 4. Fetch the specific documentation pages
 5. Provide clear, actionable guidance based on official documentation
 6. Use ${WEB_SEARCH_TOOL_NAME} if docs don't cover the topic
-7. Reference local project files (CLAUDE.md, .claude/ directory) when relevant using ${localSearchHint}
+7. Reference local project files (MAXIMO.md, .maximo/ directory) when relevant using ${localSearchHint}
 
 **Guidelines:**
 - Always prioritize official documentation over assumptions
@@ -95,8 +95,8 @@ function getFeedbackGuideline(): string {
   return "- When you cannot find an answer or the feature doesn't exist, direct the user to use /feedback to report a feature request or bug";
 }
 
-export const CLAUDE_CODE_GUIDE_AGENT: BuiltInAgentDefinition = {
-  agentType: CLAUDE_CODE_GUIDE_AGENT_TYPE,
+export const MAXIMO_SYNTAX_GUIDE_AGENT: BuiltInAgentDefinition = {
+  agentType: MAXIMO_SYNTAX_GUIDE_AGENT_TYPE,
   whenToUse: `Use this agent when the user asks questions ("Can Maximo...", "Does Maximo...", "How do I...") about: (1) Maximo Syntax (the CLI tool) - features, hooks, slash commands, MCP servers, settings, IDE integrations, keyboard shortcuts; (2) Maximo Agent SDK - building custom agents; (3) Maximo API (formerly Anthropic API) - API usage, tool use, Anthropic SDK usage. **IMPORTANT:** Before spawning a new agent, check if there is already a running or recently completed claude-code-guide agent that you can continue via ${SEND_MESSAGE_TOOL_NAME}.`,
   // Ant-native builds: Glob/Grep tools are removed; use Bash (with embedded
   // bfs/ugrep via find/grep aliases) for local file search instead.
@@ -135,7 +135,7 @@ export const CLAUDE_CODE_GUIDE_AGENT: BuiltInAgentDefinition = {
       );
     }
 
-    // 2. Custom agents from .claude/agents/
+    // 2. Custom agents from .maximo/agents/
     const customAgents =
       toolUseContext.options.agentDefinitions.activeAgents.filter(
         (a: AgentDefinition) => a.source !== "built-in"

@@ -186,10 +186,10 @@ export async function buildLaunchEnv(options: {
   if (options.profile === 'gemini') {
     const env: NodeJS.ProcessEnv = {
       ...processEnv,
-      CLAUDE_CODE_USE_GEMINI: '1',
+      MAXIMO_SYNTAX_USE_GEMINI: '1',
     }
 
-    delete env.CLAUDE_CODE_USE_OPENAI
+    delete env.MAXIMO_SYNTAX_USE_OPENAI
 
     env.GEMINI_MODEL =
       processEnv.GEMINI_MODEL ||
@@ -220,10 +220,10 @@ export async function buildLaunchEnv(options: {
 
   const env: NodeJS.ProcessEnv = {
     ...processEnv,
-    CLAUDE_CODE_USE_OPENAI: '1',
+    MAXIMO_SYNTAX_USE_OPENAI: '1',
   }
 
-  delete env.CLAUDE_CODE_USE_GEMINI
+  delete env.MAXIMO_SYNTAX_USE_GEMINI
   delete env.GEMINI_API_KEY
   delete env.GEMINI_MODEL
   delete env.GEMINI_BASE_URL

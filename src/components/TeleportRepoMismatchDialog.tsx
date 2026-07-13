@@ -112,7 +112,7 @@ export function TeleportRepoMismatchDialog(t0) {
         <Box flexDirection="column" gap={1}>
           {errorMessage && <Text color="error">{errorMessage}</Text>}
           <Text dimColor={true}>
-            Run claude --teleport from a checkout of {targetRepo}
+            Run maximo --teleport from a checkout of {targetRepo}
           </Text>
         </Box>
       );

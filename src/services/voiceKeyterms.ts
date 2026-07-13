@@ -65,7 +65,7 @@ export async function getVoiceKeyterms(
 ): Promise<string[]> {
   const terms = new Set<string>(GLOBAL_KEYTERMS);
 
-  // Project root basename as a single term — users say "claude CLI internal"
+  // Project root basename as a single term — users say "maximo CLI internal"
   // as a phrase, not isolated words. Keeping the whole basename lets the
   // STT's keyterm boosting match the phrase regardless of separator.
   try {

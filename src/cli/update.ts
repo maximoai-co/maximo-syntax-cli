@@ -126,7 +126,7 @@ export async function update() {
         writeToStdout(`Update available: ${MACRO.VERSION} → ${latest}\n`);
         writeToStdout("\n");
         writeToStdout("To update, run:\n");
-        writeToStdout(chalk.bold("  brew upgrade claude-code") + "\n");
+        writeToStdout(chalk.bold("  brew upgrade maximo-syntax-cli") + "\n");
       } else {
         writeToStdout("Maximo is up to date!\n");
       }
@@ -150,7 +150,7 @@ export async function update() {
         writeToStdout(`Update available: ${MACRO.VERSION} → ${latest}\n`);
         writeToStdout("\n");
         writeToStdout("To update, run:\n");
-        writeToStdout(chalk.bold("  apk upgrade claude-code") + "\n");
+        writeToStdout(chalk.bold("  apk upgrade maximo-syntax-cli") + "\n");
       } else {
         writeToStdout("Maximo is up to date!\n");
       }
@@ -252,7 +252,7 @@ export async function update() {
     } catch (error) {
       process.stderr.write("Error: Failed to install native update\n");
       process.stderr.write(String(error) + "\n");
-      process.stderr.write('Try running "claude doctor" for diagnostics\n');
+      process.stderr.write('Try running "maximo doctor" for diagnostics\n');
       await gracefulShutdown(1);
     }
   }
@@ -292,11 +292,7 @@ export async function update() {
     process.stderr.write("Try:\n");
     process.stderr.write("  • Check your internet connection\n");
     process.stderr.write("  • Run with --debug flag for more details\n");
-    const packageName =
-      MACRO.PACKAGE_URL ||
-      (process.env.USER_TYPE === "ant"
-        ? "@anthropic-ai/claude-cli"
-        : "@anthropic-ai/claude-code");
+    const packageName = MACRO.PACKAGE_URL || "@maximoai/maximo-syntax-cli";
     process.stderr.write(
       `  • Manually check: npm view ${packageName} version\n`
     );
@@ -386,12 +382,12 @@ export async function update() {
       if (useLocalUpdate) {
         process.stderr.write("Try manually updating with:\n");
         process.stderr.write(
-          `  cd ~/.claude/local && npm update ${MACRO.PACKAGE_URL}\n`
+          `  cd ~/.maximo/local && npm update ${MACRO.PACKAGE_URL}\n`
         );
       } else {
         process.stderr.write("Try running with sudo or fix npm permissions\n");
         process.stderr.write(
-          "Or consider using native installation with: claude install\n"
+          "Or consider using native installation with: maximo install\n"
         );
       }
       await gracefulShutdown(1);
@@ -401,11 +397,11 @@ export async function update() {
       if (useLocalUpdate) {
         process.stderr.write("Try manually updating with:\n");
         process.stderr.write(
-          `  cd ~/.claude/local && npm update ${MACRO.PACKAGE_URL}\n`
+          `  cd ~/.maximo/local && npm update ${MACRO.PACKAGE_URL}\n`
         );
       } else {
         process.stderr.write(
-          "Or consider using native installation with: claude install\n"
+          "Or consider using native installation with: maximo install\n"
         );
       }
       await gracefulShutdown(1);

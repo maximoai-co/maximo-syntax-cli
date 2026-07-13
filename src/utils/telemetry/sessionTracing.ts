@@ -126,7 +126,7 @@ function ensureCleanupInterval(): void {
 export function isEnhancedTelemetryEnabled(): boolean {
   if (feature("ENHANCED_TELEMETRY_BETA")) {
     const env =
-      process.env.CLAUDE_CODE_ENHANCED_TELEMETRY_BETA ??
+      process.env.MAXIMO_SYNTAX_ENHANCED_TELEMETRY_BETA ??
       process.env.ENABLE_ENHANCED_TELEMETRY_BETA;
     if (isEnvTruthy(env)) {
       return true;
@@ -150,7 +150,7 @@ function isAnyTracingEnabled(): boolean {
 }
 
 function getTracer() {
-  return trace.getTracer("com.anthropic.claude_code.tracing", "1.0.0");
+  return trace.getTracer("com.anthropic.maximo_syntax.tracing", "1.0.0");
 }
 
 function createSpanAttributes(
@@ -213,7 +213,7 @@ export function startInteractionSpan(userPrompt: string): Span {
     "interaction.sequence": interactionSequence,
   });
 
-  const span = tracer.startSpan("claude_code.interaction", {
+  const span = tracer.startSpan("maximo_syntax.interaction", {
     attributes,
   });
 
@@ -316,7 +316,7 @@ export function startLLMRequestSpan(
   const ctx = parentSpanCtx
     ? trace.setSpan(otelContext.active(), parentSpanCtx.span)
     : otelContext.active();
-  const span = tracer.startSpan("claude_code.llm_request", { attributes }, ctx);
+  const span = tracer.startSpan("maximo_syntax.llm_request", { attributes }, ctx);
 
   // Add query_source (agent name) if provided
   if (newContext?.querySource) {
@@ -502,7 +502,7 @@ export function startToolSpan(
   const ctx = parentSpanCtx
     ? trace.setSpan(otelContext.active(), parentSpanCtx.span)
     : otelContext.active();
-  const span = tracer.startSpan("claude_code.tool", { attributes }, ctx);
+  const span = tracer.startSpan("maximo_syntax.tool", { attributes }, ctx);
 
   // Add experimental tool input attributes
   if (toolInput) {
@@ -556,7 +556,7 @@ export function startToolBlockedOnUserSpan(): Span {
     ? trace.setSpan(otelContext.active(), parentSpanCtx.span)
     : otelContext.active();
   const span = tracer.startSpan(
-    "claude_code.tool.blocked_on_user",
+    "maximo_syntax.tool.blocked_on_user",
     { attributes },
     ctx
   );
@@ -637,7 +637,7 @@ export function startToolExecutionSpan(): Span {
     ? trace.setSpan(otelContext.active(), parentSpanCtx.span)
     : otelContext.active();
   const span = tracer.startSpan(
-    "claude_code.tool.execution",
+    "maximo_syntax.tool.execution",
     { attributes },
     ctx
   );
@@ -865,7 +865,7 @@ export function startHookSpan(
   const ctx = parentSpanCtx
     ? trace.setSpan(otelContext.active(), parentSpanCtx.span)
     : otelContext.active();
-  const span = tracer.startSpan("claude_code.hook", { attributes }, ctx);
+  const span = tracer.startSpan("maximo_syntax.hook", { attributes }, ctx);
 
   const spanId = getSpanId(span);
   const spanContextObj: SpanContext = {

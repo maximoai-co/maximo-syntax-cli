@@ -45,7 +45,7 @@ const INITIAL_STATE: State = {
   secretName: "ANTHROPIC_API_KEY",
   useExistingSecret: true,
   workflowExists: false,
-  selectedWorkflows: ["claude", "claude-review"] as Workflow[],
+  selectedWorkflows: ["maximo", "claude-review"] as Workflow[],
   selectedApiKeyOption: "new" as "existing" | "new" | "oauth",
   authType: "api_key",
 };
@@ -213,7 +213,7 @@ function InstallGitHubApp(props: {
             error: "A Maximo workflow file already exists in this repository.",
             errorReason: "Workflow file conflict",
             errorInstructions: [
-              "The file .github/workflows/claude.yml already exists",
+              "The file .github/workflows/maximo.yml already exists",
               "You can either:",
               "  1. Delete the existing file and run this command again",
               "  2. Update the existing file manually using the template from:",
@@ -246,7 +246,7 @@ function InstallGitHubApp(props: {
     ]
   );
   async function openGitHubAppInstallation() {
-    const installUrl = "https://github.com/apps/claude";
+    const installUrl = "https://github.com/apps/maximo";
     await openBrowser(installUrl);
   }
   async function checkRepositoryPermissions(repoName: string): Promise<{
@@ -289,7 +289,7 @@ function InstallGitHubApp(props: {
   ): Promise<boolean> {
     const checkFileResult = await execFileNoThrow("gh", [
       "api",
-      `repos/${repoName_0}/contents/.github/workflows/claude.yml`,
+      `repos/${repoName_0}/contents/.github/workflows/maximo.yml`,
       "--jq",
       ".sha",
     ]);
@@ -580,10 +580,10 @@ function InstallGitHubApp(props: {
         ...prev_23,
         apiKeyOrOAuthToken: token,
         useExistingKey: false,
-        secretName: "CLAUDE_CODE_OAUTH_TOKEN",
+        secretName: "MAXIMO_SYNTAX_OAUTH_TOKEN",
         authType: "oauth_token",
       }));
-      void runSetupGitHubActions(token, "CLAUDE_CODE_OAUTH_TOKEN");
+      void runSetupGitHubActions(token, "MAXIMO_SYNTAX_OAUTH_TOKEN");
     },
     [runSetupGitHubActions]
   );

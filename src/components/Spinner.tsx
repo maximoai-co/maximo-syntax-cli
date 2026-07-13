@@ -84,7 +84,7 @@ export function SpinnerWithVerb(props: Props): React.ReactNode {
   const briefEnvEnabled =
     feature("KAIROS") || feature("KAIROS_BRIEF")
       ? // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-        useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_BRIEF), [])
+        useMemo(() => isEnvTruthy(process.env.MAXIMO_SYNTAX_BRIEF), [])
       : false;
 
   // Runtime gate mirrors isBriefEnabled() but inlined — importing from
@@ -253,7 +253,7 @@ function SpinnerWithVerbInner({
   // the ref. The tree is only shown when teammates are running; teammate
   // progress updates to s.tasks trigger re-renders that keep this fresh.
   const leaderTokenCount = Math.round(responseLengthRef.current / 4);
-  const defaultColor: keyof Theme = "claude";
+  const defaultColor: keyof Theme = "maximo";
   const defaultShimmerColor = "claudeShimmer";
   const messageColor = overrideColor ?? defaultColor;
   const shimmerColor = overrideShimmerColor ?? defaultShimmerColor;

@@ -12,19 +12,19 @@ import {
 } from "../../../utils/permissions/filesystem.js";
 import type { OptionWithDescription } from "../../CustomSelect/select.js";
 /**
- * Check if a path is within the project's .claude/ folder.
- * This is used to determine whether to show the special ".claude folder" permission option.
+ * Check if a path is within the project's .maximo/ folder.
+ * This is used to determine whether to show the special ".maximo folder" permission option.
  */
 export function isInMaximoFolder(filePath: string): boolean {
   const absolutePath = expandPath(filePath);
-  const claudeFolderPath = expandPath(`${getOriginalCwd()}/.claude`);
+  const claudeFolderPath = expandPath(`${getOriginalCwd()}/.maximo`);
 
-  // Check if the path is within the project's .claude folder
+  // Check if the path is within the project's .maximo folder
   const normalizedAbsolutePath = normalizeCaseForComparison(absolutePath);
   const normalizedMaximoFolderPath =
     normalizeCaseForComparison(claudeFolderPath);
 
-  // Path must start with the .claude folder path (and be inside it, not just the folder itself)
+  // Path must start with the .maximo folder path (and be inside it, not just the folder itself)
   return (
     normalizedAbsolutePath.startsWith(
       normalizedMaximoFolderPath + sep.toLowerCase()
@@ -35,13 +35,13 @@ export function isInMaximoFolder(filePath: string): boolean {
 }
 
 /**
- * Check if a path is within the global ~/.claude/ folder.
- * This is used to determine whether to show the special ".claude folder" permission option
+ * Check if a path is within the global ~/.maximo/ folder.
+ * This is used to determine whether to show the special ".maximo folder" permission option
  * for files in the user's home directory.
  */
 export function isInGlobalMaximoFolder(filePath: string): boolean {
   const absolutePath = expandPath(filePath);
-  const globalMaximoFolderPath = join(homedir(), ".claude");
+  const globalMaximoFolderPath = join(homedir(), ".maximo");
   const normalizedAbsolutePath = normalizeCaseForComparison(absolutePath);
   const normalizedGlobalMaximoFolderPath = normalizeCaseForComparison(
     globalMaximoFolderPath
@@ -119,11 +119,11 @@ export function getFilePermissionOptions({
     toolPermissionContext
   );
 
-  // Check if this is a .claude/ folder path (project or global)
+  // Check if this is a .maximo/ folder path (project or global)
   const inMaximoFolder = isInMaximoFolder(filePath);
   const inGlobalMaximoFolder = isInGlobalMaximoFolder(filePath);
 
-  // Option 2: For .claude/ folder, show special option instead of generic session option
+  // Option 2: For .maximo/ folder, show special option instead of generic session option
   // Note: Session-level options are always shown since they only affect in-memory state,
   // not persisted settings. The allowManagedPermissionRulesOnly setting only restricts
   // persisted permission rules.

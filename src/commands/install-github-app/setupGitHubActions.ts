@@ -41,11 +41,11 @@ async function createWorkflowFile(
   }
 
   let content = workflowContent;
-  if (secretName === "CLAUDE_CODE_OAUTH_TOKEN") {
-    // For OAuth tokens, use the claude_code_oauth_token parameter
+  if (secretName === "MAXIMO_SYNTAX_OAUTH_TOKEN") {
+    // For OAuth tokens, use the maximo_syntax_oauth_token parameter
     content = workflowContent.replace(
       /anthropic_api_key: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}/g,
-      `claude_code_oauth_token: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`
+      `maximo_syntax_oauth_token: \${{ secrets.MAXIMO_SYNTAX_OAUTH_TOKEN }}`
     );
   } else if (secretName !== "ANTHROPIC_API_KEY") {
     // For other custom secret names, keep using anthropic_api_key parameter
@@ -128,7 +128,7 @@ export async function setupGitHubActions(
       skip_workflow: skipWorkflow,
       has_api_key: !!apiKeyOrOAuthToken,
       using_default_secret_name: secretName === "ANTHROPIC_API_KEY",
-      selected_claude_workflow: selectedWorkflows.includes("claude"),
+      selected_claude_workflow: selectedWorkflows.includes("maximo"),
       selected_claude_review_workflow:
         selectedWorkflows.includes("claude-review"),
       ...context,
@@ -223,9 +223,9 @@ export async function setupGitHubActions(
       // Create selected workflow files
       const workflows = [];
 
-      if (selectedWorkflows.includes("claude")) {
+      if (selectedWorkflows.includes("maximo")) {
         workflows.push({
-          path: ".github/workflows/claude.yml",
+          path: ".github/workflows/maximo.yml",
           content: WORKFLOW_CONTENT,
           message: "Maximo PR Assistant workflow",
         });
@@ -302,7 +302,7 @@ export async function setupGitHubActions(
       auth_type:
         authType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       using_default_secret_name: secretName === "ANTHROPIC_API_KEY",
-      selected_claude_workflow: selectedWorkflows.includes("claude"),
+      selected_claude_workflow: selectedWorkflows.includes("maximo"),
       selected_claude_review_workflow:
         selectedWorkflows.includes("claude-review"),
       ...context,

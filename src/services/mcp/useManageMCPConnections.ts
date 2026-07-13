@@ -79,7 +79,7 @@ import {
 import {
   clearMaximoAIMcpConfigsCache,
   fetchMaximoAIMcpConfigsIfEligible,
-} from "./claudeai.js";
+} from "./maximoai.js";
 import { registerElicitationHandler } from "./elicitationHandler.js";
 import { getMcpPrefix } from "./mcpStringUtils.js";
 import { commandBelongsToServer, excludeStalePluginClients } from "./utils.js";
@@ -472,7 +472,7 @@ export function useManageMCPConnections(
             }
           };
 
-          // Channel push: notifications/claude/channel → enqueue().
+          // Channel push: notifications/maximo/channel → enqueue().
           // Gate decides whether to register the handler; connection stays
           // up either way (allowedMcpServers controls that).
           if (feature("KAIROS") || feature("KAIROS_CHANNELS")) {
@@ -515,7 +515,7 @@ export function useManageMCPConnections(
                     const { content, meta } = notification.params;
                     logMCPDebug(
                       client.name,
-                      `notifications/claude/channel: ${content.slice(0, 80)}`
+                      `notifications/maximo/channel: ${content.slice(0, 80)}`
                     );
                     logEvent("tengu_mcp_channel_message", {
                       content_length: content.length,
@@ -537,13 +537,13 @@ export function useManageMCPConnections(
                 );
                 // Permission-reply handler — separate event, separate
                 // capability. Only registers if the server declares
-                // claude/channel/permission (same opt-in check as the send
+                // maximo/channel/permission (same opt-in check as the send
                 // path in interactiveHandler.ts). Server parses the user's
                 // reply and emits {request_id, behavior}; no regex on our
                 // side, text in the general channel can't accidentally match.
                 if (
                   client.capabilities?.experimental?.[
-                    "claude/channel/permission"
+                    "maximo/channel/permission"
                   ] !== undefined
                 ) {
                   client.client.setNotificationHandler(
@@ -558,7 +558,7 @@ export function useManageMCPConnections(
                         ) ?? false;
                       logMCPDebug(
                         client.name,
-                        `notifications/claude/channel/permission: ${request_id} → ${behavior} (${
+                        `notifications/maximo/channel/permission: ${request_id} → ${behavior} (${
                           resolved
                             ? "matched pending"
                             : "no pending entry — stale or unknown ID"
@@ -575,7 +575,7 @@ export function useManageMCPConnections(
                 // the gate says skip but the earlier handler keeps enqueuing.
                 // Map.delete — safe when never registered.
                 client.client.removeNotificationHandler(
-                  "notifications/claude/channel"
+                  "notifications/maximo/channel"
                 );
                 client.client.removeNotificationHandler(
                   CHANNEL_PERMISSION_METHOD
@@ -606,7 +606,7 @@ export function useManageMCPConnections(
                     gate.kind === "disabled"
                       ? "Channels are not currently available"
                       : gate.kind === "auth"
-                      ? "Channels require claude.ai authentication · run /login"
+                      ? "Channels require maximo.ai authentication · run /login"
                       : gate.kind === "policy"
                       ? "Channels are not enabled for your org · have an administrator set channelsEnabled: true in managed settings"
                       : gate.reason;
@@ -781,7 +781,7 @@ export function useManageMCPConnections(
   // Re-runs on session change (/clear) and on /reload-plugins (pluginReconnectKey).
   // On plugin reload, also disconnects stale plugin MCP servers (scope 'dynamic')
   // that no longer appear in configs — prevents ghost tools from disabled plugins.
-  // Skip claude.ai dedup here to avoid blocking on the network fetch; the connect
+  // Skip maximo.ai dedup here to avoid blocking on the network fetch; the connect
   // useEffect below runs immediately after and dedups before connecting.
   const sessionId = getSessionId();
   useEffect(() => {
@@ -869,31 +869,31 @@ export function useManageMCPConnections(
   ]);
 
   // Load MCP configs and connect to servers
-  // Two-phase loading: Maximo Syntax configs first (fast), then claude.ai configs (may be slow)
+  // Two-phase loading: Maximo Syntax configs first (fast), then maximo.ai configs (may be slow)
   useEffect(() => {
     let cancelled = false;
 
     async function loadAndConnectMcpConfigs() {
-      // Clear claude.ai MCP cache so we fetch fresh configs with current auth
+      // Clear maximo.ai MCP cache so we fetch fresh configs with current auth
       // state. This is important when authVersion changes (e.g., after login/
       // logout). Kick off the fetch now so it overlaps with loadAllPlugins()
       // inside getMaximoCodeMcpConfigs; it's awaited only at the dedup step.
       // Phase 2 below awaits the same promise — no second network call.
-      let claudeaiPromise: Promise<Record<string, ScopedMcpServerConfig>>;
+      let maximoaiPromise: Promise<Record<string, ScopedMcpServerConfig>>;
       if (isStrictMcpConfig || doesEnterpriseMcpConfigExist()) {
-        claudeaiPromise = Promise.resolve({});
+        maximoaiPromise = Promise.resolve({});
       } else {
         clearMaximoAIMcpConfigsCache();
-        claudeaiPromise = fetchMaximoAIMcpConfigsIfEligible();
+        maximoaiPromise = fetchMaximoAIMcpConfigsIfEligible();
       }
 
       // Phase 1: Load Maximo Syntax configs. Plugin MCP servers that duplicate a
-      // --mcp-config entry or a claude.ai connector are suppressed here so they
+      // --mcp-config entry or a maximo.ai connector are suppressed here so they
       // don't connect alongside the connector in Phase 2.
       const { servers: claudeCodeConfigs, errors: mcpErrors } =
         isStrictMcpConfig
           ? { servers: {}, errors: [] }
-          : await getMaximoCodeMcpConfigs(dynamicMcpConfig, claudeaiPromise);
+          : await getMaximoCodeMcpConfigs(dynamicMcpConfig, maximoaiPromise);
       if (cancelled) return;
 
       // Add MCP errors to plugin errors for UI visibility (deduplicated)
@@ -916,32 +916,32 @@ export function useManageMCPConnections(
         );
       });
 
-      // Phase 2: Await claude.ai configs (started above; memoized — no second fetch)
-      let claudeaiConfigs: Record<string, ScopedMcpServerConfig> = {};
+      // Phase 2: Await maximo.ai configs (started above; memoized — no second fetch)
+      let maximoaiConfigs: Record<string, ScopedMcpServerConfig> = {};
       if (!isStrictMcpConfig) {
-        claudeaiConfigs = filterMcpServersByPolicy(
-          await claudeaiPromise
+        maximoaiConfigs = filterMcpServersByPolicy(
+          await maximoaiPromise
         ).allowed;
         if (cancelled) return;
 
-        // Suppress claude.ai connectors that duplicate an enabled manual server.
-        // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
+        // Suppress maximo.ai connectors that duplicate an enabled manual server.
+        // Keys never collide (`slack` vs `maximo.ai Slack`) so the merge below
         // won't catch this — need content-based dedup by URL signature.
-        if (Object.keys(claudeaiConfigs).length > 0) {
+        if (Object.keys(maximoaiConfigs).length > 0) {
           const { servers: dedupedMaximoAi } = dedupMaximoAiMcpServers(
-            claudeaiConfigs,
+            maximoaiConfigs,
             configs
           );
-          claudeaiConfigs = dedupedMaximoAi;
+          maximoaiConfigs = dedupedMaximoAi;
         }
 
-        if (Object.keys(claudeaiConfigs).length > 0) {
-          // Add claude.ai servers as pending immediately so they show up in UI
+        if (Object.keys(maximoaiConfigs).length > 0) {
+          // Add maximo.ai servers as pending immediately so they show up in UI
           setAppState((prevState) => {
             const existingServerNames = new Set(
               prevState.mcp.clients.map((c) => c.name)
             );
-            const newClients = Object.entries(claudeaiConfigs)
+            const newClients = Object.entries(maximoaiConfigs)
               .filter(([name]) => !existingServerNames.has(name))
               .map(([name, config]) => ({
                 name,
@@ -962,7 +962,7 @@ export function useManageMCPConnections(
 
           // Now start connecting (only enabled servers)
           const enabledMaximoaiConfigs = Object.fromEntries(
-            Object.entries(claudeaiConfigs).filter(
+            Object.entries(maximoaiConfigs).filter(
               ([name]) => !isMcpServerDisabled(name)
             )
           );
@@ -972,21 +972,21 @@ export function useManageMCPConnections(
           ).catch((error) => {
             logMCPError(
               "useManageMcpConnections",
-              `Failed to get claude.ai MCP resources: ${errorMessage(error)}`
+              `Failed to get maximo.ai MCP resources: ${errorMessage(error)}`
             );
           });
         }
       }
 
       // Log server counts after both phases complete
-      const allConfigs = { ...configs, ...claudeaiConfigs };
+      const allConfigs = { ...configs, ...maximoaiConfigs };
       const counts = {
         enterprise: 0,
         global: 0,
         project: 0,
         user: 0,
         plugin: 0,
-        claudeai: 0,
+        maximoai: 0,
       };
       // Ant-only: collect stdio command basenames to correlate with RSS/FPS
       // metrics. Stdio servers like rust-analyzer can be heavy and we want to
@@ -998,7 +998,7 @@ export function useManageMCPConnections(
         else if (serverConfig.scope === "project") counts.project++;
         else if (serverConfig.scope === "local") counts.user++;
         else if (serverConfig.scope === "dynamic") counts.plugin++;
-        else if (serverConfig.scope === "claudeai") counts.claudeai++;
+        else if (serverConfig.scope === "maximoai") counts.maximoai++;
 
         if (
           process.env.USER_TYPE === "ant" &&

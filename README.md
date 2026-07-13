@@ -54,7 +54,7 @@ After installation, you can invoke the CLI using any of the following commands:
 - `maximo`
 - `maximo-syntax`
 - `maximo-syntax-cli`
-- `claude`
+- `maximo`
 
 All five commands are equivalent and natively supported.
 
@@ -67,7 +67,7 @@ All five commands are equivalent and natively supported.
 Maximo Syntax CLI uses Maximo AI as the default provider. Get your API key from [Maximo AI](https://maximoai.co/platform) and set the following environment variables:
 
 ```bash
-export CLAUDE_CODE_USE_OPENAI=1
+export MAXIMO_SYNTAX_USE_OPENAI=1
 export OPENAI_API_KEY=your-maximo-api-key
 export OPENAI_BASE_URL=https://api.maximoai.co/v1
 export OPENAI_MODEL=maximo-pandora-3.7-nano
@@ -76,7 +76,7 @@ export OPENAI_MODEL=maximo-pandora-3.7-nano
 Or create a `.env` file in your project directory:
 
 ```
-CLAUDE_CODE_USE_OPENAI=1
+MAXIMO_SYNTAX_USE_OPENAI=1
 OPENAI_API_KEY=your-maximo-api-key
 OPENAI_BASE_URL=https://api.maximoai.co/v1
 OPENAI_MODEL=maximo-pandora-3.7-nano
@@ -95,7 +95,7 @@ maximo
 ### OpenAI / Any OpenAI-compatible provider (GPT-4o, DeepSeek, Ollama, Groq)
 
 ```bash
-export CLAUDE_CODE_USE_OPENAI=1
+export MAXIMO_SYNTAX_USE_OPENAI=1
 export OPENAI_API_KEY=sk-...
 export OPENAI_MODEL=gpt-4o
 ```
@@ -103,21 +103,21 @@ export OPENAI_MODEL=gpt-4o
 ### Google Gemini (free key at https://aistudio.google.com/apikey)
 
 ```bash
-export CLAUDE_CODE_USE_GEMINI=1
+export MAXIMO_SYNTAX_USE_GEMINI=1
 export GEMINI_API_KEY=your-key
 ```
 
 ### Amazon Bedrock
 
-See documentation: https://code.claude.com/docs/en/amazon-bedrock
+See documentation: https://code.maximo.com/docs/en/amazon-bedrock
 
 ### Microsoft Foundry
 
-See documentation: https://code.claude.com/docs/en/microsoft-foundry
+See documentation: https://code.maximo.com/docs/en/microsoft-foundry
 
 ### Vertex AI
 
-See documentation: https://code.claude.com/docs/en/google-vertex-ai
+See documentation: https://code.maximo.com/docs/en/google-vertex-ai
 
 
 ---

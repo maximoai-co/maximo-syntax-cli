@@ -82,7 +82,7 @@ export function MCPSettings(t0) {
             const scope = client_0.config.scope;
             const isSSE = client_0.config.type === "sse";
             const isHTTP = client_0.config.type === "http";
-            const isMaximoAIProxy = client_0.config.type === "claudeai-proxy";
+            const isMaximoAIProxy = client_0.config.type === "maximoai-proxy";
             let isAuthenticated = undefined;
             if (isSSE || isHTTP) {
               const authProvider = new MaximoAuthProvider(
@@ -107,7 +107,7 @@ export function MCPSettings(t0) {
             if (isMaximoAIProxy) {
               return {
                 ...baseInfo,
-                transport: "claudeai-proxy" as const,
+                transport: "maximoai-proxy" as const,
                 isAuthenticated: false,
                 config: client_0.config as McpMaximoAIProxyServerConfig,
               };
@@ -172,7 +172,7 @@ export function MCPSettings(t0) {
       }
       if (servers.length === 0 && agentMcpServers.length === 0) {
         onComplete(
-          "No MCP servers configured. Please run /doctor if this is unexpected. Otherwise, run `claude mcp --help` or visit https://code.claude.com/docs/en/mcp to learn more."
+          "No MCP servers configured. Please run /doctor if this is unexpected. Otherwise, run `maximo mcp --help` or visit https://code.maximo.com/docs/en/mcp to learn more."
         );
       }
     };
@@ -253,8 +253,8 @@ export function MCPSettings(t0) {
       }
       const serverTools_0 = t9;
       const defaultTab =
-        viewState.server.transport === "claudeai-proxy"
-          ? "claude.ai"
+        viewState.server.transport === "maximoai-proxy"
+          ? "maximo.ai"
           : "Maximo Syntax";
       if (viewState.server.transport === "stdio") {
         let t10;

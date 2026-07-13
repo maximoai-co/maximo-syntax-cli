@@ -41,8 +41,8 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
   async (): Promise<Record<string, ScopedMcpServerConfig>> => {
     try {
       if (getAPIProvider() !== "firstParty") {
-        logForDebugging("[claudeai-mcp] Skipped: non-first-party provider");
-        logEvent("tengu_claudeai_mcp_eligibility", {
+        logForDebugging("[maximoai-mcp] Skipped: non-first-party provider");
+        logEvent("tengu_maximoai_mcp_eligibility", {
           state:
             "non_first_party_provider" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         });
@@ -50,8 +50,8 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
       }
 
       if (isEnvDefinedFalsy(process.env.ENABLE_CLAUDEAI_MCP_SERVERS)) {
-        logForDebugging("[claudeai-mcp] Disabled via env var");
-        logEvent("tengu_claudeai_mcp_eligibility", {
+        logForDebugging("[maximoai-mcp] Disabled via env var");
+        logEvent("tengu_maximoai_mcp_eligibility", {
           state:
             "disabled_env_var" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         });
@@ -60,8 +60,8 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
 
       const tokens = getMaximoAIOAuthTokens();
       if (!tokens?.accessToken) {
-        logForDebugging("[claudeai-mcp] No access token");
-        logEvent("tengu_claudeai_mcp_eligibility", {
+        logForDebugging("[maximoai-mcp] No access token");
+        logEvent("tengu_maximoai_mcp_eligibility", {
           state:
             "no_oauth_token" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         });
@@ -72,14 +72,14 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
       // In non-interactive mode, isMaximoAISubscriber() returns false when ANTHROPIC_API_KEY
       // is set (even with valid OAuth tokens) because preferThirdPartyAuthentication() causes
       // isAnthropicAuthEnabled() to return false. Checking the scope directly allows users
-      // with both API keys and OAuth tokens to access claude.ai MCPs in print mode.
+      // with both API keys and OAuth tokens to access maximo.ai MCPs in print mode.
       if (!tokens.scopes?.includes("user:mcp_servers")) {
         logForDebugging(
-          `[claudeai-mcp] Missing user:mcp_servers scope (scopes=${
+          `[maximoai-mcp] Missing user:mcp_servers scope (scopes=${
             tokens.scopes?.join(",") || "none"
           })`
         );
-        logEvent("tengu_claudeai_mcp_eligibility", {
+        logEvent("tengu_maximoai_mcp_eligibility", {
           state:
             "missing_scope" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         });
@@ -89,7 +89,7 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
       const baseUrl = getOauthConfig().BASE_API_URL;
       const url = `${baseUrl}/v1/mcp_servers?limit=1000`;
 
-      logForDebugging(`[claudeai-mcp] Fetching from ${url}`);
+      logForDebugging(`[maximoai-mcp] Fetching from ${url}`);
 
       const response = await axios.get<MaximoAIMcpServersResponse>(url, {
         headers: {
@@ -109,7 +109,7 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
       const usedNormalizedNames = new Set<string>();
 
       for (const server of response.data.data) {
-        const baseName = `claude.ai ${server.display_name}`;
+        const baseName = `maximo.ai ${server.display_name}`;
 
         // Try without suffix first, then increment until we find an unused normalized name
         let finalName = baseName;
@@ -123,23 +123,23 @@ export const fetchMaximoAIMcpConfigsIfEligible = memoize(
         usedNormalizedNames.add(finalNormalized);
 
         configs[finalName] = {
-          type: "claudeai-proxy",
+          type: "maximoai-proxy",
           url: server.url,
           id: server.id,
-          scope: "claudeai",
+          scope: "maximoai",
         };
       }
 
       logForDebugging(
-        `[claudeai-mcp] Fetched ${Object.keys(configs).length} servers`
+        `[maximoai-mcp] Fetched ${Object.keys(configs).length} servers`
       );
-      logEvent("tengu_claudeai_mcp_eligibility", {
+      logEvent("tengu_maximoai_mcp_eligibility", {
         state:
           "eligible" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       });
       return configs;
     } catch {
-      logForDebugging(`[claudeai-mcp] Fetch failed`);
+      logForDebugging(`[maximoai-mcp] Fetch failed`);
       return {};
     }
   }
@@ -156,7 +156,7 @@ export function clearMaximoAIMcpConfigsCache(): void {
 }
 
 /**
- * Record that a claude.ai connector successfully connected. Idempotent.
+ * Record that a maximo.ai connector successfully connected. Idempotent.
  *
  * Gates the "N connectors unavailable/need auth" startup notifications: a
  * connector that was working yesterday and is now failed is a state change

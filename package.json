@@ -7,8 +7,7 @@
     "maximo-syntax-cli": "./bin/maximo-syntax-cli",
     "maximo-syntax": "./bin/maximo-syntax-cli",
     "maximo": "./bin/maximo-syntax-cli",
-    "syntax": "./bin/maximo-syntax-cli",
-    "claude": "./bin/maximo-syntax-cli"
+    "syntax": "./bin/maximo-syntax-cli"
   },
   "files": [
     "bin/",
@@ -131,7 +130,7 @@
     "url": "git+https://github.com/maximoai-co/maximo-syntax-cli.git"
   },
   "keywords": [
-    "claude-code",
+    "maximo-syntax",
     "openai",
     "llm",
     "cli",

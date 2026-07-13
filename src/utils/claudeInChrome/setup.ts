@@ -33,7 +33,7 @@ import { isChromeExtensionInstalledPortable } from "./setupPortable.js";
 
 const CHROME_EXTENSION_RECONNECT_URL = "https://clau.de/chrome/reconnect";
 
-const NATIVE_HOST_IDENTIFIER = "com.anthropic.claude_code_browser_extension";
+const NATIVE_HOST_IDENTIFIER = "com.anthropic.maximo_syntax_browser_extension";
 const NATIVE_HOST_MANIFEST_NAME = `${NATIVE_HOST_IDENTIFIER}.json`;
 
 export function shouldEnableMaximoInChrome(chromeFlag?: boolean): boolean {
@@ -51,10 +51,10 @@ export function shouldEnableMaximoInChrome(chromeFlag?: boolean): boolean {
   }
 
   // Check environment variables
-  if (isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_CFC)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_ENABLE_CFC)) {
     return true;
   }
-  if (isEnvDefinedFalsy(process.env.CLAUDE_CODE_ENABLE_CFC)) {
+  if (isEnvDefinedFalsy(process.env.MAXIMO_SYNTAX_ENABLE_CFC)) {
     return false;
   }
 
@@ -299,10 +299,10 @@ function registerWindowsNativeHosts(manifestPath: string): void {
 }
 
 /**
- * Create a wrapper script in ~/.claude/chrome/ that invokes the given command. This is
+ * Create a wrapper script in ~/.maximo/chrome/ that invokes the given command. This is
  * necessary because Chrome's native host manifest "path" field cannot contain arguments.
  *
- * @param command - The full command to execute (e.g., "/path/to/claude --chrome-native-host")
+ * @param command - The full command to execute (e.g., "/path/to/maximo --chrome-native-host")
  * @returns The path to the wrapper script
  */
 async function createWrapperScript(command: string): Promise<string> {
@@ -357,7 +357,7 @@ exec ${command}
  *
  * Only positive detections are persisted. A negative result from the
  * filesystem scan is not cached, because it may come from a machine that
- * shares ~/.claude.json but has no local Chrome (e.g. a remote dev
+ * shares ~/.maximo.json but has no local Chrome (e.g. a remote dev
  * environment using the bridge), and caching it would permanently poison
  * auto-enable for every session on every machine that reads that config.
  */

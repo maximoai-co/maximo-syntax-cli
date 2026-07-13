@@ -3,7 +3,7 @@
  * conversation. A "channel" (Discord, Slack, SMS, etc.) is just an MCP server
  * that:
  *   - exposes tools for outbound messages (e.g. `send_message`) — standard MCP
- *   - sends `notifications/claude/channel` notifications for inbound — this file
+ *   - sends `notifications/maximo/channel` notifications for inbound — this file
  *
  * The notification handler wraps the content in a <channel> tag and
  * enqueues it. SleepTool polls hasCommandsInQueue() and wakes within 1s.
@@ -11,7 +11,7 @@
  * with (the channel's MCP tool, SendUserMessage, or both).
  *
  * feature('KAIROS') || feature('KAIROS_CHANNELS'). Runtime gate tengu_harbor.
- * Requires claude.ai OAuth auth — API key users are blocked until
+ * Requires maximo.ai OAuth auth — API key users are blocked until
  * console gets a channelsEnabled admin surface. Teams/Enterprise orgs
  * must explicitly opt in via channelsEnabled: true in managed settings.
  */
@@ -39,7 +39,7 @@ import {
 
 export const ChannelMessageNotificationSchema = lazySchema(() =>
   z.object({
-    method: z.literal("notifications/claude/channel"),
+    method: z.literal("notifications/maximo/channel"),
     params: z.object({
       content: z.string(),
       // Opaque passthrough — thread_id, user, whatever the channel wants the
@@ -51,9 +51,9 @@ export const ChannelMessageNotificationSchema = lazySchema(() =>
 
 /**
  * Structured permission reply from a channel server. Servers that support
- * this declare `capabilities.experimental['claude/channel/permission']` and
+ * this declare `capabilities.experimental['maximo/channel/permission']` and
  * emit this event INSTEAD of relaying "yes tbxkq" as text via
- * notifications/claude/channel. Explicit opt-in per server — a channel that
+ * notifications/maximo/channel. Explicit opt-in per server — a channel that
  * just wants to relay text never becomes a permission surface by accident.
  *
  * The server parses the user's reply (spec: /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i)
@@ -63,7 +63,7 @@ export const ChannelMessageNotificationSchema = lazySchema(() =>
  * to deliberately emit this specific event.
  */
 export const CHANNEL_PERMISSION_METHOD =
-  "notifications/claude/channel/permission";
+  "notifications/maximo/channel/permission";
 export const ChannelPermissionNotificationSchema = lazySchema(() =>
   z.object({
     method: z.literal(CHANNEL_PERMISSION_METHOD),
@@ -86,7 +86,7 @@ export const ChannelPermissionNotificationSchema = lazySchema(() =>
  * keeps both halves of the protocol documented side by side.
  */
 export const CHANNEL_PERMISSION_REQUEST_METHOD =
-  "notifications/claude/channel/permission_request";
+  "notifications/maximo/channel/permission_request";
 export type ChannelPermissionRequestParams = {
   request_id: string;
   tool_name: string;
@@ -183,12 +183,12 @@ export function findChannelEntry(
  * elimination). Gate order: capability → runtime gate (tengu_harbor) →
  * auth (OAuth only) → org policy → session --channels → allowlist.
  * API key users are blocked at the auth layer — channels requires
- * claude.ai auth; console orgs have no admin opt-in surface yet.
+ * maximo.ai auth; console orgs have no admin opt-in surface yet.
  *
  *   skip      Not a channel server, or managed org hasn't opted in, or
  *             not in session --channels. Connection stays up; handler
  *             not registered.
- *   register  Subscribe to notifications/claude/channel.
+ *   register  Subscribe to notifications/maximo/channel.
  *
  * Which servers can connect at all is governed by allowedMcpServers —
  * this gate only decides whether the notification handler registers.
@@ -198,15 +198,15 @@ export function gateChannelServer(
   capabilities: ServerCapabilities | undefined,
   pluginSource: string | undefined
 ): ChannelGateResult {
-  // Channel servers declare `experimental['claude/channel']: {}` (MCP's
+  // Channel servers declare `experimental['maximo/channel']: {}` (MCP's
   // presence-signal idiom — same as `tools: {}`). Truthy covers `{}` and
   // `true`; absent/undefined/explicit-`false` all fail. Key matches the
-  // notification method namespace (notifications/claude/channel).
-  if (!capabilities?.experimental?.["claude/channel"]) {
+  // notification method namespace (notifications/maximo/channel).
+  if (!capabilities?.experimental?.["maximo/channel"]) {
     return {
       action: "skip",
       kind: "capability",
-      reason: "server did not declare claude/channel capability",
+      reason: "server did not declare maximo/channel capability",
     };
   }
 
@@ -228,7 +228,7 @@ export function gateChannelServer(
     return {
       action: "skip",
       kind: "auth",
-      reason: "channels requires claude.ai authentication (run /login)",
+      reason: "channels requires maximo.ai authentication (run /login)",
     };
   }
 

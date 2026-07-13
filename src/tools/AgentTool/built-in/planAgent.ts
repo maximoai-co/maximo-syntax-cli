@@ -87,7 +87,7 @@ export const PLAN_AGENT: BuiltInAgentDefinition = {
   tools: EXPLORE_AGENT.tools,
   baseDir: "built-in",
   model: "inherit",
-  // Plan is read-only and can Read CLAUDE.md directly if it needs conventions.
+  // Plan is read-only and can Read MAXIMO.md directly if it needs conventions.
   // Dropping it from context saves tokens without blocking access.
   omitMaximoMd: true,
   getSystemPrompt: () => getPlanV2SystemPrompt(),

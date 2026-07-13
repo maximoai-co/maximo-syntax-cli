@@ -329,7 +329,7 @@ const DISALLOWED_AUTO_BACKGROUND_COMMANDS = [
 // Check if background tasks are disabled at module load time
 const isBackgroundTasksDisabled =
   // eslint-disable-next-line custom-rules/no-process-env-top-level -- Intentional: schema must be defined at module load
-  isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS);
+  isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_BACKGROUND_TASKS);
 const fullInputSchema = lazySchema(() =>
   z.strictObject({
     command: z.string().describe("The command to execute"),
@@ -707,7 +707,7 @@ export const BashTool = buildTool({
     // `new RegExp` per call. userFacingName runs per-render for every bash
     // message in history; with ~50 msgs + one slow-to-tokenize command, this
     // exceeds the shimmer tick → transition abort → infinite retry (#21605).
-    return isEnvTruthy(process.env.CLAUDE_CODE_BASH_SANDBOX_SHOW_INDICATOR) &&
+    return isEnvTruthy(process.env.MAXIMO_SYNTAX_BASH_SANDBOX_SHOW_INDICATOR) &&
       shouldUseSandbox(input)
       ? "SandboxedBash"
       : "Bash";

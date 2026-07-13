@@ -63,15 +63,15 @@ export function isMarketplaceAutoUpdate(
  * Pattern to detect names that impersonate official Anthropic/Maximo marketplaces.
  *
  * Matches names containing variations like:
- * - "official" combined with "anthropic" or "claude" (e.g., "official-claude-plugins")
- * - "anthropic" or "claude" combined with "official" (e.g., "claude-official")
- * - Names starting with "anthropic" or "claude" followed by official-sounding terms
+ * - "official" combined with "anthropic" or "maximo" (e.g., "official-claude-plugins")
+ * - "anthropic" or "maximo" combined with "official" (e.g., "claude-official")
+ * - Names starting with "anthropic" or "maximo" followed by official-sounding terms
  *   like "marketplace", "plugins" (e.g., "anthropic-marketplace-new", "claude-plugins-v2")
  *
  * The pattern is case-insensitive.
  */
 export const BLOCKED_OFFICIAL_NAME_PATTERN =
-  /(?:official[^a-z0-9]*(anthropic|claude)|(?:anthropic|claude)[^a-z0-9]*official|^(?:anthropic|claude)[^a-z0-9]*(marketplace|plugins|official))/i;
+  /(?:official[^a-z0-9]*(anthropic|maximo)|(?:anthropic|maximo)[^a-z0-9]*official|^(?:anthropic|maximo)[^a-z0-9]*(marketplace|plugins|official))/i;
 
 /**
  * Pattern to detect non-ASCII characters that could be used for homograph attacks.
@@ -659,7 +659,7 @@ const PluginManifestUserConfigSchema = lazySchema(() =>
 /**
  * Schema for channel declarations in plugin manifest.
  *
- * A channel is an MCP server that emits `notifications/claude/channel` to
+ * A channel is an MCP server that emits `notifications/maximo/channel` to
  * inject messages into the conversation (Telegram, Slack, Discord, etc.).
  * Declaring it here lets the plugin prompt for user config (bot tokens,
  * owner IDs) at install time via the PluginOptionsFlow prompt,
@@ -883,7 +883,7 @@ const PluginManifestSettingsSchema = lazySchema(() =>
  * still fail, since a typo there is more likely to be an author mistake
  * than a vendor extension. Type mismatches and other validation errors
  * still fail at all levels. For developer feedback on unknown top-level
- * fields, use `claude plugin validate`.
+ * fields, use `maximo plugin validate`.
  */
 export const PluginManifestSchema = lazySchema(() =>
   z.object({
@@ -930,7 +930,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)"
+          "Path to marketplace.json within repo (defaults to .maximo-plugin/marketplace.json)"
         ),
       sparsePaths: z
         .array(z.string())
@@ -938,7 +938,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
         .describe(
           "Directories to include via git sparse-checkout (cone mode). " +
             "Use for monorepos where the marketplace lives in a subdirectory. " +
-            'Example: [".claude-plugin", "plugins"]. ' +
+            'Example: [".maximo-plugin", "plugins"]. ' +
             "If omitted, the full repository is cloned."
         ),
     }),
@@ -962,7 +962,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)"
+          "Path to marketplace.json within repo (defaults to .maximo-plugin/marketplace.json)"
         ),
       sparsePaths: z
         .array(z.string())
@@ -970,7 +970,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
         .describe(
           "Directories to include via git sparse-checkout (cone mode). " +
             "Use for monorepos where the marketplace lives in a subdirectory. " +
-            'Example: [".claude-plugin", "plugins"]. ' +
+            'Example: [".maximo-plugin", "plugins"]. ' +
             "If omitted, the full repository is cloned."
         ),
     }),
@@ -988,7 +988,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
       source: z.literal("directory"),
       path: z
         .string()
-        .describe("Local directory containing .claude-plugin/marketplace.json"),
+        .describe("Local directory containing .maximo-plugin/marketplace.json"),
     }),
     z.object({
       source: z.literal("hostPattern"),
@@ -1067,7 +1067,7 @@ export const gitSha = lazySchema(() =>
 export const PluginSourceSchema = lazySchema(() =>
   z.union([
     RelativePath().describe(
-      "Path to the plugin root, relative to the marketplace root (the directory containing .claude-plugin/, not .claude-plugin/ itself)"
+      "Path to the plugin root, relative to the marketplace root (the directory containing .maximo-plugin/, not .maximo-plugin/ itself)"
     ),
     z
       .object({
@@ -1447,7 +1447,7 @@ export const SettingsPluginEntrySchema = lazySchema(() =>
  *   "version": "1.2.0",
  *   "installedAt": "2024-01-15T10:30:00Z",
  *   "marketplace": "anthropic-tools",
- *   "installPath": "/home/user/.claude/plugins/installed/anthropic-tools/code-formatter"
+ *   "installPath": "/home/user/.maximo/plugins/installed/anthropic-tools/code-formatter"
  * }
  */
 export const InstalledPluginSchema = lazySchema(() =>
@@ -1503,9 +1503,9 @@ export const InstalledPluginsFileSchemaV1 = lazySchema(() =>
  *
  * Plugins can be installed at different scopes:
  * - managed: Enterprise/system-wide (read-only, platform-specific paths)
- * - user: User's global settings (~/.claude/settings.json)
- * - project: Shared project settings ($project/.claude/settings.json)
- * - local: Personal project overrides ($project/.claude/settings.local.json)
+ * - user: User's global settings (~/.maximo/settings.json)
+ * - project: Shared project settings ($project/.maximo/settings.json)
+ * - local: Personal project overrides ($project/.maximo/settings.local.json)
  *
  * Note: 'flag' scope plugins (from --settings) are session-only and
  * are NOT persisted to installed_plugins.json.
@@ -1592,7 +1592,7 @@ export const InstalledPluginsFileSchema = lazySchema(() =>
  * Example entry:
  * {
  *   "source": { "source": "github", "repo": "anthropic/claude-plugins" },
- *   "installLocation": "/home/user/.claude/plugins/cached/marketplaces/anthropic-tools",
+ *   "installLocation": "/home/user/.maximo/plugins/cached/marketplaces/anthropic-tools",
  *   "lastUpdated": "2024-01-15T10:30:00Z"
  * }
  */

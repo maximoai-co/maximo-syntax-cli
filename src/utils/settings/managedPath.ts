@@ -9,9 +9,9 @@ export const getManagedFilePath = memoize(function (): string {
   // Allow override for testing/demos (Ant-only, eliminated from external builds)
   if (
     process.env.USER_TYPE === "ant" &&
-    process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH
+    process.env.MAXIMO_SYNTAX_MANAGED_SETTINGS_PATH
   ) {
-    return process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH;
+    return process.env.MAXIMO_SYNTAX_MANAGED_SETTINGS_PATH;
   }
 
   switch (getPlatform()) {
@@ -20,7 +20,7 @@ export const getManagedFilePath = memoize(function (): string {
     case "windows":
       return "C:\\Program Files\\MaximoCode";
     default:
-      return "/etc/claude-code";
+      return "/etc/maximo-syntax";
   }
 });
 

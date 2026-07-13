@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
 
-import { getMaxOutputTokensForModel } from '../services/api/claude.ts'
+import { getMaxOutputTokensForModel } from '../services/api/maximo.ts'
 import {
   getAutoCompactThreshold,
   getEffectiveContextWindowSize,
@@ -16,10 +16,10 @@ import {
 } from './context.ts'
 
 const originalEnv = {
-  CLAUDE_CODE_USE_OPENAI: process.env.CLAUDE_CODE_USE_OPENAI,
-  CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS,
-  CLAUDE_CODE_AUTO_COMPACT_WINDOW:
-    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW,
+  MAXIMO_SYNTAX_USE_OPENAI: process.env.MAXIMO_SYNTAX_USE_OPENAI,
+  MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS: process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS,
+  MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW:
+    process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW,
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:
     process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -28,11 +28,11 @@ const originalEnv = {
 const originalFetch = globalThis.fetch
 
 afterEach(() => {
-  process.env.CLAUDE_CODE_USE_OPENAI = originalEnv.CLAUDE_CODE_USE_OPENAI
-  process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS =
-    originalEnv.CLAUDE_CODE_MAX_OUTPUT_TOKENS
-  process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW =
-    originalEnv.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = originalEnv.MAXIMO_SYNTAX_USE_OPENAI
+  process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS =
+    originalEnv.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
+  process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW =
+    originalEnv.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE =
     originalEnv.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
   process.env.OPENAI_API_KEY = originalEnv.OPENAI_API_KEY
@@ -42,8 +42,8 @@ afterEach(() => {
 })
 
 test('deepseek-chat uses provider-specific context and output caps', () => {
-  process.env.CLAUDE_CODE_USE_OPENAI = '1'
-  delete process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = '1'
+  delete process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
 
   expect(getContextWindowForModel('deepseek-chat')).toBe(128_000)
   expect(getModelMaxOutputTokens('deepseek-chat')).toEqual({
@@ -54,18 +54,18 @@ test('deepseek-chat uses provider-specific context and output caps', () => {
 })
 
 test('deepseek-chat clamps oversized max output overrides to the provider limit', () => {
-  process.env.CLAUDE_CODE_USE_OPENAI = '1'
-  process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '32000'
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = '1'
+  process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS = '32000'
 
   expect(getMaxOutputTokensForModel('deepseek-chat')).toBe(8_192)
 })
 
 test('Maximo model metadata drives context and output limits', async () => {
-  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = '1'
   process.env.OPENAI_BASE_URL = 'https://api.maximoai.co/v1'
   process.env.OPENAI_API_KEY = 'test-key'
-  delete process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
-  delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  delete process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
+  delete process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   delete process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
 
   const maximoModels = [
@@ -164,7 +164,7 @@ test('Maximo model metadata drives context and output limits', async () => {
     )
   }
 
-  process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '500000'
+  process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW = '500000'
   const nanoModel = maximoModels[0]!
   const cappedReserve = expectedReserve(nanoModel, 500_000)
   expect(getCompactSummaryMaxOutputTokensForModel(nanoModel.id, 500_000)).toBe(

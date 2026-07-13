@@ -16,7 +16,7 @@ function getOauthConfigType(): OauthConfigType {
 }
 
 export function fileSuffixForOauthConfig(): string {
-  if (process.env.CLAUDE_CODE_CUSTOM_OAUTH_URL) {
+  if (process.env.MAXIMO_SYNTAX_CUSTOM_OAUTH_URL) {
     return "-custom-oauth";
   }
   switch (getOauthConfigType()) {
@@ -45,7 +45,7 @@ export const CONSOLE_OAUTH_SCOPES = [
 export const CLAUDE_AI_OAUTH_SCOPES = [
   CLAUDE_AI_PROFILE_SCOPE,
   CLAUDE_AI_INFERENCE_SCOPE,
-  "user:sessions:claude_code",
+  "user:sessions:maximo_syntax",
   "user:mcp_servers",
   "user:file_upload",
 ] as const;
@@ -62,10 +62,10 @@ type OauthConfig = {
   CONSOLE_AUTHORIZE_URL: string;
   CLAUDE_AI_AUTHORIZE_URL: string;
   /**
-   * The claude.ai web origin. Separate from CLAUDE_AI_AUTHORIZE_URL because
-   * that now routes through claude.com/cai/* for attribution — deriving
-   * .origin from it would give claude.com, breaking links to /code,
-   * /settings/connectors, and other claude.ai web pages.
+   * The maximo.ai web origin. Separate from CLAUDE_AI_AUTHORIZE_URL because
+   * that now routes through maximo.com/cai/* for attribution — deriving
+   * .origin from it would give maximo.com, breaking links to /code,
+   * /settings/connectors, and other maximo.ai web pages.
    */
   CLAUDE_AI_ORIGIN: string;
   TOKEN_URL: string;
@@ -83,19 +83,19 @@ type OauthConfig = {
 // Production OAuth configuration - Used in normal operation
 const PROD_OAUTH_CONFIG = {
   BASE_API_URL: "https://api.anthropic.com",
-  CONSOLE_AUTHORIZE_URL: "https://platform.claude.com/oauth/authorize",
-  // Bounces through claude.com/cai/* so CLI sign-ins connect to claude.com
-  // visits for attribution. 307s to claude.ai/oauth/authorize in two hops.
-  CLAUDE_AI_AUTHORIZE_URL: "https://claude.com/cai/oauth/authorize",
-  CLAUDE_AI_ORIGIN: "https://claude.ai",
-  TOKEN_URL: "https://platform.claude.com/v1/oauth/token",
+  CONSOLE_AUTHORIZE_URL: "https://platform.maximo.com/oauth/authorize",
+  // Bounces through maximo.com/cai/* so CLI sign-ins connect to maximo.com
+  // visits for attribution. 307s to maximo.ai/oauth/authorize in two hops.
+  CLAUDE_AI_AUTHORIZE_URL: "https://maximo.com/cai/oauth/authorize",
+  CLAUDE_AI_ORIGIN: "https://maximo.ai",
+  TOKEN_URL: "https://platform.maximo.com/v1/oauth/token",
   API_KEY_URL: "https://api.anthropic.com/api/oauth/claude_cli/create_api_key",
   ROLES_URL: "https://api.anthropic.com/api/oauth/claude_cli/roles",
   CONSOLE_SUCCESS_URL:
-    "https://platform.claude.com/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code",
+    "https://platform.maximo.com/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code",
   CLAUDEAI_SUCCESS_URL:
-    "https://platform.claude.com/oauth/code/success?app=claude-code",
-  MANUAL_REDIRECT_URL: "https://platform.claude.com/oauth/code/callback",
+    "https://platform.maximo.com/oauth/code/success?app=claude-code",
+  MANUAL_REDIRECT_URL: "https://platform.maximo.com/oauth/code/callback",
   CLIENT_ID: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
   // No suffix for production config
   OAUTH_FILE_SUFFIX: "",
@@ -111,7 +111,7 @@ const PROD_OAUTH_CONFIG = {
  * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00
  */
 export const MCP_CLIENT_METADATA_URL =
-  "https://claude.ai/oauth/claude-code-client-metadata";
+  "https://maximo.ai/oauth/claude-code-client-metadata";
 
 // Staging OAuth configuration - only included in ant builds with staging flag
 // Uses literal check for dead code elimination
@@ -173,12 +173,12 @@ function getLocalOauthConfig(): OauthConfig {
   };
 }
 
-// Allowed base URLs for CLAUDE_CODE_CUSTOM_OAUTH_URL override.
+// Allowed base URLs for MAXIMO_SYNTAX_CUSTOM_OAUTH_URL override.
 // Only FedStart/PubSec deployments are permitted to prevent OAuth tokens
 // from being sent to arbitrary endpoints.
 const ALLOWED_OAUTH_BASE_URLS = [
   // "https://beacon.claude-ai.staging.ant.dev",
-  // "https://claude.fedstart.com",
+  // "https://maximo.fedstart.com",
   // "https://claude-staging.fedstart.com",
   "https://api.maximoai.co",
 ];
@@ -198,12 +198,12 @@ export function getOauthConfig(): OauthConfig {
 
   // Allow overriding all OAuth URLs to point to an approved FedStart deployment.
   // Only allowlisted base URLs are accepted to prevent credential leakage.
-  const oauthBaseUrl = process.env.CLAUDE_CODE_CUSTOM_OAUTH_URL;
+  const oauthBaseUrl = process.env.MAXIMO_SYNTAX_CUSTOM_OAUTH_URL;
   if (oauthBaseUrl) {
     const base = oauthBaseUrl.replace(/\/$/, "");
     if (!ALLOWED_OAUTH_BASE_URLS.includes(base)) {
       throw new Error(
-        "CLAUDE_CODE_CUSTOM_OAUTH_URL is not an approved endpoint."
+        "MAXIMO_SYNTAX_CUSTOM_OAUTH_URL is not an approved endpoint."
       );
     }
     config = {
@@ -223,7 +223,7 @@ export function getOauthConfig(): OauthConfig {
   }
 
   // Allow CLIENT_ID override via environment variable (e.g., for Xcode integration)
-  const clientIdOverride = process.env.CLAUDE_CODE_OAUTH_CLIENT_ID;
+  const clientIdOverride = process.env.MAXIMO_SYNTAX_OAUTH_CLIENT_ID;
   if (clientIdOverride) {
     config = {
       ...config,

@@ -249,8 +249,8 @@ export async function trackDatadogEvent(
       ddsource: 'nodejs',
       ddtags: tags.join(','),
       message: eventName,
-      service: 'claude-code',
-      hostname: 'claude-code',
+      service: 'maximo-syntax',
+      hostname: 'maximo-syntax',
       env: process.env.USER_TYPE,
     }
 
@@ -301,7 +301,7 @@ const getUserBucket = memoize((): number => {
 function getFlushIntervalMs(): number {
   // Allow tests to override to not block on the default flush interval.
   return (
-    parseInt(process.env.CLAUDE_CODE_DATADOG_FLUSH_INTERVAL_MS || '', 10) ||
+    parseInt(process.env.MAXIMO_SYNTAX_DATADOG_FLUSH_INTERVAL_MS || '', 10) ||
     DEFAULT_FLUSH_INTERVAL_MS
   )
 }

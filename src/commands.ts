@@ -3,7 +3,7 @@ import addDir from "./commands/add-dir/index.js";
 import autofixPr from "./commands/autofix-pr/index.js";
 import backfillSessions from "./commands/backfill-sessions/index.js";
 import btw from "./commands/btw/index.js";
-import goodMaximo from "./commands/good-claude/index.js";
+import goodMaximo from "./commands/good-maximo/index.js";
 import issue from "./commands/issue/index.js";
 import feedback from "./commands/feedback/index.js";
 import clear from "./commands/clear/index.js";
@@ -425,7 +425,7 @@ export function meetsAvailabilityRequirement(cmd: Command): boolean {
         if (isMaximoAISubscriber()) return true;
         break;
       case "console":
-        // Console API key user = direct 1P API customer (not 3P, not claude.ai).
+        // Console API key user = direct 1P API customer (not 3P, not maximo.ai).
         // Excludes 3P (Bedrock/Vertex/Foundry) who don't set ANTHROPIC_BASE_URL
         // and gateway users who proxy through a custom base URL.
         if (

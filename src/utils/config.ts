@@ -131,7 +131,7 @@ export type ProjectConfig = {
     sessionId: string;
     hookBased?: boolean;
   };
-  /** Spawn mode for `claude remote-control` multi-session. Set by first-run dialog or `w` toggle. */
+  /** Spawn mode for `maximo remote-control` multi-session. Set by first-run dialog or `w` toggle. */
   remoteControlSpawnMode?: "same-dir" | "worktree";
 };
 
@@ -197,12 +197,12 @@ export type GlobalConfig = {
   lastOnboardingVersion?: string;
   // Tracks the last version for which release notes were seen, used for managing release notes
   lastReleaseNotesSeen?: string;
-  // Timestamp when changelog was last fetched (content stored in ~/.claude/cache/changelog.md)
+  // Timestamp when changelog was last fetched (content stored in ~/.maximo/cache/changelog.md)
   changelogLastFetched?: number;
-  // @deprecated - Migrated to ~/.claude/cache/changelog.md. Keep for migration support.
+  // @deprecated - Migrated to ~/.maximo/cache/changelog.md. Keep for migration support.
   cachedChangelog?: string;
   mcpServers?: Record<string, McpServerConfig>;
-  // claude.ai MCP connectors that have successfully connected at least once.
+  // maximo.ai MCP connectors that have successfully connected at least once.
   // Used to gate "connector unavailable" / "needs auth" startup notifications:
   // a connector the user has actually used is worth flagging when it breaks,
   // but an org-configured connector that's been needs-auth since day one is
@@ -467,7 +467,7 @@ export type GlobalConfig = {
   // Key: "owner/repo" (lowercase), Value: array of absolute paths where repo is cloned
   githubRepoPaths?: Record<string, string[]>;
 
-  // Terminal emulator to launch for claude-cli:// deep links. Captured from
+  // Terminal emulator to launch for maximo-syntax:// deep links. Captured from
   // TERM_PROGRAM during interactive sessions since the deep link handler runs
   // headless (LaunchServices/xdg) with no TERM_PROGRAM set.
   deepLinkTerminal?: string;
@@ -561,9 +561,9 @@ export type GlobalConfig = {
   // Additional model options for the model picker (fetched during bootstrap).
   additionalModelOptionsCache?: ModelOption[];
 
-  // Disk cache for /api/claude_code/organizations/metrics_enabled.
+  // Disk cache for /api/maximo_syntax/organizations/metrics_enabled.
   // Org-level settings change rarely; persisting across processes avoids a
-  // cold API call on every `claude -p` invocation.
+  // cold API call on every `maximo -p` invocation.
   metricsStatusCache?: {
     enabled: boolean;
     timestamp: number;
@@ -885,7 +885,7 @@ let configCacheHits = 0;
 let configCacheMisses = 0;
 // Session-total count of actual disk writes to the global config file.
 // Exposed for ant-only dev diagnostics (see inc-4552) so anomalous write
-// rates surface in the UI before they corrupt ~/.claude.json.
+// rates surface in the UI before they corrupt ~/.maximo.json.
 let globalConfigWriteCount = 0;
 
 export function getGlobalConfigWriteCount(): number {
@@ -1224,7 +1224,7 @@ function saveConfigWithLock<A extends object>(
     const currentConfig = getConfig(file, createDefault);
     if (file === getGlobalMaximoFile() && wouldLoseAuthState(currentConfig)) {
       logForDebugging(
-        "saveConfigWithLock: re-read config is missing auth that cache has; refusing to write to avoid wiping ~/.claude.json. See GH #3117.",
+        "saveConfigWithLock: re-read config is missing auth that cache has; refusing to write to avoid wiping ~/.maximo.json. See GH #3117.",
         { level: "error" }
       );
       logEvent("tengu_config_auth_loss_prevented", {});
@@ -1248,7 +1248,7 @@ function saveConfigWithLock<A extends object>(
 
     // Create timestamped backup of existing config before writing
     // We keep multiple backups to prevent data loss if a reset/corrupted config
-    // overwrites a good backup. Backups are stored in ~/.claude/backups/ to
+    // overwrites a good backup. Backups are stored in ~/.maximo/backups/ to
     // keep the home directory clean.
     try {
       const fileBase = basename(file);
@@ -1365,7 +1365,7 @@ export function enableConfigs(): void {
 
 /**
  * Returns the directory where config backup files are stored.
- * Uses ~/.claude/backups/ to keep the home directory clean.
+ * Uses ~/.maximo/backups/ to keep the home directory clean.
  */
 function getConfigBackupDir(): string {
   return join(getMaximoConfigHomeDir(), "backups");
@@ -1373,7 +1373,7 @@ function getConfigBackupDir(): string {
 
 /**
  * Find the most recent backup file for a given config file.
- * Checks ~/.claude/backups/ first, then falls back to the legacy location
+ * Checks ~/.maximo/backups/ first, then falls back to the legacy location
  * (next to the config file) for backwards compatibility.
  * Returns the full path to the most recent backup, or null if none exist.
  */
@@ -1791,13 +1791,13 @@ export function getMemoryPath(memoryType: MemoryType): string {
 
   switch (memoryType) {
     case "User":
-      return join(getMaximoConfigHomeDir(), "CLAUDE.md");
+      return join(getMaximoConfigHomeDir(), "MAXIMO.md");
     case "Local":
-      return join(cwd, "CLAUDE.local.md");
+      return join(cwd, "MAXIMO.local.md");
     case "Project":
-      return join(cwd, "CLAUDE.md");
+      return join(cwd, "MAXIMO.md");
     case "Managed":
-      return join(getManagedFilePath(), "CLAUDE.md");
+      return join(getManagedFilePath(), "MAXIMO.md");
     case "AutoMem":
       return getAutoMemEntrypoint();
   }
@@ -1809,7 +1809,7 @@ export function getMemoryPath(memoryType: MemoryType): string {
 }
 
 export function getManagedMaximoRulesDir(): string {
-  return join(getManagedFilePath(), ".claude", "rules");
+  return join(getManagedFilePath(), ".maximo", "rules");
 }
 
 export function getUserMaximoRulesDir(): string {

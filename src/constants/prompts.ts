@@ -99,8 +99,8 @@ const skillSearchFeatureCheck = feature("EXPERIMENTAL_SKILL_SEARCH")
 import type { OutputStyleConfig } from "./outputStyles.js";
 import { CYBER_RISK_INSTRUCTION } from "./cyberRiskInstruction.js";
 
-export const CLAUDE_CODE_DOCS_MAP_URL =
-  "https://code.claude.com/docs/en/claude_code_docs_map.md";
+export const MAXIMO_SYNTAX_DOCS_MAP_URL =
+  "https://code.maximo.com/docs/en/maximo_syntax_docs_map.md";
 
 /**
  * Boundary marker separating static (cross-org cacheable) content from dynamic content.
@@ -109,7 +109,7 @@ export const CLAUDE_CODE_DOCS_MAP_URL =
  *
  * WARNING: Do not remove or reorder this marker without updating cache logic in:
  * - src/utils/api.ts (splitSysPromptPrefix)
- * - src/services/api/claude.ts (buildSystemPromptBlocks)
+ * - src/services/api/maximo.ts (buildSystemPromptBlocks)
  */
 export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
   "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
@@ -259,7 +259,7 @@ function getSimpleDoingTasksSection(): string {
 function getActionsSection(): string {
   return `# Executing actions with care
 
-Carefully consider the reversibility and blast radius of actions. Generally you can freely take local, reversible actions like editing files or running tests. But for actions that are hard to reverse, affect shared systems beyond your local environment, or could otherwise be risky or destructive, check with the user before proceeding. The cost of pausing to confirm is low, while the cost of an unwanted action (lost work, unintended messages sent, deleted branches) can be very high. For actions like these, consider the context, the action, and user instructions, and by default transparently communicate the action and ask for confirmation before proceeding. This default can be changed by user instructions - if explicitly asked to operate more autonomously, then you may proceed without confirmation, but still attend to the risks and consequences when taking actions. A user approving an action (like a git push) once does NOT mean that they approve it in all contexts, so unless actions are authorized in advance in durable instructions like CLAUDE.md files, always confirm first. Authorization stands for the scope specified, not beyond. Match the scope of your actions to what was actually requested.
+Carefully consider the reversibility and blast radius of actions. Generally you can freely take local, reversible actions like editing files or running tests. But for actions that are hard to reverse, affect shared systems beyond your local environment, or could otherwise be risky or destructive, check with the user before proceeding. The cost of pausing to confirm is low, while the cost of an unwanted action (lost work, unintended messages sent, deleted branches) can be very high. For actions like these, consider the context, the action, and user instructions, and by default transparently communicate the action and ask for confirmation before proceeding. This default can be changed by user instructions - if explicitly asked to operate more autonomously, then you may proceed without confirmation, but still attend to the risks and consequences when taking actions. A user approving an action (like a git push) once does NOT mean that they approve it in all contexts, so unless actions are authorized in advance in durable instructions like MAXIMO.md files, always confirm first. Authorization stands for the scope specified, not beyond. Match the scope of your actions to what was actually requested.
 
 Examples of the kind of risky actions that warrant user confirmation:
 - Destructive operations: deleting files/branches, dropping database tables, killing processes, rm -rf, overwriting uncommitted changes
@@ -451,7 +451,7 @@ export async function getSystemPrompt(
   additionalWorkingDirectories?: string[],
   mcpClients?: MCPServerConnection[]
 ): Promise<string[]> {
-  if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_SIMPLE)) {
     return [
       `You are Maximo Syntax, Maximo AI's official CLI for Maximo.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
     ];
@@ -703,7 +703,7 @@ export async function computeSimpleEnvInfo(
       : `The most recent Maximo model family is Maximo 4.5/4.6. Model IDs — Opus 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.opus}', Sonnet 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.sonnet}', Haiku 4.5: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.haiku}'. When building AI applications, default to the latest and most capable Maximo models.`,
     process.env.USER_TYPE === "ant" && isUndercover()
       ? null
-      : `Maximo Syntax is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).`,
+      : `Maximo Syntax is available as a CLI in the terminal, desktop app (Mac/Windows), web app (maximo.ai/code), and IDE extensions (VS Code, JetBrains).`,
     process.env.USER_TYPE === "ant" && isUndercover()
       ? null
       : `Fast mode for Maximo Syntax uses the same ${FRONTIER_MODEL_NAME} model with faster output. It does NOT switch to a different model. It can be toggled with /fast.`,

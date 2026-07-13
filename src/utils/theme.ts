@@ -5,7 +5,7 @@ export type Theme = {
   autoAccept: string;
   bashBorder: string;
   claude: string;
-  claudeShimmer: string; // Lighter version of claude color for shimmer effect
+  claudeShimmer: string; // Lighter version of maximo color for shimmer effect
   claudeBlue_FOR_SYSTEM_SPINNER: string;
   claudeBlueShimmer_FOR_SYSTEM_SPINNER: string;
   permission: string;
@@ -416,7 +416,7 @@ const lightDaltonizedTheme: Theme = {
   fastMode: "rgb(255,106,0)", // Electric orange (color-blind safe)
   fastModeShimmer: "rgb(255,150,50)", // Lighter orange for shimmer
   briefLabelYou: "rgb(37,99,235)", // Blue
-  briefLabelMaximo: "rgb(255,153,51)", // Orange adjusted for deuteranopia (matches claude)
+  briefLabelMaximo: "rgb(255,153,51)", // Orange adjusted for deuteranopia (matches maximo)
   rainbow_red: "rgb(235,95,87)",
   rainbow_orange: "rgb(245,139,87)",
   rainbow_yellow: "rgb(250,195,95)",
@@ -578,7 +578,7 @@ const darkDaltonizedTheme: Theme = {
   fastMode: "rgb(255,120,20)", // Electric orange for dark bg (color-blind safe)
   fastModeShimmer: "rgb(255,165,70)", // Lighter orange for shimmer
   briefLabelYou: "rgb(122,180,232)", // Light blue
-  briefLabelMaximo: "rgb(255,153,51)", // Orange adjusted for deuteranopia (matches claude)
+  briefLabelMaximo: "rgb(255,153,51)", // Orange adjusted for deuteranopia (matches maximo)
   rainbow_red: "rgb(235,95,87)",
   rainbow_orange: "rgb(245,139,87)",
   rainbow_yellow: "rgb(250,195,95)",

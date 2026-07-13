@@ -32,7 +32,7 @@ import { trySessionMemoryCompaction } from './sessionMemoryCompact.js'
 export function getEffectiveContextWindowSize(model: string): number {
   let contextWindow = getContextWindowForModel(model, getSdkBetas())
 
-  const autoCompactWindow = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  const autoCompactWindow = process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   if (autoCompactWindow) {
     const parsed = parseInt(autoCompactWindow, 10)
     if (!isNaN(parsed) && parsed > 0) {
@@ -160,7 +160,7 @@ export function calculateTokenWarningState(
   )
 
   // Allow override for testing
-  const blockingLimitOverride = process.env.CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE
+  const blockingLimitOverride = process.env.MAXIMO_SYNTAX_BLOCKING_LIMIT_OVERRIDE
   const parsedOverride = blockingLimitOverride
     ? parseInt(blockingLimitOverride, 10)
     : NaN

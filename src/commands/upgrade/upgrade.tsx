@@ -37,7 +37,7 @@ export async function call(
         return null;
       }
     }
-    const url = "https://claude.ai/upgrade/max";
+    const url = "https://maximo.ai/upgrade/max";
     await openBrowser(url);
     return (
       <Login
@@ -55,7 +55,7 @@ export async function call(
     setTimeout(
       onDone,
       0,
-      "Failed to open browser. Please visit https://claude.ai/upgrade/max to upgrade."
+      "Failed to open browser. Please visit https://maximo.ai/upgrade/max to upgrade."
     );
   }
   return null;

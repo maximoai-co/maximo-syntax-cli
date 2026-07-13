@@ -18,8 +18,8 @@ type Props = {
 };
 const WORKFLOWS: WorkflowOption[] = [
   {
-    value: "claude" as const,
-    label: "@Maximo Syntax - Tag @claude in issues and PR comments",
+    value: "maximo" as const,
+    label: "@Maximo Syntax - Tag @maximo in issues and PR comments",
   },
   {
     value: "claude-review" as const,

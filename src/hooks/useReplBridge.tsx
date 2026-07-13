@@ -68,7 +68,7 @@ const MAX_CONSECUTIVE_INIT_FAILURES = 3;
  * Watches AppState.replBridgeEnabled — when toggled off (via /config or footer),
  * the bridge is torn down. When toggled back on, it re-initializes.
  *
- * Inbound messages from claude.ai are injected into the REPL via queuedCommands.
+ * Inbound messages from maximo.ai are injected into the REPL via queuedCommands.
  */
 export function useReplBridge(
   messages: Message[],
@@ -191,7 +191,7 @@ export function useReplBridge(
             "../bridge/envLessBridgeConfig.js"
           );
 
-          // Assistant mode: perpetual bridge session — claude.ai shows one
+          // Assistant mode: perpetual bridge session — maximo.ai shows one
           // continuous conversation across CLI restarts instead of a new
           // session per invocation. initBridgeCore reads bridge-pointer.json
           // (the same crash-recovery file #20735 added) and reuses its
@@ -206,7 +206,7 @@ export function useReplBridge(
             perpetual = isAssistantMode();
           }
 
-          // When a user message arrives from claude.ai, inject it into the REPL.
+          // When a user message arrives from maximo.ai, inject it into the REPL.
           // Preserves the original UUID so that when the message is forwarded
           // back to CCR, it matches the original — avoiding duplicate messages.
           //
@@ -512,7 +512,7 @@ export function useReplBridge(
               // setAutoModeActive(true) side-effect BEFORE the throw) rather
               // than a graceful reject. Letting that throw escape would:
               // (1) leave STATE.autoModeActive=true while the mode is
-              //     unchanged (3-way invariant violation per src/CLAUDE.md)
+              //     unchanged (3-way invariant violation per src/MAXIMO.md)
               // (2) fail to send a control_response → server kills WS
               // These mirror print.ts handleSetPermissionMode; the bridge
               // can't import the checks directly (bootstrap-isolation), so

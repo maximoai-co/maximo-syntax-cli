@@ -280,7 +280,7 @@ export function getLogoDisplayData(): {
     process.env.DEMO_VERSION ?? MACRO.DISPLAY_VERSION ?? MACRO.VERSION;
   const serverUrl = getDirectConnectServerUrl();
   const displayPath = process.env.DEMO_VERSION
-    ? "/code/claude"
+    ? "/code/maximo"
     : getDisplayPath(getCwd());
   const cwd = serverUrl
     ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, "")}`

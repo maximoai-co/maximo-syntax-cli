@@ -40,7 +40,7 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from "../analytics/index.js";
-import { fetchMaximoAIMcpConfigsIfEligible } from "./claudeai.js";
+import { fetchMaximoAIMcpConfigsIfEligible } from "./maximoai.js";
 import { expandEnvVarsInString } from "./envExpansion.js";
 import {
   type ConfigScope,
@@ -162,7 +162,7 @@ function getServerUrl(config: McpServerConfig): string | null {
 }
 
 /**
- * CCR proxy URL path markers. In remote sessions, claude.ai connectors arrive
+ * CCR proxy URL path markers. In remote sessions, maximo.ai connectors arrive
  * via --mcp-config with URLs rewritten to route through the CCR/session-ingress
  * SHTTP proxy. The original vendor URL is preserved in the mcp_url query param
  * so the proxy knows where to forward. See api-go/ccr/internal/ccrshared/
@@ -195,7 +195,7 @@ export function unwrapCcrProxyUrl(url: string): string {
 /**
  * Compute a dedup signature for an MCP server config.
  * Two configs with the same signature are considered "the same server" for
- * plugin deduplication. Ignores env (plugins always inject CLAUDE_PLUGIN_ROOT)
+ * plugin deduplication. Ignores env (plugins always inject MAXIMO_SYNTAX_PLUGIN_ROOT)
  * and headers (same URL = same server regardless of auth).
  * Returns null only for configs with neither command nor url (sdk type).
  */
@@ -266,11 +266,11 @@ export function dedupPluginMcpServers(
 }
 
 /**
- * Filter claude.ai connectors, dropping any whose signature matches an enabled
+ * Filter maximo.ai connectors, dropping any whose signature matches an enabled
  * manually-configured server. Manual wins: a user who wrote .mcp.json or ran
- * `claude mcp add` expressed higher intent than a connector toggled in the web UI.
+ * `maximo mcp add` expressed higher intent than a connector toggled in the web UI.
  *
- * Connector keys are `claude.ai <DisplayName>` so they never key-collide with
+ * Connector keys are `maximo.ai <DisplayName>` so they never key-collide with
  * manual servers in the merge — this content-based check catches the case where
  * both point at the same underlying URL (e.g. `mcp__slack__*` and
  * `mcp__claude_ai_Slack__*` both hitting mcp.slack.com, ~600 chars/turn wasted).
@@ -299,7 +299,7 @@ export function dedupMaximoAiMcpServers(
     const manualDup = sig !== null ? manualSigs.get(sig) : undefined;
     if (manualDup !== undefined) {
       logForDebugging(
-        `Suppressing claude.ai connector "${name}": duplicates manually-configured "${manualDup}"`
+        `Suppressing maximo.ai connector "${name}": duplicates manually-configured "${manualDup}"`
       );
       suppressed.push({ name, duplicateOf: manualDup });
       continue;
@@ -604,7 +604,7 @@ function expandEnvVars(config: McpServerConfig): {
     case "sdk":
       expanded = config;
       break;
-    case "claudeai-proxy":
+    case "maximoai-proxy":
       expanded = config;
       break;
   }
@@ -707,8 +707,8 @@ export async function addMcpConfig(
       throw new Error("Cannot add MCP server to scope: dynamic");
     case "enterprise":
       throw new Error("Cannot add MCP server to scope: enterprise");
-    case "claudeai":
-      throw new Error("Cannot add MCP server to scope: claudeai");
+    case "maximoai":
+      throw new Error("Cannot add MCP server to scope: maximoai");
   }
 
   // Add based on scope
@@ -1071,11 +1071,11 @@ export function getMcpConfigByName(name: string): ScopedMcpServerConfig | null {
 }
 
 /**
- * Get Maximo Syntax MCP configurations (excludes claude.ai servers from the
+ * Get Maximo Syntax MCP configurations (excludes maximo.ai servers from the
  * returned set — they're fetched separately and merged by callers).
  * This is fast: only local file reads; no awaited network calls on the
  * critical path. The optional extraDedupTargets promise (e.g. the in-flight
- * claude.ai connector fetch) is awaited only after loadAllPluginsCacheOnly() completes,
+ * maximo.ai connector fetch) is awaited only after loadAllPluginsCacheOnly() completes,
  * so the two overlap rather than serialize.
  * @returns Maximo Syntax server configurations with appropriate scopes
  */
@@ -1266,7 +1266,7 @@ export async function getMaximoCodeMcpConfigs(
 }
 
 /**
- * Get all MCP configurations across all scopes, including claude.ai servers.
+ * Get all MCP configurations across all scopes, including maximo.ai servers.
  * This may be slow due to network calls - use getMaximoCodeMcpConfigs() for fast startup.
  * @returns All server configurations with appropriate scopes
  */
@@ -1274,31 +1274,31 @@ export async function getAllMcpConfigs(): Promise<{
   servers: Record<string, ScopedMcpServerConfig>;
   errors: PluginError[];
 }> {
-  // In enterprise mode, don't load claude.ai servers (enterprise has exclusive control)
+  // In enterprise mode, don't load maximo.ai servers (enterprise has exclusive control)
   if (doesEnterpriseMcpConfigExist()) {
     return getMaximoCodeMcpConfigs();
   }
 
-  // Kick off the claude.ai fetch before getMaximoCodeMcpConfigs so it overlaps
+  // Kick off the maximo.ai fetch before getMaximoCodeMcpConfigs so it overlaps
   // with loadAllPluginsCacheOnly() inside. Memoized — the awaited call below is a cache hit.
-  const claudeaiPromise = fetchMaximoAIMcpConfigsIfEligible();
+  const maximoaiPromise = fetchMaximoAIMcpConfigsIfEligible();
   const { servers: claudeCodeServers, errors } = await getMaximoCodeMcpConfigs(
     {},
-    claudeaiPromise
+    maximoaiPromise
   );
-  const { allowed: claudeaiMcpServers } = filterMcpServersByPolicy(
-    await claudeaiPromise
+  const { allowed: maximoaiMcpServers } = filterMcpServersByPolicy(
+    await maximoaiPromise
   );
 
-  // Suppress claude.ai connectors that duplicate an enabled manual server.
-  // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
+  // Suppress maximo.ai connectors that duplicate an enabled manual server.
+  // Keys never collide (`slack` vs `maximo.ai Slack`) so the merge below
   // won't catch this — need content-based dedup by URL signature.
   const { servers: dedupedMaximoAi } = dedupMaximoAiMcpServers(
-    claudeaiMcpServers,
+    maximoaiMcpServers,
     claudeCodeServers
   );
 
-  // Merge with claude.ai having lowest precedence
+  // Merge with maximo.ai having lowest precedence
   const servers = Object.assign({}, dedupedMaximoAi, claudeCodeServers);
 
   return { servers, errors };
@@ -1376,7 +1376,7 @@ export function parseMcpConfig(params: {
         ...(filePath && { file: filePath }),
         path: `mcpServers.${name}`,
         message: `Windows requires 'cmd /c' wrapper to execute npx`,
-        suggestion: `Change command to "cmd" with args ["/c", "npx", ...]. See: https://code.claude.com/docs/en/mcp#configure-mcp-servers`,
+        suggestion: `Change command to "cmd" with args ["/c", "npx", ...]. See: https://code.maximo.com/docs/en/mcp#configure-mcp-servers`,
         mcpErrorMetadata: {
           scope,
           serverName: name,
@@ -1514,11 +1514,11 @@ export function areMcpConfigsAllowedWithEnterpriseMcpConfig(
   configs: Record<string, ScopedMcpServerConfig>
 ): boolean {
   // NOTE: While all SDK MCP servers should be safe from a security perspective, we are still discussing
-  // what the best way to do this is. In the meantime, we are limiting this to claude-vscode for now to
+  // what the best way to do this is. In the meantime, we are limiting this to maximo-vscode for now to
   // unbreak the VSCode extension for certain enterprise customers who have enterprise MCP config enabled.
   // https://anthropic.slack.com/archives/C093UA0KLD7/p1764975463670109
   return Object.values(configs).every(
-    (c) => c.type === "sdk" && c.name === "claude-vscode"
+    (c) => c.type === "sdk" && c.name === "maximo-vscode"
   );
 }
 

@@ -156,7 +156,7 @@ import {
 import { getSystemPrompt } from "../constants/prompts.js";
 import { buildEffectiveSystemPrompt } from "../utils/systemPrompt.js";
 import { getSystemContext, getUserContext } from "../context.js";
-import { getMemoryFiles } from "../utils/claudemd.js";
+import { getMemoryFiles } from "../utils/maximomd.js";
 import { startBackgroundHousekeeping } from "../utils/backgroundHousekeeping.js";
 import {
   getTotalCost,
@@ -944,9 +944,9 @@ export type Props = {
   taskListId?: string;
   // Remote session config for --remote mode (uses CCR as execution engine)
   remoteSessionConfig?: RemoteSessionConfig;
-  // Direct connect config for `claude connect` mode (connects to a claude server)
+  // Direct connect config for `maximo connect` mode (connects to a maximo server)
   directConnectConfig?: DirectConnectConfig;
-  // SSH session for `claude ssh` mode (local REPL, remote tools over ssh)
+  // SSH session for `maximo ssh` mode (local REPL, remote tools over ssh)
   sshSession?: SSHSession;
   // Thinking configuration to use when thinking is enabled
   thinkingConfig: ThinkingConfig;
@@ -984,7 +984,7 @@ export function REPL({
   // Env-var gates hoisted to mount-time — isEnvTruthy does toLowerCase+trim+
   // includes, and these were on the render path (hot during PageUp spam).
   const titleDisabled = useMemo(
-    () => isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE),
+    () => isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_TERMINAL_TITLE),
     []
   );
   const moreRightEnabled = useMemo(
@@ -992,13 +992,13 @@ export function REPL({
     []
   );
   const disableVirtualScroll = useMemo(
-    () => isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_VIRTUAL_SCROLL),
+    () => isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_VIRTUAL_SCROLL),
     []
   );
   const disableMessageActions = feature("MESSAGE_ACTIONS")
     ? // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
       useMemo(
-        () => isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_MESSAGE_ACTIONS),
+        () => isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_MESSAGE_ACTIONS),
         []
       )
     : false;
@@ -1076,7 +1076,7 @@ export function REPL({
 
   // Note: standaloneAgentContext is initialized in main.tsx (via initialState) or
   // ResumeConversation.tsx (via setAppState before rendering REPL) to avoid
-  // useEffect-based state initialization on mount (per CLAUDE.md guidelines)
+  // useEffect-based state initialization on mount (per MAXIMO.md guidelines)
 
   // Local state for commands (hot-reloadable when skill files change)
   const [localCommands, setLocalCommands] = useState(initialCommands);
@@ -1118,7 +1118,7 @@ export function REPL({
   const [screen, setScreen] = useState<Screen>("prompt");
   const [showAllInTranscript, setShowAllInTranscript] = useState(false);
   // [ forces the dump-to-scrollback path inside transcript mode. Separate
-  // from CLAUDE_CODE_NO_FLICKER=0 (which is process-lifetime) — this is
+  // from MAXIMO_SYNTAX_NO_FLICKER=0 (which is process-lifetime) — this is
   // ephemeral, reset on transcript exit. Diagnostic escape hatch so
   // terminal/tmux native cmd-F can search the full flat render.
   const [dumpMode, setDumpMode] = useState(false);
@@ -1659,7 +1659,7 @@ export function REPL({
       ? "dialog open"
       : "input needed";
 
-  // Push status to the PID file for `claude ps`. Fire-and-forget; ps falls
+  // Push status to the PID file for `maximo ps`. Fire-and-forget; ps falls
   // back to transcript-tail derivation when this is missing/stale.
   useEffect(() => {
     if (feature("BG_SESSIONS")) {
@@ -1956,7 +1956,7 @@ export function REPL({
     setInProgressToolUseIDs,
   });
 
-  // Direct connect hook - manages WebSocket to a claude server for `claude connect` mode
+  // Direct connect hook - manages WebSocket to a maximo server for `maximo connect` mode
   const directConnect = useDirectConnect({
     config: directConnectConfig,
     setMessages,
@@ -1965,7 +1965,7 @@ export function REPL({
     tools: combinedInitialTools,
   });
 
-  // SSH session hook - manages ssh child process for `claude ssh` mode.
+  // SSH session hook - manages ssh child process for `maximo ssh` mode.
   // Same callback shape as useDirectConnect; only the transport under the
   // hood differs (ChildProcess stdin/stdout vs WebSocket).
   const sshRemote = useSSHSession({
@@ -2256,7 +2256,7 @@ export function REPL({
     setMessages((prev) => [
       ...prev,
       createSystemMessage(
-        `Worktree creation took ${secs}s. For large repos, set \`worktree.sparsePaths\` in .claude/settings.json to check out only the directories you need — e.g. \`{"worktree": {"sparsePaths": ["src", "packages/foo"]}}\`.`,
+        `Worktree creation took ${secs}s. For large repos, set \`worktree.sparsePaths\` in .maximo/settings.json to check out only the directories you need — e.g. \`{"worktree": {"sparsePaths": ["src", "packages/foo"]}}\`.`,
         "info"
       ),
     ]);
@@ -2589,7 +2589,7 @@ export function REPL({
         // Skipped for in-session /branch: the existing ref is already correct
         // (branch preserves tool_use_ids), so there's no need to reconstruct.
         // createFork() does write content-replacement entries to the forked
-        // JSONL with the fork's sessionId, so `claude -r {forkId}` also works.
+        // JSONL with the fork's sessionId, so `maximo -r {forkId}` also works.
         if (contentReplacementStateRef.current && entrypoint !== "fork") {
           contentReplacementStateRef.current =
             reconstructContentReplacementState(
@@ -2641,8 +2641,8 @@ export function REPL({
   // before onQuery builds its own context, and discovery on turn N must
   // still attribute a SkillTool call on turn N+k. Cleared in clearConversation.
   const discoveredSkillNamesRef = useRef(new Set<string>());
-  // Session-level dedup for nested_memory CLAUDE.md attachments.
-  // readFileState is a 100-entry LRU; once it evicts a CLAUDE.md path,
+  // Session-level dedup for nested_memory MAXIMO.md attachments.
+  // readFileState is a 100-entry LRU; once it evicts a MAXIMO.md path,
   // the next discovery cycle re-injects it. Cleared in clearConversation.
   const loadedNestedMemoryPathsRef = useRef(new Set<string>());
 
@@ -3024,7 +3024,7 @@ export function REPL({
 
         // When the REPL bridge is connected, also forward the sandbox
         // permission request as a can_use_tool control_request so the
-        // remote user (e.g. on claude.ai) can approve it too.
+        // remote user (e.g. on maximo.ai) can approve it too.
         if (feature("BRIDGE_MODE")) {
           const bridgeCallbacks =
             store.getState().replBridgePermissionCallbacks;
@@ -4482,10 +4482,10 @@ export function REPL({
           "off"
         );
         const idleThresholdMin = Number(
-          process.env.CLAUDE_CODE_IDLE_THRESHOLD_MINUTES ?? 75
+          process.env.MAXIMO_SYNTAX_IDLE_THRESHOLD_MINUTES ?? 75
         );
         const tokenThreshold = Number(
-          process.env.CLAUDE_CODE_IDLE_TOKEN_THRESHOLD ?? 100_000
+          process.env.MAXIMO_SYNTAX_IDLE_TOKEN_THRESHOLD ?? 100_000
         );
         if (
           willowMode !== "off" &&
@@ -4866,7 +4866,7 @@ export function REPL({
     ]
   );
 
-  // Handlers for auto-run /issue or /good-claude (defined after onSubmit)
+  // Handlers for auto-run /issue or /good-maximo (defined after onSubmit)
   const handleAutoRunIssue = useCallback(() => {
     const command = autoRunIssueReason
       ? getAutoRunCommand(autoRunIssueReason)
@@ -5118,7 +5118,7 @@ export function REPL({
     // bottom right corner of the screen if the API key is invalid.
     void reverify();
 
-    // Populate readFileState with CLAUDE.md files at startup
+    // Populate readFileState with MAXIMO.md files at startup
     const memoryFiles = await getMemoryFiles();
     if (memoryFiles.length > 0) {
       const fileList = memoryFiles
@@ -5130,10 +5130,10 @@ export function REPL({
         )
         .join("\n");
       logForDebugging(
-        `Loaded ${memoryFiles.length} CLAUDE.md/rules files:\n${fileList}`
+        `Loaded ${memoryFiles.length} MAXIMO.md/rules files:\n${fileList}`
       );
     } else {
-      logForDebugging("No CLAUDE.md/rules files found");
+      logForDebugging("No MAXIMO.md/rules files found");
     }
     for (const file of memoryFiles) {
       // When the injected content doesn't match disk (stripped HTML comments,
@@ -5164,7 +5164,7 @@ export function REPL({
   useLogMessages(messages, messages.length === initialMessages?.length);
 
   // REPL Bridge: replicate user/assistant messages to the bridge session
-  // for remote access via claude.ai. No-op in external builds or when not enabled.
+  // for remote access via maximo.ai. No-op in external builds or when not enabled.
   const { sendBridgeResult } = useReplBridge(
     messages,
     setMessages,
@@ -5179,7 +5179,7 @@ export function REPL({
   // empty to non-empty, not on every length change -- otherwise a render loop
   // (concurrent onQuery thrashing, etc.) spams saveGlobalConfig, which hits
   // ELOCKED under concurrent sessions and falls back to unlocked writes.
-  // That write storm is the primary trigger for ~/.claude.json corruption
+  // That write storm is the primary trigger for ~/.maximo.json corruption
   // (GH #3117).
   const hasCountedQueueUseRef = useRef(false);
   useEffect(() => {
@@ -5331,11 +5331,11 @@ export function REPL({
     if (willowMode !== "hint" && willowMode !== "hint_v2") return;
     if (getGlobalConfig().idleReturnDismissed) return;
     const tokenThreshold = Number(
-      process.env.CLAUDE_CODE_IDLE_TOKEN_THRESHOLD ?? 100_000
+      process.env.MAXIMO_SYNTAX_IDLE_TOKEN_THRESHOLD ?? 100_000
     );
     if (getTotalInputTokens() < tokenThreshold) return;
     const idleThresholdMs =
-      Number(process.env.CLAUDE_CODE_IDLE_THRESHOLD_MINUTES ?? 75) * 60_000;
+      Number(process.env.MAXIMO_SYNTAX_IDLE_THRESHOLD_MINUTES ?? 75) * 60_000;
     const elapsed = Date.now() - lastQueryCompletionTime;
     const remaining = idleThresholdMs - elapsed;
     const timer = setTimeout(
@@ -5452,7 +5452,7 @@ export function REPL({
     onSubmitMessage: handleIncomingPrompt,
   });
 
-  // Scheduled tasks from .claude/scheduled_tasks.json (CronCreate/Delete/List)
+  // Scheduled tasks from .maximo/scheduled_tasks.json (CronCreate/Delete/List)
   if (feature("AGENT_TRIGGERS")) {
     // Assistant mode bypasses the isLoading gate (the proactive tick →
     // Sleep → tick loop would otherwise starve the scheduler).

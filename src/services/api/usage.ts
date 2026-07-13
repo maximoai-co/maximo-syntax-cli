@@ -29,7 +29,7 @@ function getUsageApiBaseUrl(): string {
   }
 
   // Check if using Maximo AI Option 1 (OpenAI-compatible API)
-  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)) {
     const baseUrl =
       process.env.OPENAI_BASE_URL || getGlobalConfig().openAIBaseUrl;
     if (baseUrl?.includes("maximoai.co")) {
@@ -58,14 +58,14 @@ function getUsageApiBaseUrl(): string {
 function hasMaximoApiKey(): boolean {
   // Check for OPENAI_API_KEY when using OpenAI-compatible mode with Maximo
   console.log("[Usage] hasMaximoApiKey check:", {
-    useOpenAI: isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI),
+    useOpenAI: isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI),
     baseUrl: process.env.OPENAI_BASE_URL || getGlobalConfig().openAIBaseUrl,
     hasApiKey: !!process.env.OPENAI_API_KEY,
     hasMaximoApiKey: !!getGlobalConfig().maximoApiKey,
     hasAnthropicKey: !!getAnthropicApiKey(),
   });
 
-  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)) {
     const baseUrl = process.env.OPENAI_BASE_URL || getGlobalConfig().openAIBaseUrl;
     const apiKey = process.env.OPENAI_API_KEY;
     if (apiKey && baseUrl?.includes("maximoai.co")) {
@@ -98,14 +98,14 @@ function hasMaximoApiKey(): boolean {
 function getUsageApiKey(): string | null {
   // For Option 1 users with OpenAI-compatible setup
   console.log("[Usage] getUsageApiKey:", {
-    useOpenAI: isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI),
+    useOpenAI: isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI),
     baseUrl: process.env.OPENAI_BASE_URL || getGlobalConfig().openAIBaseUrl,
     hasKey: !!process.env.OPENAI_API_KEY,
     keyLength: process.env.OPENAI_API_KEY?.length,
     keyPrefix: process.env.OPENAI_API_KEY?.substring(0, 10),
   });
 
-  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) {
+  if (isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI)) {
     const baseUrl = process.env.OPENAI_BASE_URL || getGlobalConfig().openAIBaseUrl;
     if (baseUrl?.includes("maximoai.co")) {
       console.log("[Usage] Returning OPENAI_API_KEY for usage endpoint");
@@ -297,7 +297,7 @@ export async function fetchUtilization(): Promise<Utilization | null> {
     }
 
     // Check if we have OAuth tokens despite getAuthHeaders() failing
-    // This can happen when CLAUDE_CODE_USE_OPENAI=1 is set but user is logged in via OAuth
+    // This can happen when MAXIMO_SYNTAX_USE_OPENAI=1 is set but user is logged in via OAuth
     const tokens = getMaximoAIOAuthTokens();
     if (tokens?.accessToken && shouldUseMaximoAIAuth(tokens.scopes)) {
       // Skip API call if OAuth token is expired to avoid 401 errors
@@ -375,7 +375,7 @@ export async function fetchDetailedUsage(): Promise<DetailedUsageResponse | null
     }
 
     // Check if we have OAuth tokens despite getAuthHeaders() failing
-    // This can happen when CLAUDE_CODE_USE_OPENAI=1 is set but user is logged in via OAuth
+    // This can happen when MAXIMO_SYNTAX_USE_OPENAI=1 is set but user is logged in via OAuth
     const tokens = getMaximoAIOAuthTokens();
     if (tokens?.accessToken && shouldUseMaximoAIAuth(tokens.scopes)) {
       // Skip API call if OAuth token is expired to avoid 401 errors

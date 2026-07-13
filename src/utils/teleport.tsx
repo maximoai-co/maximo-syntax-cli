@@ -19,7 +19,7 @@ import { getOauthConfig } from "../constants/oauth.js";
 import type { SDKMessage } from "../entrypoints/agentSdkTypes.js";
 import type { Root } from "../ink.js";
 import { KeybindingSetup } from "../keybindings/KeybindingProviderSetup.js";
-import { queryHaiku } from "../services/api/claude.js";
+import { queryHaiku } from "../services/api/maximo.js";
 import {
   getSessionLogsViaOAuth,
   getTeleportEvents,
@@ -118,13 +118,13 @@ You should keep it short and simple, ideally no more than 6 words. Avoid using j
 Use sentence case for the title (capitalize only the first word and proper nouns), not Title Case.
 
 The branch name should be clear, concise, and accurately reflect the content of the coding task.
-You should keep it short and simple, ideally no more than 4 words. The branch should always start with "claude/" and should be all lower case, with words separated by dashes.
+You should keep it short and simple, ideally no more than 4 words. The branch should always start with "maximo/" and should be all lower case, with words separated by dashes.
 
 Return a JSON object with "title" and "branch" fields.
 
-Example 1: {"title": "Fix login button not working on mobile", "branch": "claude/fix-mobile-login-button"}
-Example 2: {"title": "Update README with installation instructions", "branch": "claude/update-readme"}
-Example 3: {"title": "Improve performance of data processing script", "branch": "claude/improve-data-processing"}
+Example 1: {"title": "Fix login button not working on mobile", "branch": "maximo/fix-mobile-login-button"}
+Example 2: {"title": "Update README with installation instructions", "branch": "maximo/update-readme"}
+Example 3: {"title": "Improve performance of data processing script", "branch": "maximo/improve-data-processing"}
 
 Here is the session description:
 <description>{description}</description>
@@ -144,7 +144,7 @@ async function generateTitleAndBranch(
   signal: AbortSignal
 ): Promise<TitleAndBranch> {
   const fallbackTitle = truncateToWidth(description, 75);
-  const fallbackBranch = "claude/task";
+  const fallbackBranch = "maximo/task";
   try {
     const userPrompt = SESSION_TITLE_AND_BRANCH_PROMPT.replace(
       "{description}",
@@ -599,9 +599,9 @@ export async function teleportResumeCodeSession(
             ? `${repoValidation.sessionHost}/${repoValidation.sessionRepo}`
             : repoValidation.sessionRepo;
         throw new TeleportOperationError(
-          `You must run claude --teleport ${sessionId} from a checkout of ${notInRepoDisplay}.`,
+          `You must run maximo --teleport ${sessionId} from a checkout of ${notInRepoDisplay}.`,
           chalk.red(
-            `You must run claude --teleport ${sessionId} from a checkout of ${chalk.bold(
+            `You must run maximo --teleport ${sessionId} from a checkout of ${chalk.bold(
               notInRepoDisplay
             )}.\n`
           )
@@ -626,9 +626,9 @@ export async function teleportResumeCodeSession(
           ? `${repoValidation.currentHost}/${repoValidation.currentRepo}`
           : repoValidation.currentRepo;
         throw new TeleportOperationError(
-          `You must run claude --teleport ${sessionId} from a checkout of ${sessionDisplay}.\nThis repo is ${currentDisplay}.`,
+          `You must run maximo --teleport ${sessionId} from a checkout of ${sessionDisplay}.\nThis repo is ${currentDisplay}.`,
           chalk.red(
-            `You must run claude --teleport ${sessionId} from a checkout of ${chalk.bold(
+            `You must run maximo --teleport ${sessionId} from a checkout of ${chalk.bold(
               sessionDisplay
             )}.\nThis repo is ${chalk.bold(currentDisplay)}.\n`
           )
@@ -987,7 +987,7 @@ export async function teleportToRemote(options: {
   /**
    * Per-session env vars merged into session_context.environment_variables.
    * Write-only at the API layer (stripped from Get/List responses). When
-   * environmentId is set, CLAUDE_CODE_OAUTH_TOKEN is auto-injected from the
+   * environmentId is set, MAXIMO_SYNTAX_OAUTH_TOKEN is auto-injected from the
    * caller's accessToken so the container's hook can hit inference (the
    * server only passes through what the caller sends; bughunter.go mints
    * its own, user sessions don't get one automatically).
@@ -1014,7 +1014,7 @@ export async function teleportToRemote(options: {
   skipBundle?: boolean;
   /**
    * When set, reuses this branch as the outcome branch instead of generating
-   * a new claude/ branch. Sets allow_unrestricted_git_push on the source and
+   * a new maximo/ branch. Sets allow_unrestricted_git_push on the source and
    * reuse_outcome_branches on the session context so the remote pushes to the
    * caller's branch directly.
    */
@@ -1061,7 +1061,7 @@ export async function teleportToRemote(options: {
         "x-organization-uuid": orgUUID,
       };
       const envVars = {
-        CLAUDE_CODE_OAUTH_TOKEN: accessToken,
+        MAXIMO_SYNTAX_OAUTH_TOKEN: accessToken,
         ...(options.environmentVariables ?? {}),
       };
 
@@ -1293,7 +1293,7 @@ export async function teleportToRemote(options: {
         logError(new Error(`Bundle upload failed: ${bundle.error}`));
         // Only steer users to GitHub setup when there's a remote to clone from.
         const setup = repoInfo
-          ? ". Please setup GitHub on https://claude.ai/code"
+          ? ". Please setup GitHub on https://maximo.ai/code"
           : "";
         let msg: string;
         switch (bundle.failReason) {

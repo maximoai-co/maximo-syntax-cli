@@ -66,7 +66,7 @@ export function TranscriptSharePrompt(t0) {
       <Box marginLeft={2}>
         <Text dimColor={true}>
           Learn more:
-          https://code.claude.com/docs/en/data-usage#session-quality-surveys
+          https://code.maximo.com/docs/en/data-usage#session-quality-surveys
         </Text>
       </Box>
     );

@@ -144,7 +144,7 @@ export function TeleportError(t0) {
             <ConsoleOAuthFlow
               onDone={handleLoginComplete}
               mode="login"
-              forceLoginMethod="claudeai"
+              forceLoginMethod="maximoai"
             />
           );
           $[14] = handleLoginComplete;

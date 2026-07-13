@@ -6,7 +6,7 @@
  * - Which plugins are installed globally
  * - Installation metadata (version, timestamps, paths)
  *
- * The enabled/disabled state remains in .claude/settings.json for per-repo control.
+ * The enabled/disabled state remains in .maximo/settings.json for per-repo control.
  *
  * Rationale: Installation is global (a plugin is either on disk or not), while
  * enabled/disabled state is per-repository (different projects may want different
@@ -187,8 +187,8 @@ export function migrateToSinglePluginFile(): void {
 /**
  * Clean up legacy non-versioned cache directories.
  *
- * Legacy cache structure: ~/.claude/plugins/cache/{plugin-name}/
- * Versioned cache structure: ~/.claude/plugins/cache/{marketplace}/{plugin}/{version}/
+ * Legacy cache structure: ~/.maximo/plugins/cache/{plugin-name}/
+ * Versioned cache structure: ~/.maximo/plugins/cache/{marketplace}/{plugin}/{version}/
  *
  * This function removes legacy directories that are not referenced by any installation.
  */
@@ -288,7 +288,7 @@ function migrateV1ToV2(v1Data: InstalledPluginsFileV1): InstalledPluginsFileV2 {
   const v2Plugins: InstalledPluginsMapV2 = {};
 
   for (const [pluginId, plugin] of Object.entries(v1Data.plugins)) {
-    // V2 format uses versioned cache path: ~/.claude/plugins/cache/{marketplace}/{plugin}/{version}
+    // V2 format uses versioned cache path: ~/.maximo/plugins/cache/{marketplace}/{plugin}/{version}
     // Compute it from pluginId and version instead of using the V1 installPath
     const versionedCachePath = getVersionedCachePath(pluginId, plugin.version);
 
@@ -1022,7 +1022,7 @@ function getPluginVersionFromManifest(
   pluginId: string
 ): string {
   const fs = getFsImplementation();
-  const manifestPath = join(pluginCachePath, ".claude-plugin", "plugin.json");
+  const manifestPath = join(pluginCachePath, ".maximo-plugin", "plugin.json");
 
   try {
     const manifestContent = fs.readFileSync(manifestPath, {
@@ -1232,8 +1232,8 @@ export async function migrateFromEnabledPlugins(): Promise<void> {
 
           installPath = pluginCachePath;
 
-          // Only read manifest if the .claude-plugin dir is present
-          if (dirEntries.includes(".claude-plugin")) {
+          // Only read manifest if the .maximo-plugin dir is present
+          if (dirEntries.includes(".maximo-plugin")) {
             version = getPluginVersionFromManifest(pluginCachePath, pluginId);
           }
 

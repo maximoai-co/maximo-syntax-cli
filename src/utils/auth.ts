@@ -82,16 +82,16 @@ const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000;
 
 /**
  * CCR and Maximo Desktop spawn the CLI with OAuth and should never fall back
- * to the user's ~/.claude/settings.json API-key config (apiKeyHelper,
+ * to the user's ~/.maximo/settings.json API-key config (apiKeyHelper,
  * env.ANTHROPIC_API_KEY, env.ANTHROPIC_AUTH_TOKEN). Those settings exist for
  * the user's terminal CLI, not managed sessions. Without this guard, a user
- * who runs `claude` in their terminal with an API key sees every CCD session
+ * who runs `maximo` in their terminal with an API key sees every CCD session
  * also use that key — and fail if it's stale/wrong-org.
  */
 function isManagedOAuthContext(): boolean {
   return (
-    isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ||
-    process.env.CLAUDE_CODE_ENTRYPOINT === "claude-desktop"
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_REMOTE) ||
+    process.env.MAXIMO_SYNTAX_ENTRYPOINT === "maximo-desktop"
   );
 }
 
@@ -101,23 +101,23 @@ export function isAnthropicAuthEnabled(): boolean {
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false;
 
-  // `claude ssh` remote: ANTHROPIC_UNIX_SOCKET tunnels API calls through a
-  // local auth-injecting proxy. The launcher sets CLAUDE_CODE_OAUTH_TOKEN as a
+  // `maximo ssh` remote: ANTHROPIC_UNIX_SOCKET tunnels API calls through a
+  // local auth-injecting proxy. The launcher sets MAXIMO_SYNTAX_OAUTH_TOKEN as a
   // placeholder iff the local side is a subscriber (so the remote includes the
   // oauth-2025 beta header to match what the proxy will inject). The remote's
-  // ~/.claude settings (apiKeyHelper, settings.env.ANTHROPIC_API_KEY) MUST NOT
+  // ~/.maximo settings (apiKeyHelper, settings.env.ANTHROPIC_API_KEY) MUST NOT
   // flip this — they'd cause a header mismatch with the proxy and a bogus
   // "invalid x-api-key" from the API. See src/ssh/sshAuthProxy.ts.
   if (process.env.ANTHROPIC_UNIX_SOCKET) {
-    return !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    return !!process.env.MAXIMO_SYNTAX_OAUTH_TOKEN;
   }
 
   const is3P =
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI);
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_BEDROCK) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_VERTEX) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_FOUNDRY) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI);
 
   // Check if user has configured an external API key source
   // This allows externally-provided API keys to work (without requiring proxy configuration)
@@ -126,7 +126,7 @@ export function isAnthropicAuthEnabled(): boolean {
   const hasExternalAuthToken =
     process.env.ANTHROPIC_AUTH_TOKEN ||
     apiKeyHelper ||
-    process.env.CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR;
+    process.env.MAXIMO_SYNTAX_API_KEY_FILE_DESCRIPTOR;
 
   // Check if API key is from an external source (not managed by /login)
   const { source: apiKeySource } = getAnthropicApiKeyWithSource({
@@ -167,8 +167,8 @@ export function getAuthTokenSource() {
     return { source: "ANTHROPIC_AUTH_TOKEN" as const, hasToken: true };
   }
 
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-    return { source: "CLAUDE_CODE_OAUTH_TOKEN" as const, hasToken: true };
+  if (process.env.MAXIMO_SYNTAX_OAUTH_TOKEN) {
+    return { source: "MAXIMO_SYNTAX_OAUTH_TOKEN" as const, hasToken: true };
   }
 
   // Check for OAuth token from file descriptor (or its CCR disk fallback)
@@ -180,9 +180,9 @@ export function getAuthTokenSource() {
     // doesn't exist. Call sites fall through correctly — the new source is
     // !== 'none' (cli/handlers/auth.ts → oauth_token) and not in the
     // isEnvVarToken set (auth.ts:1844 → generic re-login message).
-    if (process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR) {
+    if (process.env.MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR) {
       return {
-        source: "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR" as const,
+        source: "MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR" as const,
         hasToken: true,
       };
     }
@@ -201,7 +201,7 @@ export function getAuthTokenSource() {
 
   const oauthTokens = getMaximoAIOAuthTokens();
   if (shouldUseMaximoAIAuth(oauthTokens?.scopes) && oauthTokens?.accessToken) {
-    return { source: "claude.ai" as const, hasToken: true };
+    return { source: "maximo.ai" as const, hasToken: true };
   }
 
   return { source: "none" as const, hasToken: false };
@@ -258,7 +258,7 @@ export function getAnthropicApiKeyWithSource(
     ? undefined
     : process.env.ANTHROPIC_API_KEY;
 
-  // Always check for direct environment variable when the user ran claude --print.
+  // Always check for direct environment variable when the user ran maximo --print.
   // This is useful for CI, etc.
   if (preferThirdPartyAuthentication() && apiKeyEnv) {
     return {
@@ -280,11 +280,11 @@ export function getAnthropicApiKeyWithSource(
     if (
       !isUsing3PServices() &&
       !apiKeyEnv &&
-      !process.env.CLAUDE_CODE_OAUTH_TOKEN &&
-      !process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR
+      !process.env.MAXIMO_SYNTAX_OAUTH_TOKEN &&
+      !process.env.MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR
     ) {
       throw new Error(
-        "ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN env var is required"
+        "ANTHROPIC_API_KEY or MAXIMO_SYNTAX_OAUTH_TOKEN env var is required"
       );
     }
 
@@ -356,7 +356,7 @@ export function getAnthropicApiKeyWithSource(
 /**
  * Get the configured apiKeyHelper from settings.
  * In bare mode, only the --settings flag source is consulted — apiKeyHelper
- * from ~/.claude/settings.json or project settings is ignored.
+ * from ~/.maximo/settings.json or project settings is ignored.
  */
 export function getConfiguredApiKeyHelper(): string | undefined {
   if (isBareMode()) {
@@ -435,11 +435,11 @@ export function isAwsCredentialExportFromProjectSettings(): boolean {
 
 /**
  * Calculate TTL in milliseconds for the API key helper cache
- * Uses CLAUDE_CODE_API_KEY_HELPER_TTL_MS env var if set and valid,
+ * Uses MAXIMO_SYNTAX_API_KEY_HELPER_TTL_MS env var if set and valid,
  * otherwise defaults to 5 minutes
  */
 export function calculateApiKeyHelperTTL(): number {
-  const envTtl = process.env.CLAUDE_CODE_API_KEY_HELPER_TTL_MS;
+  const envTtl = process.env.MAXIMO_SYNTAX_API_KEY_HELPER_TTL_MS;
 
   if (envTtl) {
     const parsed = parseInt(envTtl, 10);
@@ -447,7 +447,7 @@ export function calculateApiKeyHelperTTL(): number {
       return parsed;
     }
     logForDebugging(
-      `Found CLAUDE_CODE_API_KEY_HELPER_TTL_MS env var, but it was not a valid number. Got ${envTtl}`,
+      `Found MAXIMO_SYNTAX_API_KEY_HELPER_TTL_MS env var, but it was not a valid number. Got ${envTtl}`,
       { level: "error" }
     );
   }
@@ -695,7 +695,7 @@ export function refreshAwsAuth(awsAuthRefresh: string): Promise<boolean> {
               "AWS auth refresh timed out after 3 minutes. Run your auth command manually in a separate terminal."
             )
           : chalk.red(
-              "Error running awsAuthRefresh (in settings or ~/.claude.json):"
+              "Error running awsAuthRefresh (in settings or ~/.maximo.json):"
             );
         // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message);
@@ -773,7 +773,7 @@ async function getAwsCredsFromCredentialExport(): Promise<{
       };
     } catch (e) {
       const message = chalk.red(
-        "Error getting AWS credentials from awsCredentialExport (in settings or ~/.claude.json):"
+        "Error getting AWS credentials from awsCredentialExport (in settings or ~/.maximo.json):"
       );
       if (e instanceof Error) {
         // biome-ignore lint/suspicious/noConsole:: intentional console output
@@ -963,7 +963,7 @@ export function refreshGcpAuth(gcpAuthRefresh: string): Promise<boolean> {
               "GCP auth refresh timed out after 3 minutes. Run your auth command manually in a separate terminal."
             )
           : chalk.red(
-              "Error running gcpAuthRefresh (in settings or ~/.claude.json):"
+              "Error running gcpAuthRefresh (in settings or ~/.maximo.json):"
             );
         // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message);
@@ -1265,10 +1265,10 @@ export const getMaximoAIOAuthTokens = memoize((): OAuthTokens | null => {
   if (isBareMode()) return null;
 
   // Check for force-set OAuth token from environment variable
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+  if (process.env.MAXIMO_SYNTAX_OAUTH_TOKEN) {
     // Return an inference-only token (unknown refresh and expiry)
     return {
-      accessToken: process.env.CLAUDE_CODE_OAUTH_TOKEN,
+      accessToken: process.env.MAXIMO_SYNTAX_OAUTH_TOKEN,
       refreshToken: null,
       expiresAt: null,
       scopes: ["user:inference"],
@@ -1343,7 +1343,7 @@ async function invalidateOAuthCacheIfDiskChanged(): Promise<void> {
   }
 }
 
-// In-flight dedup: when N claude.ai proxy connectors hit 401 with the same
+// In-flight dedup: when N maximo.ai proxy connectors hit 401 with the same
 // token simultaneously (common at startup — #20930), only one should clear
 // caches and re-read the keychain. Without this, each call's clearOAuthTokenCache()
 // nukes readInFlight in macOsKeychainStorage and triggers a fresh spawn —
@@ -1409,7 +1409,7 @@ export async function getMaximoAIOAuthTokensAsync(): Promise<OAuthTokens | null>
 
   // Env var and FD tokens are sync and don't hit the keychain
   if (
-    process.env.CLAUDE_CODE_OAUTH_TOKEN ||
+    process.env.MAXIMO_SYNTAX_OAUTH_TOKEN ||
     getOAuthTokenFromFileDescriptor()
   ) {
     return getMaximoAIOAuthTokens();
@@ -1600,7 +1600,7 @@ export function isMaximoAIOpenAICompatibleProvider(): boolean {
   const globalConfig = getGlobalConfigIfAvailable();
   const baseUrl = process.env.OPENAI_BASE_URL || globalConfig?.openAIBaseUrl;
   const hasMaximoProviderConfig =
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI) ||
     Boolean(globalConfig?.maximoApiKey);
 
   return hasMaximoProviderConfig && isMaximoAIBaseUrl(baseUrl);
@@ -1667,9 +1667,9 @@ export function is1PApiCustomer(): boolean {
 
   // Exclude Vertex, Bedrock, and Foundry customers
   if (
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_BEDROCK) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_VERTEX) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_FOUNDRY)
   ) {
     return false;
   }
@@ -1827,11 +1827,11 @@ function getSubscriptionNameFromType(
 /** Check if using third-party services (Bedrock or Vertex or Foundry or OpenAI-compatible or Gemini) */
 export function isUsing3PServices(): boolean {
   return !!(
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI)
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_BEDROCK) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_VERTEX) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_FOUNDRY) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_OPENAI) ||
+    isEnvTruthy(process.env.MAXIMO_SYNTAX_USE_GEMINI)
   );
 }
 
@@ -1874,7 +1874,7 @@ export function getOtelHeadersFromHelper(): Record<string, string> {
 
   // Return cached headers if still valid (debounce)
   const debounceMs = parseInt(
-    process.env.CLAUDE_CODE_OTEL_HEADERS_HELPER_DEBOUNCE_MS ||
+    process.env.MAXIMO_SYNTAX_OTEL_HEADERS_HELPER_DEBOUNCE_MS ||
       DEFAULT_OTEL_HEADERS_DEBOUNCE_MS.toString()
   );
   if (
@@ -1976,8 +1976,8 @@ export function getAccountInformation() {
   const { source: authTokenSource } = getAuthTokenSource();
   const accountInfo: UserAccountInfo = {};
   if (
-    authTokenSource === "CLAUDE_CODE_OAUTH_TOKEN" ||
-    authTokenSource === "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR"
+    authTokenSource === "MAXIMO_SYNTAX_OAUTH_TOKEN" ||
+    authTokenSource === "MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR"
   ) {
     accountInfo.tokenSource = authTokenSource;
   } else if (isMaximoAISubscriber()) {
@@ -1992,7 +1992,7 @@ export function getAccountInformation() {
 
   // We don't know the organization if we're relying on an external API key or auth token
   if (
-    authTokenSource === "claude.ai" ||
+    authTokenSource === "maximo.ai" ||
     apiKeySource === "/login managed key"
   ) {
     // Get organization name from OAuth account info
@@ -2003,7 +2003,7 @@ export function getAccountInformation() {
   }
   const email = getOauthAccountInfo()?.emailAddress;
   if (
-    (authTokenSource === "claude.ai" ||
+    (authTokenSource === "maximo.ai" ||
       apiKeySource === "/login managed key") &&
     email
   ) {
@@ -2028,7 +2028,7 @@ export type OrgValidationResult =
  * token's org (network error, missing profile data), validation fails.
  */
 export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
-  // `claude ssh` remote: real auth lives on the local machine and is injected
+  // `maximo ssh` remote: real auth lives on the local machine and is injected
   // by the proxy. The placeholder token can't be validated against the profile
   // endpoint. The local side already ran this check before establishing the session.
   if (process.env.ANTHROPIC_UNIX_SOCKET) {
@@ -2056,11 +2056,11 @@ export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
 
   // Always fetch the authoritative org UUID from the profile endpoint.
   // Even keychain-sourced tokens verify server-side: the cached org UUID
-  // in ~/.claude.json is user-writable and cannot be trusted.
+  // in ~/.maximo.json is user-writable and cannot be trusted.
   const { source } = getAuthTokenSource();
   const isEnvVarToken =
-    source === "CLAUDE_CODE_OAUTH_TOKEN" ||
-    source === "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR";
+    source === "MAXIMO_SYNTAX_OAUTH_TOKEN" ||
+    source === "MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR";
 
   const profile = await getOauthProfileFromOauthToken(tokens.accessToken);
   if (!profile) {
@@ -2071,8 +2071,8 @@ export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
         `Unable to verify organization for the current authentication token.\n` +
         `This machine requires organization ${requiredOrgUuid} but the profile could not be fetched.\n` +
         `This may be a network error, or the token may lack the user:profile scope required for\n` +
-        `verification (tokens from 'claude setup-token' do not include this scope).\n` +
-        `Try again, or obtain a full-scope token via 'claude auth login'.`,
+        `verification (tokens from 'maximo setup-token' do not include this scope).\n` +
+        `Try again, or obtain a full-scope token via 'maximo auth login'.`,
     };
   }
 
@@ -2083,9 +2083,9 @@ export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
 
   if (isEnvVarToken) {
     const envVarName =
-      source === "CLAUDE_CODE_OAUTH_TOKEN"
-        ? "CLAUDE_CODE_OAUTH_TOKEN"
-        : "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR";
+      source === "MAXIMO_SYNTAX_OAUTH_TOKEN"
+        ? "MAXIMO_SYNTAX_OAUTH_TOKEN"
+        : "MAXIMO_SYNTAX_OAUTH_TOKEN_FILE_DESCRIPTOR";
     return {
       valid: false,
       message:
@@ -2102,7 +2102,7 @@ export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
     message:
       `Your authentication token belongs to organization ${tokenOrgUuid},\n` +
       `but this machine requires organization ${requiredOrgUuid}.\n\n` +
-      `Please log in with the correct organization: claude auth login`,
+      `Please log in with the correct organization: maximo auth login`,
   };
 }
 

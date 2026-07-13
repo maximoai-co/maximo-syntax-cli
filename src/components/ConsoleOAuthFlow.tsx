@@ -24,7 +24,7 @@ type Props = {
   onDone(): void;
   startingMessage?: string;
   mode?: "login" | "setup-token";
-  forceLoginMethod?: "claudeai" | "console";
+  forceLoginMethod?: "maximoai" | "console";
 };
 type OAuthStatus =
   | {
@@ -73,7 +73,7 @@ export function ConsoleOAuthFlow({
   const forceLoginMethod = forceLoginMethodProp ?? settings.forceLoginMethod;
   const orgUUID = settings.forceLoginOrgUUID;
   const forcedMethodMessage =
-    forceLoginMethod === "claudeai"
+    forceLoginMethod === "maximoai"
       ? "Login method pre-selected: Maximo AI account with subscription"
       : forceLoginMethod === "console"
       ? "Login method pre-selected: API Usage Billing (Anthropic Console)"
@@ -85,7 +85,7 @@ export function ConsoleOAuthFlow({
         state: "ready_to_start",
       };
     }
-    if (forceLoginMethod === "claudeai" || forceLoginMethod === "console") {
+    if (forceLoginMethod === "maximoai" || forceLoginMethod === "console") {
       return {
         state: "ready_to_start",
       };
@@ -99,7 +99,7 @@ export function ConsoleOAuthFlow({
   const [oauthService] = useState(() => new OAuthService());
   const [loginWithMaximoAi, setLoginWithMaximoAi] = useState(() => {
     // Use Maximo AI auth for setup-token mode to support user:inference scope
-    return mode === "setup-token" || forceLoginMethod === "claudeai";
+    return mode === "setup-token" || forceLoginMethod === "maximoai";
   });
   // Maximo AI API key input state
   const [maximoApiKey, setMaximoApiKey] = useState("");
@@ -114,8 +114,8 @@ export function ConsoleOAuthFlow({
 
   // Log forced login method on mount
   useEffect(() => {
-    if (forceLoginMethod === "claudeai") {
-      logEvent("tengu_oauth_claudeai_forced", {});
+    if (forceLoginMethod === "maximoai") {
+      logEvent("tengu_oauth_maximoai_forced", {});
     } else if (forceLoginMethod === "console") {
       logEvent("tengu_oauth_console_forced", {});
     }
@@ -290,7 +290,7 @@ export function ConsoleOAuthFlow({
         });
       if (mode === "setup-token") {
         // For setup-token mode, return the OAuth access token directly (it can be used as an API key)
-        // Don't save to keychain - the token is displayed for manual use with CLAUDE_CODE_OAUTH_TOKEN
+        // Don't save to keychain - the token is displayed for manual use with MAXIMO_SYNTAX_OAUTH_TOKEN
         setOAuthStatus({
           state: "success",
           token: result.accessToken,
@@ -413,7 +413,7 @@ export function ConsoleOAuthFlow({
               </Text>
               <Text dimColor>
                 Use this token by setting: export
-                CLAUDE_CODE_OAUTH_TOKEN=&lt;token&gt;
+                MAXIMO_SYNTAX_OAUTH_TOKEN=&lt;token&gt;
               </Text>
             </Box>
           </Box>
@@ -541,7 +541,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
               {"\n"}
             </Text>
           ),
-          value: "claudeai",
+          value: "maximoai",
         };
         $[4] = t4;
       } else {
@@ -607,8 +607,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                   setOAuthStatus({
                     state: "ready_to_start",
                   });
-                  if (value_0 === "claudeai") {
-                    logEvent("tengu_oauth_claudeai_selected", {});
+                  if (value_0 === "maximoai") {
+                    logEvent("tengu_oauth_maximoai_selected", {});
                     setLoginWithMaximoAi(true);
                   } else {
                     logEvent("tengu_oauth_console_selected", {});
@@ -683,7 +683,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                 if (value && value.trim().length >= 32) {
                   // Set environment variables for OpenAI-compatible API
                   const apiKey = value.trim();
-                  process.env.CLAUDE_CODE_USE_OPENAI = "1";
+                  process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
                   process.env.OPENAI_API_KEY = apiKey;
                   process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
                   // Save to global config
@@ -807,8 +807,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         t5 = (
           <Text>
             · Amazon Bedrock:{" "}
-            <Link url="https://code.claude.com/docs/en/amazon-bedrock">
-              https://code.claude.com/docs/en/amazon-bedrock
+            <Link url="https://code.maximo.com/docs/en/amazon-bedrock">
+              https://code.maximo.com/docs/en/amazon-bedrock
             </Link>
           </Text>
         );
@@ -821,8 +821,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         t6 = (
           <Text>
             · Microsoft Foundry:{" "}
-            <Link url="https://code.claude.com/docs/en/microsoft-foundry">
-              https://code.claude.com/docs/en/microsoft-foundry
+            <Link url="https://code.maximo.com/docs/en/microsoft-foundry">
+              https://code.maximo.com/docs/en/microsoft-foundry
             </Link>
           </Text>
         );
@@ -838,20 +838,20 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
             <Text>
               · OpenAI / any OpenAI-compatible provider (GPT-4o, DeepSeek,
               Ollama, Groq):{"\n"}
-              {"  "}CLAUDE_CODE_USE_OPENAI=1 OPENAI_API_KEY=sk-...
+              {"  "}MAXIMO_SYNTAX_USE_OPENAI=1 OPENAI_API_KEY=sk-...
               OPENAI_MODEL=gpt-4o
             </Text>
             <Text>
               · Google Gemini (free key at https://aistudio.google.com/apikey):
               {"\n"}
-              {"  "}CLAUDE_CODE_USE_GEMINI=1 GEMINI_API_KEY=your-key
+              {"  "}MAXIMO_SYNTAX_USE_GEMINI=1 GEMINI_API_KEY=your-key
             </Text>
             {t5}
             {t6}
             <Text>
               · Vertex AI:{" "}
-              <Link url="https://code.claude.com/docs/en/google-vertex-ai">
-                https://code.claude.com/docs/en/google-vertex-ai
+              <Link url="https://code.maximo.com/docs/en/google-vertex-ai">
+                https://code.maximo.com/docs/en/google-vertex-ai
               </Link>
             </Text>
           </Box>

@@ -17,7 +17,7 @@ import { isChromeExtensionInstalled } from "../../utils/claudeInChrome/setup.js"
 import { getGlobalConfig, saveGlobalConfig } from "../../utils/config.js";
 import { env } from "../../utils/env.js";
 import { isRunningOnHomespace } from "../../utils/envUtils.js";
-const CHROME_EXTENSION_URL = "https://claude.ai/chrome";
+const CHROME_EXTENSION_URL = "https://maximo.ai/chrome";
 const CHROME_PERMISSIONS_URL = "https://clau.de/chrome/permissions";
 const CHROME_RECONNECT_URL = "https://clau.de/chrome/reconnect";
 type MenuAction =
@@ -245,7 +245,7 @@ function MaximoInChromeMenu(t0) {
   if ($[23] !== isMaximoAISubscriber) {
     t8 = true && !isMaximoAISubscriber && (
       <Text color="error">
-        Maximo in Chrome requires a claude.ai subscription.
+        Maximo in Chrome requires a maximo.ai subscription.
       </Text>
     );
     $[23] = isMaximoAISubscriber;
@@ -298,9 +298,9 @@ function MaximoInChromeMenu(t0) {
         )}
         <Text>
           <Text dimColor={true}>Usage: </Text>
-          <Text>claude --chrome</Text>
+          <Text>maximo --chrome</Text>
           <Text dimColor={true}> or </Text>
-          <Text>claude --no-chrome</Text>
+          <Text>maximo --no-chrome</Text>
         </Text>
         <Text dimColor={true}>
           Site-level permissions are inherited from the Chrome extension. Manage
@@ -324,7 +324,7 @@ function MaximoInChromeMenu(t0) {
   if ($[33] === Symbol.for("react.memo_cache_sentinel")) {
     t10 = (
       <Text dimColor={true}>
-        Learn more: https://code.claude.com/docs/en/chrome
+        Learn more: https://code.maximo.com/docs/en/chrome
       </Text>
     );
     $[33] = t10;

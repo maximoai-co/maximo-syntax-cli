@@ -62,11 +62,11 @@ function getInstallationPath(): string {
   const homeDir = homedir();
   if (isWindows) {
     // Convert to Windows-style path
-    const windowsPath = join(homeDir, ".local", "bin", "claude.exe");
+    const windowsPath = join(homeDir, ".local", "bin", "maximo.exe");
     // Replace forward slashes with backslashes for Windows display
     return windowsPath.replace(/\//g, "\\");
   }
-  return "~/.local/bin/claude";
+  return "~/.local/bin/maximo";
 }
 function SetupNotes(t0) {
   const $ = _c(5);
@@ -282,7 +282,7 @@ function Install({ onDone, force, target }: InstallProps): React.ReactNode {
   return (
     <Box flexDirection="column" marginTop={1}>
       {state.type === "checking" && (
-        <Text color="claude">Checking installation status...</Text>
+        <Text color="maximo">Checking installation status...</Text>
       )}
 
       {state.type === "cleaning-npm" && (
@@ -290,13 +290,13 @@ function Install({ onDone, force, target }: InstallProps): React.ReactNode {
       )}
 
       {state.type === "installing" && (
-        <Text color="claude">
+        <Text color="maximo">
           Installing Maximo Syntax native build {state.version}...
         </Text>
       )}
 
       {state.type === "setting-up" && (
-        <Text color="claude">Setting up launcher and shell integration...</Text>
+        <Text color="maximo">Setting up launcher and shell integration...</Text>
       )}
 
       {state.type === "set-up" && <SetupNotes messages={state.messages} />}
@@ -313,7 +313,7 @@ function Install({ onDone, force, target }: InstallProps): React.ReactNode {
             {state.version !== "current" && (
               <Box>
                 <Text dimColor>Version: </Text>
-                <Text color="claude">{state.version}</Text>
+                <Text color="maximo">{state.version}</Text>
               </Box>
             )}
             <Box>
@@ -324,8 +324,8 @@ function Install({ onDone, force, target }: InstallProps): React.ReactNode {
           <Box marginLeft={2} flexDirection="column" gap={1}>
             <Box marginTop={1}>
               <Text dimColor>Next: Run </Text>
-              <Text color="claude" bold>
-                claude --help
+              <Text color="maximo" bold>
+                maximo --help
               </Text>
               <Text dimColor> to get started</Text>
             </Box>

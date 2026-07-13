@@ -186,7 +186,7 @@ export function Doctor(t0) {
         upperLimit: TASK_MAX_OUTPUT_UPPER_LIMIT,
       },
       {
-        name: "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+        name: "MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS",
         ...getModelMaxOutputTokens("claude-opus-4-6"),
       },
     ];
@@ -207,7 +207,7 @@ export function Doctor(t0) {
       getDoctorDiagnostic().then(setDiagnostic);
       (async () => {
         const userAgentsDir = join(getMaximoConfigHomeDir(), "agents");
-        const projectAgentsDir = join(getOriginalCwd(), ".claude", "agents");
+        const projectAgentsDir = join(getOriginalCwd(), ".maximo", "agents");
         const { activeAgents, allAgents, failedFiles } = agentDefinitions;
         const [userDirExists, projectDirExists] = await Promise.all([
           pathExists(userAgentsDir),
@@ -233,7 +233,7 @@ export function Doctor(t0) {
         );
         setContextWarnings(warnings);
         if (isPidBasedLockingEnabled()) {
-          const locksDir = join(getXDGStateHome(), "claude", "locks");
+          const locksDir = join(getXDGStateHome(), "maximo", "locks");
           const staleLocksCleaned = cleanupStaleLocks(locksDir);
           const locks = getAllLockInfo(locksDir);
           setVersionLockInfo({

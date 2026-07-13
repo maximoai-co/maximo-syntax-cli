@@ -82,7 +82,7 @@ export const RemoteTriggerTool = buildTool({
     const accessToken = getMaximoAIOAuthTokens()?.accessToken;
     if (!accessToken) {
       throw new Error(
-        "Not authenticated with a claude.ai account. Run /login and try again."
+        "Not authenticated with a maximo.ai account. Run /login and try again."
       );
     }
     const orgUUID = await getOrganizationUUID();

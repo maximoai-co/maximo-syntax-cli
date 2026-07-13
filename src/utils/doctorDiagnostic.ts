@@ -162,7 +162,7 @@ async function getInstallationPath(): Promise<string> {
     }
 
     try {
-      const path = await which("claude");
+      const path = await which("maximo");
       if (path) {
         return path;
       }
@@ -172,8 +172,8 @@ async function getInstallationPath(): Promise<string> {
 
     // If we can't find it, check common locations
     try {
-      await getFsImplementation().stat(join(homedir(), ".local/bin/claude"));
-      return join(homedir(), ".local/bin/claude");
+      await getFsImplementation().stat(join(homedir(), ".local/bin/maximo"));
+      return join(homedir(), ".local/bin/maximo");
     } catch {
       // Not found
     }
@@ -209,16 +209,16 @@ async function detectMultipleInstallations(): Promise<
   const installations: Array<{ type: string; path: string }> = [];
 
   // Check for local installation
-  const localPath = join(homedir(), ".claude", "local");
+  const localPath = join(homedir(), ".maximo", "local");
   if (await localInstallationExists()) {
     installations.push({ type: "npm-local", path: localPath });
   }
 
-  // Check for global npm installation
-  const packagesToCheck = ["@anthropic-ai/claude-code"];
-  if (MACRO.PACKAGE_URL && MACRO.PACKAGE_URL !== "@anthropic-ai/claude-code") {
-    packagesToCheck.push(MACRO.PACKAGE_URL);
-  }
+  // Check for global npm installation of Maximo's own package.
+  // We only look for our own package here — we do NOT scan for
+  // @anthropic-ai/claude-code, because that is a separate CLI and detecting it
+  // as a "leftover" would make the two fight over the user's global install.
+  const packagesToCheck = MACRO.PACKAGE_URL ? [MACRO.PACKAGE_URL] : [];
   const npmResult = await execFileNoThrow("npm", [
     "-g",
     "config",
@@ -230,11 +230,11 @@ async function detectMultipleInstallations(): Promise<
     const isWindows = getPlatform() === "windows";
 
     // First check for active installations via bin/claude
-    // Linux / macOS have prefix/bin/claude and prefix/lib/node_modules
-    // Windows has prefix/claude and prefix/node_modules
+    // Linux / macOS have prefix/bin/maximo and prefix/lib/node_modules
+    // Windows has prefix/maximo and prefix/node_modules
     const globalBinPath = isWindows
-      ? join(npmPrefix, "claude")
-      : join(npmPrefix, "bin", "claude");
+      ? join(npmPrefix, "maximo")
+      : join(npmPrefix, "bin", "maximo");
 
     let globalBinExists = false;
     try {
@@ -267,7 +267,7 @@ async function detectMultipleInstallations(): Promise<
         installations.push({ type: "npm-global", path: globalBinPath });
       }
     } else {
-      // If no bin/claude exists, check for orphaned packages (no bin/claude symlink)
+      // If no bin/maximo exists, check for orphaned packages (no bin/maximo symlink)
       for (const packageName of packagesToCheck) {
         const globalPackagePath = isWindows
           ? join(npmPrefix, "node_modules", packageName)
@@ -289,7 +289,7 @@ async function detectMultipleInstallations(): Promise<
   // Check for native installation
 
   // Check common native installation paths
-  const nativeBinPath = join(homedir(), ".local", "bin", "claude");
+  const nativeBinPath = join(homedir(), ".local", "bin", "maximo");
   try {
     await fs.stat(nativeBinPath);
     installations.push({ type: "native", path: nativeBinPath });
@@ -300,7 +300,7 @@ async function detectMultipleInstallations(): Promise<
   // Also check if config indicates native installation
   const config = getGlobalConfig();
   if (config.installMethod === "native") {
-    const nativeDataPath = join(homedir(), ".local", "share", "claude");
+    const nativeDataPath = join(homedir(), ".local", "share", "maximo");
     try {
       await fs.stat(nativeDataPath);
       if (!installations.some((i) => i.type === "native")) {
@@ -443,14 +443,14 @@ async function detectConfigurationIssues(
     if (type === "npm-local" && config.installMethod !== "local") {
       warnings.push({
         issue: `Running from local installation but config install method is '${config.installMethod}'`,
-        fix: "Consider using native installation: claude install",
+        fix: "Consider using native installation: maximo install",
       });
     }
 
     if (type === "native" && config.installMethod !== "native") {
       warnings.push({
         issue: `Running native installation but config install method is '${config.installMethod}'`,
-        fix: "Run claude install to update configuration",
+        fix: "Run maximo install to update configuration",
       });
     }
   }
@@ -458,7 +458,7 @@ async function detectConfigurationIssues(
   if (type === "npm-global" && (await localInstallationExists())) {
     warnings.push({
       issue: "Local installation exists but not being used",
-      fix: "Consider using native installation: claude install",
+      fix: "Consider using native installation: maximo install",
     });
   }
 
@@ -467,23 +467,23 @@ async function detectConfigurationIssues(
 
   // Check if running local installation but it's not in PATH
   if (type === "npm-local") {
-    // Check if claude is already accessible via PATH
-    const whichResult = await which("claude");
+    // Check if maximo is already accessible via PATH
+    const whichResult = await which("maximo");
     const claudeInPath = !!whichResult;
 
-    // Only show warning if claude is NOT in PATH AND no valid alias exists
+    // Only show warning if maximo is NOT in PATH AND no valid alias exists
     if (!claudeInPath && !validAlias) {
       if (existingAlias) {
         // Alias exists but points to invalid target
         warnings.push({
           issue: "Local installation not accessible",
-          fix: `Alias exists but points to invalid target: ${existingAlias}. Update alias: alias claude="~/.claude/local/claude"`,
+          fix: `Alias exists but points to invalid target: ${existingAlias}. Update alias: alias claude="~/.maximo/local/maximo"`,
         });
       } else {
         // No alias exists and not in PATH
         warnings.push({
           issue: "Local installation not accessible",
-          fix: 'Create alias: alias claude="~/.claude/local/claude"',
+          fix: 'Create alias: alias claude="~/.maximo/local/maximo"',
         });
       }
     }
@@ -546,13 +546,12 @@ export async function getDoctorDiagnostic(): Promise<DiagnosticInfo> {
 
     for (const install of npmInstalls) {
       if (install.type === "npm-global") {
-        let uninstallCmd = "npm -g uninstall @anthropic-ai/claude-code";
-        if (
-          MACRO.PACKAGE_URL &&
-          MACRO.PACKAGE_URL !== "@anthropic-ai/claude-code"
-        ) {
-          uninstallCmd += ` && npm -g uninstall ${MACRO.PACKAGE_URL}`;
-        }
+        // Only suggest removing Maximo's own package. We deliberately do NOT
+        // touch @anthropic-ai/claude-code — that is a separate CLI and removing
+        // it would make the two fight over the user's global install.
+        const uninstallCmd = MACRO.PACKAGE_URL
+          ? `npm -g uninstall ${MACRO.PACKAGE_URL}`
+          : "npm -g uninstall @maximoai/maximo-syntax-cli";
         warnings.push({
           issue: `Leftover npm global installation at ${install.path}`,
           fix: `Run: ${uninstallCmd}`,
@@ -590,7 +589,7 @@ export async function getDoctorDiagnostic(): Promise<DiagnosticInfo> {
     if (!hasUpdatePermissions && !getAutoUpdaterDisabledReason()) {
       warnings.push({
         issue: "Insufficient permissions for auto-updates",
-        fix: "Do one of: (1) Re-install node without sudo, or (2) Use `claude install` for native installation",
+        fix: "Do one of: (1) Re-install node without sudo, or (2) Use `maximo install` for native installation",
       });
     }
   }

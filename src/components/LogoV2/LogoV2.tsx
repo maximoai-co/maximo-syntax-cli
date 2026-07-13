@@ -169,7 +169,7 @@ export function LogoV2() {
     t4 =
       !hasReleaseNotes &&
       !showOnboarding &&
-      !isEnvTruthy(process.env.CLAUDE_CODE_FORCE_FULL_LOGO);
+      !isEnvTruthy(process.env.MAXIMO_SYNTAX_FORCE_FULL_LOGO);
     $[5] = t4;
   } else {
     t4 = $[5];
@@ -243,7 +243,7 @@ export function LogoV2() {
   if (
     !hasReleaseNotes &&
     !showOnboarding &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_FORCE_FULL_LOGO)
+    !isEnvTruthy(process.env.MAXIMO_SYNTAX_FORCE_FULL_LOGO)
   ) {
     let t11;
     let t12;
@@ -266,15 +266,15 @@ export function LogoV2() {
         </Box>
       );
       t16 = <EmergencyTip />;
-      t17 = process.env.CLAUDE_CODE_TMUX_SESSION && (
+      t17 = process.env.MAXIMO_SYNTAX_TMUX_SESSION && (
         <Box paddingLeft={2} flexDirection="column">
           <Text dimColor={true}>
-            tmux session: {process.env.CLAUDE_CODE_TMUX_SESSION}
+            tmux session: {process.env.MAXIMO_SYNTAX_TMUX_SESSION}
           </Text>
           <Text dimColor={true}>
-            {process.env.CLAUDE_CODE_TMUX_PREFIX_CONFLICTS
-              ? `Detach: ${process.env.CLAUDE_CODE_TMUX_PREFIX} ${process.env.CLAUDE_CODE_TMUX_PREFIX} d (press prefix twice - Maximo uses ${process.env.CLAUDE_CODE_TMUX_PREFIX})`
-              : `Detach: ${process.env.CLAUDE_CODE_TMUX_PREFIX} d`}
+            {process.env.MAXIMO_SYNTAX_TMUX_PREFIX_CONFLICTS
+              ? `Detach: ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} d (press prefix twice - Maximo uses ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX})`
+              : `Detach: ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} d`}
           </Text>
         </Box>
       );
@@ -381,11 +381,11 @@ export function LogoV2() {
   }
   const layoutMode = getLayoutMode(columns);
   const userTheme = resolveThemeSetting(getGlobalConfig().theme);
-  const borderTitle = ` ${color("claude", userTheme)("Maximo Syntax")} ${color(
+  const borderTitle = ` ${color("maximo", userTheme)("Maximo Syntax")} ${color(
     "inactive",
     userTheme
   )(`v${version}`)} `;
-  const compactBorderTitle = color("claude", userTheme)(" Maximo Syntax ");
+  const compactBorderTitle = color("maximo", userTheme)(" Maximo Syntax ");
   if (layoutMode === "compact") {
     let welcomeMessage = formatWelcomeMessage(username);
     if (stringWidth(welcomeMessage) > columns - 4) {
@@ -480,7 +480,7 @@ export function LogoV2() {
           <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="claude"
+            borderColor="maximo"
             borderText={t11}
             paddingX={1}
             paddingY={1}
@@ -533,7 +533,7 @@ export function LogoV2() {
   const T1 = Box;
   const t11 = "column";
   const t12 = "round";
-  const t13 = "claude";
+  const t13 = "maximo";
   let t14;
   if ($[44] !== borderTitle) {
     t14 = {
@@ -556,7 +556,7 @@ export function LogoV2() {
     t18 = (
       <Box marginTop={1} flexDirection="column" alignItems="center">
         <Text bold={true}>MAXIMO SYNTAX</Text>
-        <Text color="claude">Move at Maximo Speed</Text>
+        <Text color="maximo">Move at Maximo Speed</Text>
         <Text dimColor={true}>Build, ship, and iterate from your terminal</Text>
         <Text color="inactive">•</Text>
         <Text bold={true}>{welcomeMessage_0}</Text>
@@ -753,15 +753,15 @@ export function LogoV2() {
       </Box>
     );
     t33 = <EmergencyTip />;
-    t34 = process.env.CLAUDE_CODE_TMUX_SESSION && (
+    t34 = process.env.MAXIMO_SYNTAX_TMUX_SESSION && (
       <Box paddingLeft={2} flexDirection="column">
         <Text dimColor={true}>
-          tmux session: {process.env.CLAUDE_CODE_TMUX_SESSION}
+          tmux session: {process.env.MAXIMO_SYNTAX_TMUX_SESSION}
         </Text>
         <Text dimColor={true}>
-          {process.env.CLAUDE_CODE_TMUX_PREFIX_CONFLICTS
-            ? `Detach: ${process.env.CLAUDE_CODE_TMUX_PREFIX} ${process.env.CLAUDE_CODE_TMUX_PREFIX} d (press prefix twice - Maximo uses ${process.env.CLAUDE_CODE_TMUX_PREFIX})`
-            : `Detach: ${process.env.CLAUDE_CODE_TMUX_PREFIX} d`}
+          {process.env.MAXIMO_SYNTAX_TMUX_PREFIX_CONFLICTS
+            ? `Detach: ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} d (press prefix twice - Maximo uses ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX})`
+            : `Detach: ${process.env.MAXIMO_SYNTAX_TMUX_PREFIX} d`}
         </Text>
       </Box>
     );

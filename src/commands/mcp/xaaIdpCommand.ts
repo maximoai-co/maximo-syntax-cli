@@ -1,5 +1,5 @@
 /**
- * `claude mcp xaa` — manage the XAA (SEP-990) IdP connection.
+ * `maximo mcp xaa` — manage the XAA (SEP-990) IdP connection.
  *
  * The IdP connection is user-level: configure once, all XAA-enabled MCP
  * servers reuse it. Lives in settings.xaaIdp (non-secret) + a keychain slot
@@ -174,7 +174,7 @@ export function registerMcpXaaIdpCommand(mcp: Command): void {
       const idp = getXaaIdpSettings();
       if (!idp) {
         return cliError(
-          "Error: no XAA IdP connection. Run 'claude mcp xaa setup' first."
+          "Error: no XAA IdP connection. Run 'maximo mcp xaa setup' first."
         );
       }
 
@@ -246,7 +246,7 @@ export function registerMcpXaaIdpCommand(mcp: Command): void {
         `Logged in:     ${
           hasIdToken
             ? "yes (id_token cached)"
-            : "no — run 'claude mcp xaa login'"
+            : "no — run 'maximo mcp xaa login'"
         }\n`
       );
       cliOk();

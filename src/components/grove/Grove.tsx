@@ -83,7 +83,7 @@ function GracePeriodContentBody() {
           <Text>
             — Allow the use of your chats and coding sessions to train and
             improve Anthropic AI models. Change anytime in your Privacy Settings
-            (<Link url="https://claude.ai/settings/data-privacy-controls" />
+            (<Link url="https://maximo.ai/settings/data-privacy-controls" />
             ).
           </Text>
         </Text>
@@ -174,7 +174,7 @@ function PostGracePeriodContentBody() {
           Allow the use of your chats and coding sessions to train and improve
           Anthropic AI models. You can change this anytime in Privacy Settings
         </Text>
-        <Link url="https://claude.ai/settings/data-privacy-controls" />
+        <Link url="https://maximo.ai/settings/data-privacy-controls" />
       </Box>
     );
     $[2] = t2;
@@ -588,7 +588,7 @@ export function PrivacySettingsDialog(t0) {
     t5 = (
       <Text>
         Review and manage your privacy settings at{" "}
-        <Link url="https://claude.ai/settings/data-privacy-controls" />
+        <Link url="https://maximo.ai/settings/data-privacy-controls" />
       </Text>
     );
     $[9] = t5;

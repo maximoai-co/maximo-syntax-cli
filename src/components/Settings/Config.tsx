@@ -76,7 +76,7 @@ import {
   getExternalMaximoMdIncludes,
   getMemoryFiles,
   hasExternalMaximoMdIncludes,
-} from "src/utils/claudemd.js";
+} from "src/utils/maximomd.js";
 import { KeyboardShortcutHint } from "../design-system/KeyboardShortcutHint.js";
 import { ConfigurableShortcutHint } from "../ConfigurableShortcutHint.js";
 import { Byline } from "../design-system/Byline.js";
@@ -298,7 +298,7 @@ export function Config({
     context.options.mcpClients
   );
   const isFileCheckpointingAvailable = !isEnvTruthy(
-    process.env.CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING
+    process.env.MAXIMO_SYNTAX_DISABLE_FILE_CHECKPOINTING
   );
   const memoryFiles = React.use(getMemoryFiles(true));
   const shouldShowExternalIncludesToggle =
@@ -1238,7 +1238,7 @@ export function Config({
       ? [
           {
             id: "showExternalIncludesDialog",
-            label: "External CLAUDE.md includes",
+            label: "External MAXIMO.md includes",
             value: (() => {
               const projectConfig = getCurrentProjectConfig();
               if (projectConfig.hasMaximoMdExternalIncludesApproved) {

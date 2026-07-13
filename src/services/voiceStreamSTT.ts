@@ -126,11 +126,11 @@ export async function connectVoiceStream(
 
   // voice_stream is a private_api route, but /api/ws/ is also exposed on
   // the api.anthropic.com listener (service_definitions.yaml private-api:
-  // visibility.external: true). We target that host instead of claude.ai
-  // because the claude.ai CF zone uses TLS fingerprinting and challenges
+  // visibility.external: true). We target that host instead of maximo.ai
+  // because the maximo.ai CF zone uses TLS fingerprinting and challenges
   // non-browser clients (anthropics/claude-code#34094). Same private-api
   // pod, same OAuth Bearer auth — just a CF zone that doesn't block us.
-  // Desktop dictation still uses claude.ai (Swift URLSession has a
+  // Desktop dictation still uses maximo.ai (Swift URLSession has a
   // browser-class JA3 fingerprint, so CF lets it through).
   const wsBaseUrl =
     process.env.VOICE_STREAM_BASE_URL ||

@@ -512,7 +512,7 @@ export function getAllSocketPaths(): string[] {
   }
 
   // Legacy fallback paths
-  const legacyName = `claude-mcp-browser-bridge-${getUsername()}`;
+  const legacyName = `maximo-mcp-browser-bridge-${getUsername()}`;
   const legacyTmpdir = join(tmpdir(), legacyName);
   const legacyTmp = `/tmp/${legacyName}`;
 

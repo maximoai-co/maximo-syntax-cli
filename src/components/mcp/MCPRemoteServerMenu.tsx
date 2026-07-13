@@ -135,7 +135,7 @@ export function MCPRemoteServerMenu({
     try {
       const result = await reconnectMcpServer(server.name);
       const success = result.client.type === "connected";
-      logEvent("tengu_claudeai_mcp_auth_completed", {
+      logEvent("tengu_maximoai_mcp_auth_completed", {
         success,
       });
       if (success) {
@@ -150,7 +150,7 @@ export function MCPRemoteServerMenu({
         );
       }
     } catch (err) {
-      logEvent("tengu_claudeai_mcp_auth_completed", {
+      logEvent("tengu_maximoai_mcp_auth_completed", {
         success: false,
       });
       onComplete?.(handleReconnectError(err, server.name));
@@ -192,7 +192,7 @@ export function MCPRemoteServerMenu({
         },
       };
     });
-    logEvent("tengu_claudeai_mcp_clear_auth_completed", {});
+    logEvent("tengu_maximoai_mcp_clear_auth_completed", {});
     onComplete?.(`Disconnected from ${server.name}.`);
     setIsMaximoAIClearingAuth(false);
     setMaximoAIClearAuthUrl(null);
@@ -290,7 +290,7 @@ export function MCPRemoteServerMenu({
     let authUrl: string;
     if (
       orgUuid &&
-      server.config.type === "claudeai-proxy" &&
+      server.config.type === "maximoai-proxy" &&
       server.config.id
     ) {
       // Use the direct auth URL with org and server IDs
@@ -299,7 +299,7 @@ export function MCPRemoteServerMenu({
         ? "mcpsrv" + server.config.id.slice(5)
         : server.config.id;
       const productSurface = encodeURIComponent(
-        process.env.CLAUDE_CODE_ENTRYPOINT || "cli"
+        process.env.MAXIMO_SYNTAX_ENTRYPOINT || "cli"
       );
       authUrl = `${claudeAiBaseUrl}/api/organizations/${orgUuid}/mcp/start-auth/${serverId}?product_surface=${productSurface}`;
     } else {
@@ -308,19 +308,19 @@ export function MCPRemoteServerMenu({
     }
     setMaximoAIAuthUrl(authUrl);
     setIsMaximoAIAuthenticating(true);
-    logEvent("tengu_claudeai_mcp_auth_started", {});
+    logEvent("tengu_maximoai_mcp_auth_started", {});
     await openBrowser(authUrl);
   }, [server.config]);
   const handleMaximoAIClearAuth = React.useCallback(() => {
     setIsMaximoAIClearingAuth(true);
-    logEvent("tengu_claudeai_mcp_clear_auth_started", {});
+    logEvent("tengu_maximoai_mcp_clear_auth_started", {});
   }, []);
   const handleToggleEnabled = React.useCallback(async () => {
     const wasEnabled = server.client.type !== "disabled";
     try {
       await toggleMcpServer(server.name);
-      if (server.config.type === "claudeai-proxy") {
-        logEvent("tengu_claudeai_mcp_toggle", {
+      if (server.config.type === "maximoai-proxy") {
+        logEvent("tengu_maximoai_mcp_toggle", {
           new_state: (wasEnabled
             ? "disabled"
             : "enabled") as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -346,7 +346,7 @@ export function MCPRemoteServerMenu({
     onComplete,
   ]);
   const handleAuthenticate = React.useCallback(async () => {
-    if (server.config.type === "claudeai-proxy") return;
+    if (server.config.type === "maximoai-proxy") return;
     setIsAuthenticating(true);
     setError(null);
     const controller = new AbortController();
@@ -415,7 +415,7 @@ export function MCPRemoteServerMenu({
     isEffectivelyAuthenticated,
   ]);
   const handleClearAuth = async () => {
-    if (server.config.type === "claudeai-proxy") return;
+    if (server.config.type === "maximoai-proxy") return;
     if (server.config) {
       // First revoke the authentication tokens and clear all auth state
       await revokeServerTokens(server.name, server.config);
@@ -466,12 +466,12 @@ export function MCPRemoteServerMenu({
     // one will open. If IdP login IS needed, authorizationUrl populates and
     // the URL fallback block below still renders.
     const authCopy =
-      server.config.type !== "claudeai-proxy" && server.config.oauth?.xaa
+      server.config.type !== "maximoai-proxy" && server.config.oauth?.xaa
         ? " Authenticating via your identity provider"
         : " A browser window will open for authentication";
     return (
       <Box flexDirection="column" gap={1} padding={1}>
-        <Text color="claude">Authenticating with {server.name}…</Text>
+        <Text color="maximo">Authenticating with {server.name}…</Text>
         <Box>
           <Spinner />
           <Text>{authCopy}</Text>
@@ -528,7 +528,7 @@ export function MCPRemoteServerMenu({
   if (isMaximoAIAuthenticating) {
     return (
       <Box flexDirection="column" gap={1} padding={1}>
-        <Text color="claude">Authenticating with {server.name}…</Text>
+        <Text color="maximo">Authenticating with {server.name}…</Text>
         <Box>
           <Spinner />
           <Text> A browser window will open for authentication</Text>
@@ -570,7 +570,7 @@ export function MCPRemoteServerMenu({
   if (isMaximoAIClearingAuth) {
     return (
       <Box flexDirection="column" gap={1} padding={1}>
-        <Text color="claude">Clear authentication for {server.name}</Text>
+        <Text color="maximo">Clear authentication for {server.name}</Text>
         {claudeAIClearAuthBrowserOpened ? (
           <>
             <Text>
@@ -612,7 +612,7 @@ export function MCPRemoteServerMenu({
         ) : (
           <>
             <Text>
-              This will open claude.ai in the browser. Find the MCP server in
+              This will open maximo.ai in the browser. Find the MCP server in
               the list and click &quot;Disconnect&quot;.
             </Text>
             <Box marginLeft={3} flexDirection="column">
@@ -662,16 +662,16 @@ export function MCPRemoteServerMenu({
       value: "tools",
     });
   }
-  if (server.config.type === "claudeai-proxy") {
+  if (server.config.type === "maximoai-proxy") {
     if (server.client.type === "connected") {
       menuOptions.push({
         label: "Clear authentication",
-        value: "claudeai-clear-auth",
+        value: "maximoai-clear-auth",
       });
     } else if (server.client.type !== "disabled") {
       menuOptions.push({
         label: "Authenticate",
-        value: "claudeai-auth",
+        value: "maximoai-auth",
       });
     }
   } else {
@@ -745,7 +745,7 @@ export function MCPRemoteServerMenu({
             )}
           </Box>
 
-          {server.transport !== "claudeai-proxy" && (
+          {server.transport !== "maximoai-proxy" && (
             <Box>
               <Text bold>Auth: </Text>
               {isEffectivelyAuthenticated ? (
@@ -808,18 +808,18 @@ export function MCPRemoteServerMenu({
                   case "clear-auth":
                     await handleClearAuth();
                     break;
-                  case "claudeai-auth":
+                  case "maximoai-auth":
                     await handleMaximoAIAuth();
                     break;
-                  case "claudeai-clear-auth":
+                  case "maximoai-clear-auth":
                     handleMaximoAIClearAuth();
                     break;
                   case "reconnectMcpServer":
                     setIsReconnecting(true);
                     try {
                       const result_1 = await reconnectMcpServer(server.name);
-                      if (server.config.type === "claudeai-proxy") {
-                        logEvent("tengu_claudeai_mcp_reconnect", {
+                      if (server.config.type === "maximoai-proxy") {
+                        logEvent("tengu_maximoai_mcp_reconnect", {
                           success: result_1.client.type === "connected",
                         });
                       }
@@ -829,8 +829,8 @@ export function MCPRemoteServerMenu({
                       );
                       onComplete?.(message_0);
                     } catch (err_2) {
-                      if (server.config.type === "claudeai-proxy") {
-                        logEvent("tengu_claudeai_mcp_reconnect", {
+                      if (server.config.type === "maximoai-proxy") {
+                        logEvent("tengu_maximoai_mcp_reconnect", {
                           success: false,
                         });
                       }
