@@ -5,11 +5,11 @@ import { registerBundledSkill } from "../bundledSkills.js";
 // eslint-disable-next-line custom-rules/no-direct-ps-commands
 const STUCK_PROMPT = `# /stuck — diagnose frozen/slow Maximo Syntax sessions
 
-The user thinks another Maximo Syntax session on this machine is frozen, stuck, or very slow. Investigate and post a report to #claude-code-feedback.
+The user thinks another Maximo Syntax session on this machine is frozen, stuck, or very slow. Investigate and prepare a concise diagnostic report for the user.
 
 ## What to look for
 
-Scan for other Maximo Syntax processes (excluding the current one — PID is in \`process.pid\` but for shell commands just exclude the PID you see running this prompt). Process names are typically \`claude\` (installed) or \`cli\` (native dev build).
+Scan for other Maximo Syntax processes (excluding the current one — PID is in \`process.pid\` but for shell commands just exclude the PID you see running this prompt). Process names are typically \`maximo\`, \`syntax\`, or \`cli\` (native dev build).
 
 Signs of a stuck session:
 - **High CPU (≥90%) sustained** — likely an infinite loop. Sample twice, 1-2s apart, to confirm it's not a transient spike.
@@ -23,9 +23,9 @@ Signs of a stuck session:
 
 1. **List all Maximo Syntax processes** (macOS/Linux):
    \`\`\`
-   ps -axo pid=,pcpu=,rss=,etime=,state=,comm=,command= | grep -E '(claude|cli)' | grep -v grep
+   ps -axo pid=,pcpu=,rss=,etime=,state=,comm=,command= | grep -E '(maximo|syntax|cli)' | grep -v grep
    \`\`\`
-   Filter to rows where \`comm\` is \`claude\` or (\`cli\` AND the command path contains "maximo").
+   Filter to rows for Maximo Syntax itself, not unrelated commands whose names happen to match.
 
 2. **For anything suspicious**, gather more context:
    - Child processes: \`pgrep -lP <pid>\`
@@ -39,19 +39,7 @@ Signs of a stuck session:
 
 ## Report
 
-**Only post to Slack if you actually found something stuck.** If every session looks healthy, tell the user that directly — do not post an all-clear to the channel.
-
-If you did find a stuck/slow session, post to **#claude-code-feedback** (channel ID: \`C07VBSHV7EV\`) using the Slack MCP tool. Use ToolSearch to find \`slack_send_message\` if it's not already loaded.
-
-**Use a two-message structure** to keep the channel scannable:
-
-1. **Top-level message** — one short line: hostname, Maximo Syntax version, and a terse symptom (e.g. "session PID 12345 pegged at 100% CPU for 10min" or "git subprocess hung in D state"). No code blocks, no details.
-2. **Thread reply** — the full diagnostic dump. Pass the top-level message's \`ts\` as \`thread_ts\`. Include:
-   - PID, CPU%, RSS, state, uptime, command line, child processes
-   - Your diagnosis of what's likely wrong
-   - Relevant debug log tail or \`sample\` output if you captured it
-
-If Slack MCP isn't available, format the report as a message the user can copy-paste into #claude-code-feedback (and let them know to thread the details themselves).
+If every session looks healthy, tell the user that directly. If you find a stuck/slow session, report the PID, CPU%, RSS, state, uptime, command line, child processes, likely diagnosis, and any relevant debug-log or stack-sample evidence.
 
 ## Notes
 - Don't kill or signal any processes — this is diagnostic only.
@@ -66,7 +54,7 @@ export function registerStuckSkill(): void {
   registerBundledSkill({
     name: "stuck",
     description:
-      "[ANT-ONLY] Investigate frozen/stuck/slow Maximo Syntax sessions on this machine and post a diagnostic report to #claude-code-feedback.",
+      "[INTERNAL] Investigate frozen/stuck/slow Maximo Syntax sessions on this machine and prepare a diagnostic report.",
     userInvocable: true,
     async getPromptForCommand(args) {
       let prompt = STUCK_PROMPT;

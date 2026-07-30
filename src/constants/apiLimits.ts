@@ -1,7 +1,7 @@
 /**
- * Anthropic API Limits
+ * Maximo Syntax API Limits
  *
- * These constants define server-side limits enforced by the Anthropic API.
+ * These constants define request limits enforced by Maximo Syntax.
  * Keep this file dependency-free to prevent circular imports.
  *
  * Last verified: 2025-12-22
@@ -19,14 +19,14 @@
  * The API rejects images where the base64 string length exceeds this value.
  * Note: This is the base64 length, NOT raw bytes. Base64 increases size by ~33%.
  */
-export const API_IMAGE_MAX_BASE64_SIZE = 5 * 1024 * 1024 // 5 MB
+export const API_IMAGE_MAX_BASE64_SIZE = 10 * 1024 * 1024 // 10 MB
 
 /**
  * Target raw image size to stay under base64 limit after encoding.
  * Base64 encoding increases size by 4/3, so we derive the max raw size:
  * raw_size * 4/3 = base64_size → raw_size = base64_size * 3/4
  */
-export const IMAGE_TARGET_RAW_SIZE = (API_IMAGE_MAX_BASE64_SIZE * 3) / 4 // 3.75 MB
+export const IMAGE_TARGET_RAW_SIZE = (API_IMAGE_MAX_BASE64_SIZE * 3) / 4 // 7.5 MB
 
 /**
  * Client-side maximum dimensions for image resizing.
@@ -36,7 +36,7 @@ export const IMAGE_TARGET_RAW_SIZE = (API_IMAGE_MAX_BASE64_SIZE * 3) / 4 // 3.75
  * cause errors. These client-side limits (2000px) are slightly larger to
  * preserve quality when beneficial.
  *
- * The API_IMAGE_MAX_BASE64_SIZE (5MB) is the actual hard limit that causes
+ * The API_IMAGE_MAX_BASE64_SIZE (10MB) is the request limit that causes
  * API errors if exceeded.
  */
 export const IMAGE_MAX_WIDTH = 2000

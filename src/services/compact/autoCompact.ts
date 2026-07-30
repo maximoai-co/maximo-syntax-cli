@@ -193,6 +193,62 @@ export function isAutoCompactEnabled(): boolean {
   return userConfig.autoCompactEnabled
 }
 
+function contentContainsMedia(content: unknown): boolean {
+  if (!Array.isArray(content)) {
+    return false
+  }
+
+  return content.some(block => {
+    if (!block || typeof block !== 'object') {
+      return false
+    }
+    const typedBlock = block as {
+      type?: string
+      content?: unknown
+    }
+    if (typedBlock.type === 'image' || typedBlock.type === 'document') {
+      return true
+    }
+    return (
+      typedBlock.type === 'tool_result' &&
+      contentContainsMedia(typedBlock.content)
+    )
+  })
+}
+
+/**
+ * Auto-compaction replaces image blocks with "[image]" before asking the
+ * summarizer to compact the transcript. If the latest image has not received
+ * an assistant response yet, compacting here permanently separates the user's
+ * question from the actual pixels and can turn text visible in the image into
+ * invented follow-up work.
+ *
+ * A first turn is also never useful to summarize: there is no conversation
+ * history to reduce. Let the normal API path handle it verbatim.
+ */
+export function shouldPreserveUnansweredTurn(
+  messages: readonly Message[],
+): boolean {
+  let lastAssistantIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.type === 'assistant') {
+      lastAssistantIndex = index
+      break
+    }
+  }
+
+  if (lastAssistantIndex === -1) {
+    return true
+  }
+
+  return messages.slice(lastAssistantIndex + 1).some(message => {
+    if (message.type !== 'user') {
+      return false
+    }
+    return contentContainsMedia(message.message.content)
+  })
+}
+
 export async function shouldAutoCompact(
   messages: Message[],
   model: string,
@@ -219,6 +275,10 @@ export async function shouldAutoCompact(
   }
 
   if (!isAutoCompactEnabled()) {
+    return false
+  }
+
+  if (shouldPreserveUnansweredTurn(messages)) {
     return false
   }
 

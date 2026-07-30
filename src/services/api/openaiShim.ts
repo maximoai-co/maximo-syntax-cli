@@ -656,6 +656,15 @@ class OpenAIShimMessages {
 
     if (params.temperature !== undefined) body.temperature = params.temperature;
     if (params.top_p !== undefined) body.top_p = params.top_p;
+    const outputConfig =
+      params.output_config &&
+      typeof params.output_config === "object" &&
+      !Array.isArray(params.output_config)
+        ? (params.output_config as Record<string, unknown>)
+        : undefined;
+    if (typeof outputConfig?.effort === "string" && outputConfig.effort) {
+      body.reasoning_effort = outputConfig.effort;
+    }
 
     if (params.tools && params.tools.length > 0) {
       const converted = convertTools(

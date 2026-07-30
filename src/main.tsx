@@ -964,7 +964,7 @@ export async function main() {
     if (
       process.platform === "darwin" &&
       process.env.__CFBundleIdentifier ===
-        "com.anthropic.claude-code-url-handler"
+        "com.maximoai.maximo-syntax-url-handler"
     ) {
       const { enableConfigs } = await import("./utils/config.js");
       enableConfigs();
@@ -1353,7 +1353,7 @@ async function run(): Promise<CommanderCommand> {
     )
     .option(
       "--bare",
-      "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and MAXIMO.md auto-discovery. Sets MAXIMO_SYNTAX_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read). 3P providers (Bedrock/Vertex/Foundry) use their own credentials. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir (MAXIMO.md dirs), --mcp-config, --settings, --agents, --plugin-dir.",
+      "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and MAXIMO.md auto-discovery. Sets MAXIMO_SYNTAX_SIMPLE=1. The active provider must be configured explicitly; OAuth and keychain credentials are not read. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir (MAXIMO.md dirs), --mcp-config, --settings, --agents, --plugin-dir.",
       () => true
     )
     .addOption(
@@ -1613,7 +1613,7 @@ async function run(): Promise<CommanderCommand> {
     // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
     .option(
       "--model <model>",
-      `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`
+      `Model for the current session. Use a model from the active provider (e.g. 'maximo-pandora-3.8-nano' or 'maximo-atlas-preview').`
     )
     .addOption(
       new Option(
@@ -5883,12 +5883,12 @@ async function run(): Promise<CommanderCommand> {
     .configureHelp(createSortedHelpConfig());
   auth
     .command("login")
-    .description("Sign in to your Anthropic account")
+    .description("Sign in to Maximo AI")
     .option("--email <email>", "Pre-populate email address on the login page")
     .option("--sso", "Force SSO login flow")
     .option(
       "--console",
-      "Use Anthropic Console (API usage billing) instead of Maximo subscription"
+      "Use Maximo AI API usage billing instead of a Maximo subscription"
     )
     .option("--maximoai", "Use Maximo subscription (default)")
     .action(
@@ -5923,7 +5923,7 @@ async function run(): Promise<CommanderCommand> {
     });
   auth
     .command("logout")
-    .description("Log out from your Anthropic account")
+    .description("Log out from Maximo Syntax")
     .action(async () => {
       const { authLogout } = await import("./cli/handlers/auth.js");
       await authLogout();

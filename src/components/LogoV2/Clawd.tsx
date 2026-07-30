@@ -15,89 +15,65 @@ type Props = {
   variant?: "compact" | "detailed";
 };
 
-type SegmentColor = "clawd_body" | "inactive" | "text" | "clawd_background";
+type SegmentColor = "success" | "claudeShimmer" | "clawd_body";
 
 type Segment = {
   text: string;
   color: SegmentColor;
-  backgroundColor?: SegmentColor;
   bold?: boolean;
 };
 
 type OctopusFrame = readonly (readonly Segment[])[];
 
-const body = (text: string): Segment => ({
+const top = (text: string): Segment => ({
+  text,
+  color: "success",
+  bold: true,
+});
+const middle = (text: string): Segment => ({
+  text,
+  color: "claudeShimmer",
+  bold: true,
+});
+const bottom = (text: string): Segment => ({
   text,
   color: "clawd_body",
   bold: true,
 });
-const eye = (text: string): Segment => ({
-  text,
-  color: "text",
-  backgroundColor: "clawd_body",
-  bold: true,
-});
-const fill = (text: string): Segment => ({
-  text,
-  color: "clawd_background",
-  backgroundColor: "clawd_body",
-  bold: true,
-});
-const dim = (text: string): Segment => ({ text, color: "inactive" });
 
 export const OCTOPUS_COMPACT_WIDTH = 24;
 export const OCTOPUS_COMPACT_HEIGHT = 7;
 export const OCTOPUS_DETAILED_WIDTH = 26;
 export const OCTOPUS_DETAILED_HEIGHT = 8;
 
+const COMPACT_FRAME: OctopusFrame = [
+  [top("    ╭────╮    ╭────╮    ")],
+  [top("   ╭╯    ╰╮  ╭╯    ╰╮   ")],
+  [middle("   │      ╰──╯      │   ")],
+  [middle("   │  ╭╮        ╭╮  │   ")],
+  [bottom("   │  │╰╮      ╭╯│  │   ")],
+  [bottom("   │  │ ╰╮    ╭╯ │  │   ")],
+  [bottom("   ╰──╯  ╰────╯  ╰──╯   ")],
+];
+
+// Keep the legacy poses mapped to the same brand mark so the existing
+// animation and public component API remain stable.
 const POSES: Record<OctopusPose, OctopusFrame> = {
-  default: [
-    [body("     ▄██████▄     ")],
-    [body("   ▄██"), fill("      "), body("██▄   ")],
-    [body("  ███"), fill(" "), eye("●"), fill("  "), eye("●"), fill(" "), body("███  ")],
-    [body("  ███"), fill("   "), eye("▾"), fill("   "), body("███  ")],
-    [body("   ▀████████▀   ")],
-    [body(" ▄█▀ ▐█▌▐█▌ ▀█▄ ")],
-    [dim("▀▀  "), body("╰╯╰╯╰╯╰╯"), dim("  ▀▀")],
-  ],
-  "look-left": [
-    [body("     ▄██████▄     ")],
-    [body("   ▄██"), fill("      "), body("██▄   ")],
-    [body("  ███"), eye("●"), fill("   "), eye("●"), fill(" "), body("███  ")],
-    [body("  ███"), fill("  "), eye("◂"), fill("    "), body("███  ")],
-    [body("   ▀████████▀   ")],
-    [body(" ▄█▀ ▐█▌▐█▌ ▀█▄ ")],
-    [dim("▀▀  "), body("╰╯╰╯╰╯╰╯"), dim("  ▀▀")],
-  ],
-  "look-right": [
-    [body("     ▄██████▄     ")],
-    [body("   ▄██"), fill("      "), body("██▄   ")],
-    [body("  ███"), fill(" "), eye("●"), fill("   "), eye("●"), body("███  ")],
-    [body("  ███"), fill("    "), eye("▸"), fill("  "), body("███  ")],
-    [body("   ▀████████▀   ")],
-    [body(" ▄█▀ ▐█▌▐█▌ ▀█▄ ")],
-    [dim("▀▀  "), body("╰╯╰╯╰╯╰╯"), dim("  ▀▀")],
-  ],
-  "arms-up": [
-    [body(" ▄▄  ▄██████▄  ▄▄ ")],
-    [body(" ██▄██"), fill("      "), body("██▄██ ")],
-    [body("  ███"), fill(" "), eye("●"), fill("  "), eye("●"), fill(" "), body("███  ")],
-    [body("  ███"), fill("   "), eye("▾"), fill("   "), body("███  ")],
-    [body("   ▀████████▀   ")],
-    [body(" ▄█▀ ▐█▌▐█▌ ▀█▄ ")],
-    [dim("▀▀  "), body("╰╯╰╯╰╯╰╯"), dim("  ▀▀")],
-  ],
+  default: COMPACT_FRAME,
+  "look-left": COMPACT_FRAME,
+  "look-right": COMPACT_FRAME,
+  "arms-up": COMPACT_FRAME,
 };
 
 const DETAILED_FRAME: OctopusFrame = [
-  [body("      ▄████████▄      ")],
-  [body("    ▄██"), fill("        "), body("██▄    ")],
-  [body("   ███"), fill(" "), eye("●"), fill("    "), eye("●"), fill(" "), body("███   ")],
-  [body("   ███"), fill("    "), eye("▾"), fill("    "), body("███   ")],
-  [body("    ▀██████████▀    ")],
-  [body("  ▄█▀ ▐█▌▐█▌▐█▌ ▀█▄  ")],
-  [body("▄█▀   ▐█▌  ▐█▌   ▀█▄")],
-  [dim("▀   "), body("╰╯╰╯╰╯╰╯"), dim("   ▀")],
+  [top("    ╭─────╮    ╭─────╮    ")],
+  [top("   ╭╯     ╰╮  ╭╯     ╰╮   ")],
+  [middle("  ╭╯       ╰──╯       ╰╮  ")],
+  [middle("  │   ╭╮          ╭╮   │  ")],
+  [bottom("  │   │╰╮        ╭╯│   │  ")],
+  [bottom("  │   │ ╰╮      ╭╯ │   │  ")],
+  [bottom("  │   │  ╰╮    ╭╯  │   │  ")],
+  [bottom("  ╰───╯   ╰────╯   ╰───╯  ")],
 ];
 
 export function OctopusMascot({
@@ -115,7 +91,6 @@ export function OctopusMascot({
               key={segmentIndex}
               bold={segment.bold}
               color={segment.color}
-              backgroundColor={segment.backgroundColor}
             >
               {segment.text}
             </Text>

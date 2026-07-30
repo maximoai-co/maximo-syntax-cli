@@ -72,6 +72,39 @@ describe('Codex provider config', () => {
 })
 
 describe('Codex request translation', () => {
+  test('sends pasted base64 images as Responses input_image data URLs', () => {
+    const items = convertAnthropicMessagesToResponsesInput([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'describe this' },
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data: 'aW1hZ2U=',
+            },
+          },
+        ],
+      },
+    ])
+
+    expect(items).toEqual([
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'describe this' },
+          {
+            type: 'input_image',
+            image_url: 'data:image/png;base64,aW1hZ2U=',
+          },
+        ],
+      },
+    ])
+  })
+
   test('disables strict mode for tools with optional parameters', () => {
     const tools = convertToolsToResponsesTools([
       {

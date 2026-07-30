@@ -187,7 +187,9 @@ export function Doctor(t0) {
       },
       {
         name: "MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS",
-        ...getModelMaxOutputTokens("claude-opus-4-6"),
+        ...getModelMaxOutputTokens(
+          process.env.OPENAI_MODEL || "maximo-pandora-3.8-nano"
+        ),
       },
     ];
     t4 = envVars.map(_temp8).filter(_temp9);

@@ -26,7 +26,6 @@ import { getAncestorPidsAsync } from "./genericProcessUtils.js";
 import { isJetBrainsPluginInstalledCached } from "./jetbrains.js";
 import { logError } from "./log.js";
 import { getPlatform } from "./platform.js";
-import { lt } from "./semver.js";
 
 // Lazy: IdeOnboardingDialog.tsx pulls React/ink; only needed in interactive onboarding path
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -852,7 +851,7 @@ export function hasAccessToIDEExtensionDiffFeature(
 const EXTENSION_ID =
   process.env.USER_TYPE === "ant"
     ? "anthropic.claude-code-internal"
-    : "anthropic.claude-code";
+    : "maximoai.maximo-syntax";
 
 export async function isIDEExtensionInstalled(
   ideType: IdeType
@@ -882,31 +881,18 @@ export async function isIDEExtensionInstalled(
 }
 
 async function installIDEExtension(ideType: IdeType): Promise<string | null> {
+  // Maximo Syntax does not install or modify Anthropic's IDE extension.
+  // Until a Maximo-owned extension is published, external builds keep IDE
+  // integration opt-in and leave any Claude Code installation untouched.
+  if (process.env.USER_TYPE !== "ant") {
+    return null;
+  }
+
   if (isVSCodeIde(ideType)) {
     const command = await getVSCodeIDECommand(ideType);
 
     if (command) {
-      if (process.env.USER_TYPE === "ant") {
-        return await installFromArtifactory(command);
-      }
-      let version = await getInstalledVSCodeExtensionVersion(command);
-      // If it's not installed or the version is older than the one we have bundled,
-      if (!version || lt(version, getMaximoCodeVersion())) {
-        // `code` may crash when invoked too quickly in succession
-        await sleep(500);
-        const result = await execFileNoThrowWithCwd(
-          command,
-          ["--force", "--install-extension", "anthropic.claude-code"],
-          {
-            env: getInstallationEnv(),
-          }
-        );
-        if (result.code !== 0) {
-          throw new Error(`${result.code}: ${result.error} ${result.stderr}`);
-        }
-        version = getMaximoCodeVersion();
-      }
-      return version;
+      return await installFromArtifactory(command);
     }
   }
   // No automatic installation for JetBrains IDEs as it is not supported in native
@@ -927,30 +913,6 @@ function getInstallationEnv(): NodeJS.ProcessEnv | undefined {
     };
   }
   return undefined;
-}
-
-function getMaximoCodeVersion() {
-  return MACRO.VERSION;
-}
-
-async function getInstalledVSCodeExtensionVersion(
-  command: string
-): Promise<string | null> {
-  const { stdout } = await execFileNoThrow(
-    command,
-    ["--list-extensions", "--show-versions"],
-    {
-      env: getInstallationEnv(),
-    }
-  );
-  const lines = stdout?.split("\n") || [];
-  for (const line of lines) {
-    const [extensionId, version] = line.split("@");
-    if (extensionId === "anthropic.claude-code" && version) {
-      return version;
-    }
-  }
-  return null;
 }
 
 function getVSCodeIDECommandByParentProcess(): string | null {

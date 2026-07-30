@@ -14,6 +14,11 @@ import {
   getContextWindowForModel,
   getModelMaxOutputTokens,
 } from './context.ts'
+import {
+  getDefaultEffortForModel,
+  getSupportedEffortLevelsForModel,
+  modelSupportsEffort,
+} from './effort.ts'
 
 const originalEnv = {
   MAXIMO_SYNTAX_USE_OPENAI: process.env.MAXIMO_SYNTAX_USE_OPENAI,
@@ -173,4 +178,53 @@ test('Maximo model metadata drives context and output limits', async () => {
   expect(getEffectiveContextWindowSize(nanoModel.id)).toBe(
     500_000 - cappedReserve,
   )
+})
+
+test('invalid provider output metadata cannot collapse the effective context window', async () => {
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = 'https://api.mytabulon.com/v1'
+  process.env.OPENAI_API_KEY = 'test-key'
+  delete process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
+  delete process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
+  delete process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 'maximo-atlas-preview',
+            name: 'Maximo Atlas Preview',
+            context_window: 262_000,
+            // Some OpenAI-compatible model registries use max_tokens for the
+            // total window. It must not be interpreted as an output reserve.
+            max_tokens: 262_000,
+            reasoning_efforts: ['low', 'medium', 'high'],
+            reasoning: {
+              supported_efforts: ['low', 'medium', 'high'],
+              default_effort: 'medium',
+            },
+          },
+        ],
+      }),
+    )) as typeof fetch
+
+  await fetchMaximoModels({
+    forceRefresh: true,
+    persistMyTabulonAccount: false,
+  })
+
+  expect(getContextWindowForModel('maximo-atlas-preview')).toBe(262_000)
+  expect(getCompactSummaryMaxOutputTokensForModel('maximo-atlas-preview')).toBe(
+    20_000,
+  )
+  expect(getEffectiveContextWindowSize('maximo-atlas-preview')).toBe(242_000)
+  expect(getAutoCompactThreshold('maximo-atlas-preview')).toBe(229_000)
+  expect(getSupportedEffortLevelsForModel('maximo-atlas-preview')).toEqual([
+    'low',
+    'medium',
+    'high',
+  ])
+  expect(getDefaultEffortForModel('maximo-atlas-preview')).toBe('medium')
+  expect(modelSupportsEffort('maximo-atlas-preview')).toBe(true)
 })

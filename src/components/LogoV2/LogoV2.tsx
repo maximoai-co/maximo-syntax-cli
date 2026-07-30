@@ -94,10 +94,21 @@ const LEFT_PANEL_MAX_WIDTH = 50;
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();
+  const initialConfig = getGlobalConfig();
+  const isMyTabulonContext = Boolean(
+    initialConfig.openAIBaseUrl?.includes("api.mytabulon.com")
+  );
   const showAccountIdentity =
-    getAPIProvider() === "firstParty" || isMaximoAIOAuthContext();
+    getAPIProvider() === "firstParty" ||
+    isMaximoAIOAuthContext() ||
+    isMyTabulonContext;
   const username = showAccountIdentity
-    ? getGlobalConfig().oauthAccount?.displayName ?? ""
+    ? isMyTabulonContext
+      ? initialConfig.mytabulonAccount?.displayName ||
+        initialConfig.mytabulonAccount?.username ||
+        initialConfig.mytabulonAccount?.emailAddress?.split("@")[0] ||
+        ""
+      : initialConfig.oauthAccount?.displayName ?? ""
     : "";
   const { columns } = useTerminalSize();
   let t0;
@@ -121,6 +132,9 @@ export function LogoV2() {
   const agent = useAppState(_temp);
   const effortValue = useAppState(_temp2);
   const config = getGlobalConfig();
+  const accountOrganizationName = isMyTabulonContext
+    ? config.mytabulonAccount?.workspaceName
+    : config.oauthAccount?.organizationName;
   let changelog;
   try {
     changelog = getRecentReleaseNotesSync(3);
@@ -509,8 +523,8 @@ export function LogoV2() {
   const modelLine =
     showAccountIdentity &&
     !process.env.IS_DEMO &&
-    config.oauthAccount?.organizationName
-      ? `${modelDisplayName} · ${billingType} · ${config.oauthAccount.organizationName}`
+    accountOrganizationName
+      ? `${modelDisplayName} · ${billingType} · ${accountOrganizationName}`
       : `${modelDisplayName} · ${billingType}`;
   const cwdAvailableWidth_0 = agentName
     ? LEFT_PANEL_MAX_WIDTH - 1 - stringWidth(agentName) - 3

@@ -19,10 +19,7 @@ import { TASK_CREATE_TOOL_NAME } from "../tools/TaskCreateTool/constants.js";
 import type { Tools } from "../Tool.js";
 import type { Command } from "../types/command.js";
 import { BASH_TOOL_NAME } from "../tools/BashTool/toolName.js";
-import {
-  getCanonicalName,
-  getMarketingNameForModel,
-} from "../utils/model/model.js";
+import { getMarketingNameForModel } from "../utils/model/model.js";
 import { getSkillToolCommands } from "src/commands.js";
 import { SKILL_TOOL_NAME } from "../tools/SkillTool/constants.js";
 import { getOutputStyleConfig } from "./outputStyles.js";
@@ -113,16 +110,6 @@ export const MAXIMO_SYNTAX_DOCS_MAP_URL =
  */
 export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
   "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
-
-// @[MODEL LAUNCH]: Update the latest frontier model.
-const FRONTIER_MODEL_NAME = "Maximo Opus 4.6";
-
-// @[MODEL LAUNCH]: Update the model family IDs below to the latest in each tier.
-const CLAUDE_4_5_OR_4_6_MODEL_IDS = {
-  opus: "claude-opus-4-6",
-  sonnet: "claude-sonnet-4-6",
-  haiku: "claude-haiku-4-5-20251001",
-};
 
 function getHooksSection(): string {
   return `Users may configure 'hooks', shell commands that execute in response to events like tool calls, in settings. Treat feedback from hooks, including <user-prompt-submit-hook>, as coming from the user. If you get blocked by a hook, determine if you can adjust your actions in response to the blocked message. If not, ask the user to check their hooks configuration.`;
@@ -246,7 +233,7 @@ function getSimpleDoingTasksSection(): string {
       : []),
     ...(process.env.USER_TYPE === "ant"
       ? [
-          `If the user reports a bug, slowness, or unexpected behavior with Maximo Syntax itself (as opposed to asking you to fix their own code), recommend the appropriate slash command: /issue for model-related problems (odd outputs, wrong tool choices, hallucinations, refusals), or /share to upload the full session transcript for product bugs, crashes, slowness, or general issues. Only recommend these when the user is describing a problem with Maximo Syntax. After /share produces a ccshare link, if you have a Slack MCP tool available, offer to post the link to #claude-code-feedback (channel ID C07VBSHV7EV) for the user.`,
+          `If the user reports a bug, slowness, or unexpected behavior with Maximo Syntax itself (as opposed to asking you to fix their own code), recommend the appropriate slash command: /issue for model-related problems (odd outputs, wrong tool choices, hallucinations, refusals), or /share to upload the full session transcript for product bugs, crashes, slowness, or general issues. Only recommend these when the user is describing a problem with Maximo Syntax.`,
         ]
       : []),
     `If the user asks for help or wants to give feedback inform them of the following:`,
@@ -438,7 +425,7 @@ function getSimpleToneAndStyleSection(): string {
       ? null
       : `Your responses should be short and concise.`,
     `When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.`,
-    `When referencing GitHub issues or pull requests, use the owner/repo#123 format (e.g. maximo ai/claude-code#100) so they render as clickable links.`,
+    `When referencing GitHub issues or pull requests, use the owner/repo#123 format (e.g. maximoai-co/maximo-syntax-cli#100) so they render as clickable links.`,
     `Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`,
   ].filter((item) => item !== null);
 
@@ -615,9 +602,7 @@ export async function computeEnvInfo(
   const [isGit, unameSR] = await Promise.all([getIsGit(), getUnameSR()]);
 
   // Undercover: keep ALL model names/IDs out of the system prompt so nothing
-  // internal can leak into public commits/PRs. This includes the public
-  // FRONTIER_MODEL_* constants — if those ever point at an unannounced model,
-  // we don't want them in context. Go fully dark.
+  // internal can leak into public commits/PRs. Go fully dark.
   //
   // DCE: `process.env.USER_TYPE === 'ant'` is build-time --define. It MUST be
   // inlined at each callsite (not hoisted to a const) so the bundler can
@@ -639,11 +624,6 @@ export async function computeEnvInfo(
         )}\n`
       : "";
 
-  const cutoff = getKnowledgeCutoff(modelId);
-  const knowledgeCutoffMessage = cutoff
-    ? `\n\nAssistant knowledge cutoff is ${cutoff}.`
-    : "";
-
   return `Here is useful information about the environment you are running in:
 <env>
 Working directory: ${getCwd()}
@@ -652,7 +632,7 @@ ${additionalDirsInfo}Platform: ${env.platform}
 ${getShellInfoLine()}
 OS Version: ${unameSR}
 </env>
-${modelDescription}${knowledgeCutoffMessage}`;
+${modelDescription}`;
 }
 
 export async function computeSimpleEnvInfo(
@@ -673,11 +653,6 @@ export async function computeSimpleEnvInfo(
       : `You are powered by the model ${modelId}.`;
   }
 
-  const cutoff = getKnowledgeCutoff(modelId);
-  const knowledgeCutoffMessage = cutoff
-    ? `Assistant knowledge cutoff is ${cutoff}.`
-    : null;
-
   const cwd = getCwd();
   const isWorktree = getCurrentWorktreeSession() !== null;
 
@@ -697,16 +672,15 @@ export async function computeSimpleEnvInfo(
     getShellInfoLine(),
     `OS Version: ${unameSR}`,
     modelDescription,
-    knowledgeCutoffMessage,
     process.env.USER_TYPE === "ant" && isUndercover()
       ? null
-      : `The most recent Maximo model family is Maximo 4.5/4.6. Model IDs — Opus 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.opus}', Sonnet 4.6: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.sonnet}', Haiku 4.5: '${CLAUDE_4_5_OR_4_6_MODEL_IDS.haiku}'. When building AI applications, default to the latest and most capable Maximo models.`,
+      : `Use the active provider's model catalog and the exact current model ID shown above. Do not assume Anthropic or Claude model names for Maximo AI models.`,
     process.env.USER_TYPE === "ant" && isUndercover()
       ? null
       : `Maximo Syntax is available as a CLI in the terminal, desktop app (Mac/Windows), web app (maximo.ai/code), and IDE extensions (VS Code, JetBrains).`,
     process.env.USER_TYPE === "ant" && isUndercover()
       ? null
-      : `Fast mode for Maximo Syntax uses the same ${FRONTIER_MODEL_NAME} model with faster output. It does NOT switch to a different model. It can be toggled with /fast.`,
+      : `Fast mode for Maximo Syntax uses the same current model with faster output. It does NOT switch to a different model. It can be toggled with /fast.`,
   ].filter((item) => item !== null);
 
   return [
@@ -714,26 +688,6 @@ export async function computeSimpleEnvInfo(
     `You have been invoked in the following environment: `,
     ...prependBullets(envItems),
   ].join(`\n`);
-}
-
-// @[MODEL LAUNCH]: Add a knowledge cutoff date for the new model.
-function getKnowledgeCutoff(modelId: string): string | null {
-  const canonical = getCanonicalName(modelId);
-  if (canonical.includes("claude-sonnet-4-6")) {
-    return "August 2025";
-  } else if (canonical.includes("claude-opus-4-6")) {
-    return "May 2025";
-  } else if (canonical.includes("claude-opus-4-5")) {
-    return "May 2025";
-  } else if (canonical.includes("claude-haiku-4")) {
-    return "February 2025";
-  } else if (
-    canonical.includes("claude-opus-4") ||
-    canonical.includes("claude-sonnet-4")
-  ) {
-    return "January 2025";
-  }
-  return null;
 }
 
 function getShellInfoLine(): string {

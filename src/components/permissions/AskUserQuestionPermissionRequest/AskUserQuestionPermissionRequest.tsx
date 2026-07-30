@@ -29,7 +29,6 @@ import {
 } from "../../../utils/cliHighlight.js";
 import type { PastedContent } from "../../../utils/config.js";
 import type { ImageDimensions } from "../../../utils/imageResizer.js";
-import { maybeResizeAndDownsampleImageBlock } from "../../../utils/imageResizer.js";
 import { cacheImagePath, storeImage } from "../../../utils/imageStore.js";
 import { logError } from "../../../utils/log.js";
 import { applyMarkdown } from "../../../utils/markdown.js";
@@ -833,19 +832,15 @@ async function convertImagesToBlocks(
   images: PastedContent[]
 ): Promise<ImageBlockParam[] | undefined> {
   if (images.length === 0) return undefined;
-  return Promise.all(
-    images.map(async (img) => {
-      const block: ImageBlockParam = {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: (img.mediaType ||
-            "image/png") as Base64ImageSource["media_type"],
-          data: img.content,
-        },
-      };
-      const resized = await maybeResizeAndDownsampleImageBlock(block);
-      return resized.block;
+  return images.map(
+    (img): ImageBlockParam => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: (img.mediaType ||
+          "image/png") as Base64ImageSource["media_type"],
+        data: img.content,
+      },
     })
   );
 }

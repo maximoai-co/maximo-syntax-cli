@@ -11,8 +11,10 @@ import { useTerminalNotification } from "../ink/useTerminalNotification.js";
 import { Box, Link, Text } from "../ink.js";
 import { useKeybinding } from "../keybindings/useKeybinding.js";
 import { getSSLErrorHint } from "../services/api/errorUtils.js";
+import { configureMyTabulonProvider } from "../services/api/maximoModels.js";
 import { sendNotification } from "../services/notifier.js";
 import { OAuthService } from "../services/oauth/index.js";
+import { MyTabulonOAuthService } from "../services/oauth/mytabulon.js";
 import { getOauthAccountInfo, validateForceLoginOrg } from "../utils/auth.js";
 import { logError } from "../utils/log.js";
 import { getSettings_DEPRECATED } from "../utils/settings/settings.js";
@@ -24,7 +26,7 @@ type Props = {
   onDone(): void;
   startingMessage?: string;
   mode?: "login" | "setup-token";
-  forceLoginMethod?: "maximoai" | "console";
+  forceLoginMethod?: "maximoai" | "console" | "mytabulon";
 };
 type OAuthStatus =
   | {
@@ -39,6 +41,16 @@ type OAuthStatus =
   | {
       state: "maximoai_api_key_input";
     } // Input Maximo AI API key
+  | {
+      state: "mytabulon_method";
+    } // Choose browser login or API key
+  | {
+      state: "mytabulon_setup";
+    } // Show MyTabulon Coding Plan API key setup
+  | {
+      state: "mytabulon_waiting_for_login";
+      url: string;
+    }
   | {
       state: "ready_to_start";
     } // Flow started, waiting for browser to open
@@ -76,7 +88,9 @@ export function ConsoleOAuthFlow({
     forceLoginMethod === "maximoai"
       ? "Login method pre-selected: Maximo AI account with subscription"
       : forceLoginMethod === "console"
-      ? "Login method pre-selected: API Usage Billing (Anthropic Console)"
+      ? "Login method pre-selected: Maximo AI API Usage Billing"
+      : forceLoginMethod === "mytabulon"
+      ? "Login method pre-selected: MyTabulon Coding Plan"
       : null;
   const terminal = useTerminalNotification();
   const [oauthStatus, setOAuthStatus] = useState<OAuthStatus>(() => {
@@ -90,6 +104,11 @@ export function ConsoleOAuthFlow({
         state: "ready_to_start",
       };
     }
+    if (forceLoginMethod === "mytabulon") {
+      return {
+        state: "mytabulon_method",
+      };
+    }
     return {
       state: "idle",
     };
@@ -97,6 +116,9 @@ export function ConsoleOAuthFlow({
   const [pastedCode, setPastedCode] = useState("");
   const [cursorOffset, setCursorOffset] = useState(0);
   const [oauthService] = useState(() => new OAuthService());
+  const [myTabulonOAuthService] = useState(
+    () => new MyTabulonOAuthService()
+  );
   const [loginWithMaximoAi, setLoginWithMaximoAi] = useState(() => {
     // Use Maximo AI auth for setup-token mode to support user:inference scope
     return mode === "setup-token" || forceLoginMethod === "maximoai";
@@ -118,6 +140,8 @@ export function ConsoleOAuthFlow({
       logEvent("tengu_oauth_maximoai_forced", {});
     } else if (forceLoginMethod === "console") {
       logEvent("tengu_oauth_console_forced", {});
+    } else if (forceLoginMethod === "mytabulon") {
+      logEvent("tengu_oauth_mytabulon_forced", {});
     }
   }, [forceLoginMethod]);
 
@@ -184,14 +208,19 @@ export function ConsoleOAuthFlow({
     },
     {
       context: "Navigation",
-      isActive: oauthStatus.state === "maximoai_setup",
+      isActive:
+        oauthStatus.state === "maximoai_setup" ||
+        oauthStatus.state === "mytabulon_method" ||
+        oauthStatus.state === "mytabulon_setup",
     }
   );
   useEffect(() => {
     if (
       pastedCode === "c" &&
-      oauthStatus.state === "waiting_for_login" &&
-      showPastePrompt &&
+      (oauthStatus.state === "waiting_for_login" ||
+        oauthStatus.state === "mytabulon_waiting_for_login") &&
+      (showPastePrompt ||
+        oauthStatus.state === "mytabulon_waiting_for_login") &&
       !urlCopied
     ) {
       void setClipboard(oauthStatus.url).then((raw) => {
@@ -202,6 +231,36 @@ export function ConsoleOAuthFlow({
       setPastedCode("");
     }
   }, [pastedCode, oauthStatus, showPastePrompt, urlCopied]);
+  const startMyTabulonOAuth = useCallback(async () => {
+    try {
+      logEvent("tengu_oauth_mytabulon_browser_start", {});
+      const apiKey = await myTabulonOAuthService.startOAuthFlow(
+        async (url) => {
+          setOAuthStatus({
+            state: "mytabulon_waiting_for_login",
+            url,
+          });
+        }
+      );
+      await configureMyTabulonProvider(apiKey);
+      logEvent("tengu_oauth_mytabulon_browser_success", {});
+      setOAuthStatus({ state: "success" });
+      void sendNotification(
+        {
+          message: "MyTabulon Coding Plan login successful",
+          notificationType: "auth_success",
+        },
+        terminal
+      );
+    } catch (error) {
+      logError(error);
+      setOAuthStatus({
+        state: "error",
+        message: (error as Error).message,
+        toRetry: { state: "mytabulon_method" },
+      });
+    }
+  }, [myTabulonOAuthService, terminal]);
   async function handleSubmitCode(value: string, url: string) {
     try {
       // Expecting format "authorizationCode#state" from the authorization callback URL
@@ -374,11 +433,15 @@ export function ConsoleOAuthFlow({
   useEffect(() => {
     return () => {
       oauthService.cleanup();
+      myTabulonOAuthService.cleanup();
     };
-  }, [oauthService]);
+  }, [myTabulonOAuthService, oauthService]);
   return (
     <Box flexDirection="column" gap={1}>
-      {oauthStatus.state === "waiting_for_login" && showPastePrompt && (
+      {(oauthStatus.state === "waiting_for_login" ||
+        oauthStatus.state === "mytabulon_waiting_for_login") &&
+        (oauthStatus.state === "mytabulon_waiting_for_login" ||
+          showPastePrompt) && (
         <Box flexDirection="column" key="urlToCopy" gap={1} paddingBottom={1}>
           <Box paddingX={1}>
             <Text dimColor>
@@ -437,6 +500,7 @@ export function ConsoleOAuthFlow({
           setMaximoApiKey={setMaximoApiKey}
           maximoApiKeyCursor={maximoApiKeyCursor}
           setMaximoApiKeyCursor={setMaximoApiKeyCursor}
+          startMyTabulonOAuth={startMyTabulonOAuth}
           onDone={onDone}
         />
       </Box>
@@ -461,6 +525,7 @@ type OAuthStatusMessageProps = {
   setMaximoApiKey: (value: string) => void;
   maximoApiKeyCursor: number;
   setMaximoApiKeyCursor: (offset: number) => void;
+  startMyTabulonOAuth: () => Promise<void>;
   onDone: () => void;
 };
 function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
@@ -483,6 +548,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
     setMaximoApiKey,
     maximoApiKeyCursor,
     setMaximoApiKeyCursor,
+    startMyTabulonOAuth,
     onDone,
   } = t0;
   switch (oauthStatus.state) {
@@ -514,7 +580,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
               {"\n"}
             </Text>
           ),
-          value: "maximoai",
+          value: "maximoai_api",
         };
         $[3] = t_maximo;
       } else {
@@ -552,12 +618,12 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         t5 = {
           label: (
             <Text>
-              Anthropic Console account ·{" "}
-              <Text dimColor={true}>API Platform billing</Text>
+              MyTabulon Coding Plan ·{" "}
+              <Text dimColor={true}>API key from platform.mytabulon.com</Text>
               {"\n"}
             </Text>
           ),
-          value: "console",
+          value: "mytabulon",
         };
         $[5] = t5;
       } else {
@@ -593,10 +659,15 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
             <Select
               options={t6}
               onChange={(value_0: string) => {
-                if (value_0 === "maximoai") {
+                if (value_0 === "maximoai_api") {
                   logEvent("tengu_oauth_maximoai_selected", {});
                   setOAuthStatus({
                     state: "maximoai_setup",
+                  });
+                } else if (value_0 === "mytabulon") {
+                  logEvent("tengu_oauth_mytabulon_selected", {});
+                  setOAuthStatus({
+                    state: "mytabulon_method",
                   });
                 } else if (value_0 === "platform") {
                   logEvent("tengu_oauth_platform_selected", {});
@@ -686,12 +757,15 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                   process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
                   process.env.OPENAI_API_KEY = apiKey;
                   process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
+                  process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
                   // Save to global config
                   const { saveGlobalConfig } = require("../utils/config.js");
                   saveGlobalConfig((current: any) => ({
                     ...current,
                     maximoApiKey: apiKey,
                     openAIBaseUrl: "https://api.maximoai.co/v1",
+                    mytabulonDefaultModel: undefined,
+                    mytabulonAccount: undefined,
                   }));
                   logEvent("tengu_oauth_maximoai_api_key_saved", {});
                   // Also need to refresh the provider settings so it takes effect immediately
@@ -732,6 +806,165 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
           <Box flexDirection="column" marginTop={1}>
             <Text dimColor>
               Get your API key from: https://maximoai.co/platform
+            </Text>
+            <Box marginTop={1}>
+              <Text dimColor>
+                Press <Text bold>Escape</Text> to go back.
+              </Text>
+            </Box>
+          </Box>
+        );
+        $[20] = t4;
+      } else {
+        t4 = $[20];
+      }
+      let t5;
+      if ($[21] !== t1 || $[22] !== t2 || $[23] !== t3 || $[24] !== t4) {
+        t5 = (
+          <Box flexDirection="column" gap={1} marginTop={1}>
+            {t1}
+            {t2}
+            {t3}
+            {t4}
+          </Box>
+        );
+        $[21] = t1;
+        $[22] = t2;
+        $[23] = t3;
+        $[24] = t4;
+        $[25] = t5;
+      } else {
+        t5 = $[25];
+      }
+      return t5;
+    }
+    case "mytabulon_method": {
+      return (
+        <Box flexDirection="column" gap={1} marginTop={1}>
+          <Text bold>Connect with MyTabulon Coding Plan</Text>
+          <Text>
+            Sign in securely in your browser, or use an existing Coding Plan
+            API key.
+          </Text>
+          <Select
+            options={[
+              {
+                label: (
+                  <Text>
+                    Continue in browser ·{" "}
+                    <Text dimColor>Recommended, no key copying</Text>
+                    {"\n"}
+                  </Text>
+                ),
+                value: "browser",
+              },
+              {
+                label: (
+                  <Text>
+                    Enter API key ·{" "}
+                    <Text dimColor>Use an existing mtb_live_ key</Text>
+                    {"\n"}
+                  </Text>
+                ),
+                value: "api_key",
+              },
+            ]}
+            onChange={(value: string) => {
+              if (value === "browser") {
+                void startMyTabulonOAuth();
+              } else {
+                setOAuthStatus({ state: "mytabulon_setup" });
+              }
+            }}
+          />
+          <Text dimColor>
+            Press <Text bold>Escape</Text> to go back.
+          </Text>
+        </Box>
+      );
+    }
+    case "mytabulon_setup": {
+      let t1;
+      if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+        t1 = <Text bold={true}>Connect with MyTabulon Coding Plan</Text>;
+        $[12] = t1;
+      } else {
+        t1 = $[12];
+      }
+      let t2;
+      if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+        t2 = (
+          <Text>
+            MyTabulon Coding Plan is OpenAI-compatible. Enter your API key below
+            to connect.{"\n"}
+            Your key will be saved securely and used for all API calls.
+          </Text>
+        );
+        $[13] = t2;
+      } else {
+        t2 = $[13];
+      }
+      let t3;
+      if (
+        $[14] !== maximoApiKey ||
+        $[15] !== maximoApiKeyCursor ||
+        $[16] !== setMaximoApiKey ||
+        $[17] !== setMaximoApiKeyCursor ||
+        $[18] !== textInputColumns
+      ) {
+        t3 = (
+          <Box flexDirection="column">
+            <Text>{"Enter your MyTabulon Coding Plan API key:"}</Text>
+            <TextInput
+              value={maximoApiKey}
+              onChange={setMaximoApiKey}
+              onSubmit={(value: string) => {
+                if (!value.trim()) {
+                  setOAuthStatus({
+                    state: "error",
+                    message: "Enter your MyTabulon Coding Plan API key.",
+                    toRetry: { state: "mytabulon_setup" },
+                  });
+                  return;
+                }
+                void configureMyTabulonProvider(value)
+                  .then(() => {
+                    logEvent("tengu_oauth_mytabulon_api_key_saved", {});
+                    setOAuthStatus({ state: "success" });
+                  })
+                  .catch((error) => {
+                    logError(error);
+                    setOAuthStatus({
+                      state: "error",
+                      message: (error as Error).message,
+                      toRetry: { state: "mytabulon_setup" },
+                    });
+                  });
+              }}
+              cursorOffset={maximoApiKeyCursor}
+              onChangeCursorOffset={setMaximoApiKeyCursor}
+              columns={textInputColumns}
+              mask="*"
+              placeholder="Enter your MyTabulon API key..."
+            />
+          </Box>
+        );
+        $[14] = maximoApiKey;
+        $[15] = maximoApiKeyCursor;
+        $[16] = setMaximoApiKey;
+        $[17] = setMaximoApiKeyCursor;
+        $[18] = textInputColumns;
+        $[19] = t3;
+      } else {
+        t3 = $[19];
+      }
+      let t4;
+      if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
+        t4 = (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>
+              Get your API key from:
+              https://platform.mytabulon.com/dashboard/keys
             </Text>
             <Box marginTop={1}>
               <Text dimColor>
@@ -964,6 +1197,17 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         t4 = $[36];
       }
       return t4;
+    }
+    case "mytabulon_waiting_for_login": {
+      return (
+        <Box>
+          <Spinner />
+          <Text>
+            Waiting for approval in your browser. This request grants only the{" "}
+            <Text bold>ai.coding</Text> scope…
+          </Text>
+        </Box>
+      );
     }
     case "creating_api_key": {
       let t1;

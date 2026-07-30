@@ -53,7 +53,7 @@ function isBase64ImageBlock(
  * This is a safety net at the API boundary to catch any oversized images
  * that may have slipped through upstream processing.
  *
- * Note: The API's 5MB limit applies to the base64-encoded string length,
+ * Note: The API's 10MB limit applies to the base64-encoded string length,
  * not the decoded raw bytes.
  *
  * Works with both UserMessage/AssistantMessage types (which have { type, message })

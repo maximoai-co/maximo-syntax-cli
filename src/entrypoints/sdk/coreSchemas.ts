@@ -73,7 +73,7 @@ export const ThinkingAdaptiveSchema = lazySchema(() =>
     .object({
       type: z.literal("adaptive"),
     })
-    .describe("Maximo decides when and how much to think (Opus 4.6+).")
+    .describe("Maximo decides when and how much to think when the active model supports adaptive reasoning.")
 );
 
 export const ThinkingEnabledSchema = lazySchema(() =>
@@ -1058,7 +1058,17 @@ export const ModelInfoSchema = lazySchema(() =>
         .optional()
         .describe("Whether this model supports effort levels"),
       supportedEffortLevels: z
-        .array(z.enum(["low", "medium", "high", "max"]))
+        .array(
+          z.enum([
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra",
+          ])
+        )
         .optional()
         .describe("Available effort levels for this model"),
       supportsAdaptiveThinking: z
@@ -1129,7 +1139,7 @@ export const AgentDefinitionSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          "Model alias (e.g. 'sonnet', 'opus', 'haiku') or full model ID (e.g. 'claude-opus-4-5'). If omitted or 'inherit', uses the main model"
+          "Model ID from the active provider (e.g. 'maximo-pandora-3.8-nano') or 'inherit'. If omitted or 'inherit', uses the main model"
         ),
       mcpServers: z.array(AgentMcpServerSpecSchema()).optional(),
       criticalSystemReminder_EXPERIMENTAL: z
@@ -1167,7 +1177,18 @@ export const AgentDefinitionSchema = lazySchema(() =>
           "Scope for auto-loading agent memory files. 'user' - ~/.maximo/agent-memory/<agentType>/, 'project' - .maximo/agent-memory/<agentType>/, 'local' - .maximo/agent-memory-local/<agentType>/"
         ),
       effort: z
-        .union([z.enum(["low", "medium", "high", "max"]), z.number().int()])
+        .union([
+          z.enum([
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra",
+          ]),
+          z.number().int(),
+        ])
         .optional()
         .describe(
           "Reasoning effort level for this agent. Either a named level or an integer"

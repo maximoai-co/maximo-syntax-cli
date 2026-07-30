@@ -249,7 +249,16 @@ export function Usage(): React.ReactNode {
   // Show for null (unknown plan) to stay consistent with rateLimitMessages.ts,
   // which labels it "Sonnet limit" in that case.
   const subscriptionType = getSubscriptionType();
-  const showSonnetBar = subscriptionType === 'max' || subscriptionType === 'team' || subscriptionType === null;
+  const showSonnetBar = !utilization.coding_plan && (subscriptionType === 'max' || subscriptionType === 'team' || subscriptionType === null);
+  const codingPlanTotals = utilization.coding_plan?.daily.reduce((totals, day) => ({
+    requests: totals.requests + Number(day.requests || 0),
+    inputTokens: totals.inputTokens + Number(day.input_tokens || 0),
+    outputTokens: totals.outputTokens + Number(day.output_tokens || 0),
+  }), {
+    requests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+  });
   const limits = [{
     title: 'Current session',
     limit: utilization.five_hour
@@ -261,6 +270,16 @@ export function Usage(): React.ReactNode {
     limit: utilization.seven_day_sonnet
   }] : [])];
   return <Box flexDirection="column" gap={1} width="100%">
+      {utilization.coding_plan && <Box flexDirection="column">
+        <Text bold>{utilization.coding_plan.name}</Text>
+        <Text dimColor>
+          {utilization.coding_plan.active ? 'Active' : 'Inactive'} · {utilization.coding_plan.models.length} model{utilization.coding_plan.models.length === 1 ? '' : 's'}
+          {utilization.coding_plan.concurrency ? ` · ${utilization.coding_plan.concurrency} concurrent request${utilization.coding_plan.concurrency === 1 ? '' : 's'}` : ''}
+        </Text>
+        {codingPlanTotals && <Text dimColor>
+          Recent usage · {codingPlanTotals.requests.toLocaleString()} requests · {codingPlanTotals.inputTokens.toLocaleString()} input tokens · {codingPlanTotals.outputTokens.toLocaleString()} output tokens
+        </Text>}
+      </Box>}
       {limits.some(({
       limit
     }) => limit) || <Text dimColor>/usage is only available for subscription plans.</Text>}

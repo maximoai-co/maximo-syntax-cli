@@ -9,7 +9,7 @@ import { homedir, userInfo } from "os";
 import { join } from "path";
 
 /** macOS preference domain for Maximo Syntax MDM profiles. */
-export const MACOS_PREFERENCE_DOMAIN = "com.anthropic.claudecode";
+export const MACOS_PREFERENCE_DOMAIN = "com.maximoai.maximo-syntax";
 
 /**
  * Windows registry key paths for Maximo Syntax MDM policies.

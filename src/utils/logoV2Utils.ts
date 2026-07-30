@@ -22,6 +22,7 @@ import {
   loadMessageLogs,
 } from "./sessionStorage.js";
 import { getInitialSettings } from "./settings/settings.js";
+import { getGlobalConfig } from "./config.js";
 
 // Layout constants
 const MAX_LEFT_WIDTH = 50;
@@ -285,7 +286,13 @@ export function getLogoDisplayData(): {
   const cwd = serverUrl
     ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, "")}`
     : displayPath;
-  const billingType = hasMaximoAISubscriptionDisplayAccount()
+  const globalConfig = getGlobalConfig();
+  const billingType = globalConfig.openAIBaseUrl?.includes(
+    "api.mytabulon.com"
+  )
+    ? globalConfig.mytabulonAccount?.codingPlanName ||
+      "MyTabulon Coding Plan"
+    : hasMaximoAISubscriptionDisplayAccount()
     ? getSubscriptionNameForDisplay()
     : "API Usage Billing";
   const agentName = getInitialSettings().agent;

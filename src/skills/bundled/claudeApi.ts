@@ -181,9 +181,9 @@ export function registerMaximoApiSkill(): void {
   registerBundledSkill({
     name: "claude-api",
     description:
-      "Build apps with the Maximo API or Anthropic SDK.\n" +
-      "TRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`/`claude_agent_sdk`, or user asks to use Maximo API, Anthropic SDKs, or Agent SDK.\n" +
-      "DO NOT TRIGGER when: code imports `openai`/other AI SDK, general programming, or ML/data-science tasks.",
+      "Compatibility help for apps using the third-party Anthropic SDK.\n" +
+      "TRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`/`claude_agent_sdk`, or the user explicitly asks for Anthropic SDK compatibility.\n" +
+      "DO NOT TRIGGER when: the user asks about Maximo AI, code imports `openai`/another AI SDK, general programming, or ML/data-science tasks.",
     allowedTools: ["Read", "Grep", "Glob", "WebFetch"],
     userInvocable: true,
     async getPromptForCommand(args) {

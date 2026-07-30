@@ -102,7 +102,6 @@ import type {
 /* eslint-enable @typescript-eslint/no-require-imports */
 import type { PastedContent } from "../../../utils/config.js";
 import type { ImageDimensions } from "../../../utils/imageResizer.js";
-import { maybeResizeAndDownsampleImageBlock } from "../../../utils/imageResizer.js";
 import { cacheImagePath, storeImage } from "../../../utils/imageStore.js";
 type ResponseValue =
   | "yes-bypass-permissions"
@@ -657,22 +656,18 @@ export function ExitPlanModePermissionRequest({
         planStructureVariant,
       });
 
-      // Convert pasted images to ImageBlockParam[] with resizing
+      // Preserve pasted image bytes exactly as supplied.
       let imageBlocks: ImageBlockParam[] | undefined;
       if (hasImages) {
-        imageBlocks = await Promise.all(
-          imageAttachments.map(async (img) => {
-            const block: ImageBlockParam = {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: (img.mediaType ||
-                  "image/png") as Base64ImageSource["media_type"],
-                data: img.content,
-              },
-            };
-            const resized = await maybeResizeAndDownsampleImageBlock(block);
-            return resized.block;
+        imageBlocks = imageAttachments.map(
+          (img): ImageBlockParam => ({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: (img.mediaType ||
+                "image/png") as Base64ImageSource["media_type"],
+              data: img.content,
+            },
           })
         );
       }

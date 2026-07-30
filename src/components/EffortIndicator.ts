@@ -26,13 +26,16 @@ export function getEffortNotificationText(
 
 export function effortLevelToSymbol(level: EffortLevel): string {
   switch (level) {
+    case 'minimal':
     case 'low':
       return EFFORT_LOW
     case 'medium':
       return EFFORT_MEDIUM
     case 'high':
       return EFFORT_HIGH
+    case 'xhigh':
     case 'max':
+    case 'ultra':
       return EFFORT_MAX
     default:
       // Defensive: level can originate from remote config. If an unknown

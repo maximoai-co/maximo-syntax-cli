@@ -439,7 +439,15 @@ export async function performCodexRequest(options: {
     }
   }
 
-  if (options.request.reasoning) {
+  const outputConfig =
+    options.params.output_config &&
+    typeof options.params.output_config === 'object' &&
+    !Array.isArray(options.params.output_config)
+      ? (options.params.output_config as Record<string, unknown>)
+      : undefined
+  if (typeof outputConfig?.effort === 'string' && outputConfig.effort) {
+    body.reasoning = { effort: outputConfig.effort }
+  } else if (options.request.reasoning) {
     body.reasoning = options.request.reasoning
   }
 

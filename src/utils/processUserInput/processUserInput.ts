@@ -364,7 +364,8 @@ async function processUserInputBase(
     ? await storeImages(pastedContents)
     : new Map<number, string>();
 
-  // Resize pasted images to ensure they fit within API limits (parallel processing)
+  // Preserve pasted images byte-for-byte. Clipboard and drag/drop attachments
+  // must reach the model exactly as the user supplied them.
   queryCheckpoint("query_pasted_image_processing_start");
   const imageProcessingResults = await Promise.all(
     imageContents.map(async (pastedImage) => {
@@ -377,12 +378,8 @@ async function processUserInputBase(
           data: pastedImage.content,
         },
       };
-      logEvent("tengu_pasted_image_resize_attempt", {
-        original_size_bytes: pastedImage.content.length,
-      });
-      const resized = await maybeResizeAndDownsampleImageBlock(imageBlock);
       return {
-        resized,
+        imageBlock,
         originalDimensions: pastedImage.dimensions,
         sourcePath:
           pastedImage.sourcePath ?? storedImagePaths.get(pastedImage.id),
@@ -392,21 +389,11 @@ async function processUserInputBase(
   // Collect results preserving order
   const imageContentBlocks: ContentBlockParam[] = [];
   for (const {
-    resized,
+    imageBlock,
     originalDimensions,
     sourcePath,
   } of imageProcessingResults) {
-    // Collect image metadata for isMeta message (prefer resized dimensions)
-    if (resized.dimensions) {
-      const metadataText = createImageMetadataText(
-        resized.dimensions,
-        sourcePath
-      );
-      if (metadataText) {
-        imageMetadataTexts.push(metadataText);
-      }
-    } else if (originalDimensions) {
-      // Fall back to original dimensions if resize didn't provide them
+    if (originalDimensions) {
       const metadataText = createImageMetadataText(
         originalDimensions,
         sourcePath
@@ -418,7 +405,7 @@ async function processUserInputBase(
       // If we have a source path but no dimensions, still add source info
       imageMetadataTexts.push(`[Image source: ${sourcePath}]`);
     }
-    imageContentBlocks.push(resized.block);
+    imageContentBlocks.push(imageBlock);
   }
   queryCheckpoint("query_pasted_image_processing_end");
 

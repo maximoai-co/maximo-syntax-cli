@@ -184,6 +184,12 @@ export function applySafeConfigEnvironmentVariables(): void {
     process.env.OPENAI_API_KEY = globalConfig.maximoApiKey;
     process.env.OPENAI_BASE_URL =
       globalConfig.openAIBaseUrl || "https://api.maximoai.co/v1";
+    if (!process.env.OPENAI_MODEL) {
+      process.env.OPENAI_MODEL =
+        globalConfig.openAIBaseUrl?.includes("api.mytabulon.com")
+          ? globalConfig.mytabulonDefaultModel || "maximo-atlas-preview"
+          : "maximo-pandora-3.8-nano";
+    }
   }
 }
 

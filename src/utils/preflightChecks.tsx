@@ -26,18 +26,17 @@ async function checkEndpoints(): Promise<PreflightCheckResult> {
       url: string
     ): Promise<PreflightCheckResult> => {
       try {
-        const response = await axios.get(url, {
+        // A connectivity check only cares whether the host is reachable.
+        // Any HTTP response (2xx, 4xx, 5xx) means DNS resolved and the
+        // connection succeeded — only network-level failures (ENOTFOUND,
+        // ECONNREFUSED, timeouts, TLS cert errors) indicate a real problem.
+        await axios.get(url, {
           headers: {
             "User-Agent": getUserAgent(),
           },
+          // Don't throw on non-2xx; we only need to know the host answered.
+          validateStatus: () => true,
         });
-        if (response.status !== 200) {
-          const hostname = new URL(url).hostname;
-          return {
-            success: false,
-            error: `Failed to connect to ${hostname}: Status ${response.status}`,
-          };
-        }
         return {
           success: true,
         };

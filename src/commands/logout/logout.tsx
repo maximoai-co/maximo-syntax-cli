@@ -49,6 +49,8 @@ export async function performLogout({
     // Clear Maximo AI API key and base URL to prevent auto-login
     updated.maximoApiKey = undefined;
     updated.openAIBaseUrl = undefined;
+    updated.mytabulonDefaultModel = undefined;
+    updated.mytabulonAccount = undefined;
     return updated;
   });
 }

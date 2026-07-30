@@ -1,12 +1,8 @@
 import { feature } from 'bun:bundle'
 import { randomBytes } from 'crypto'
 import { execa } from 'execa'
-import { basename, extname, isAbsolute, join } from 'path'
-import {
-  IMAGE_MAX_HEIGHT,
-  IMAGE_MAX_WIDTH,
-  IMAGE_TARGET_RAW_SIZE,
-} from '../constants/apiLimits.js'
+import { homedir } from 'os'
+import { basename, extname, isAbsolute, join, resolve } from 'path'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { getImageProcessor } from '../tools/FileReadTool/imageProcessor.js'
 import { logForDebugging } from './debug.js'
@@ -15,7 +11,6 @@ import { getFsImplementation } from './fsOperations.js'
 import {
   detectImageFormatFromBase64,
   type ImageDimensions,
-  maybeResizeAndDownsampleImageBuffer,
 } from './imageResizer.js'
 import { logError } from './log.js'
 
@@ -36,7 +31,7 @@ function getClipboardCommands() {
   const baseTmpDir =
     process.env.MAXIMO_SYNTAX_TMPDIR ||
     (platform === 'win32' ? process.env.TEMP || 'C:\\Temp' : '/tmp')
-  const screenshotFilename = 'claude_cli_latest_screenshot.png'
+  const screenshotFilename = 'maximo_syntax_latest_screenshot.png'
   const tempPaths: Record<SupportedPlatform, string> = {
     darwin: join(baseTmpDir, screenshotFilename),
     linux: join(baseTmpDir, screenshotFilename),
@@ -56,8 +51,8 @@ function getClipboardCommands() {
     }
   > = {
     darwin: {
-      checkImage: `osascript -e 'the clipboard as «class PNGf»'`,
-      saveImage: `osascript -e 'set png_data to (the clipboard as «class PNGf»)' -e 'set fp to open for access POSIX file "${screenshotPath}" with write permission' -e 'write png_data to fp' -e 'close access fp'`,
+      checkImage: `osascript -e 'the clipboard as «class PNGf»' >/dev/null 2>&1 || osascript -e 'the clipboard as «class TIFF»' >/dev/null 2>&1`,
+      saveImage: `osascript -e 'set image_data to (the clipboard as «class PNGf»)' -e 'set fp to open for access POSIX file "${screenshotPath}" with write permission' -e 'set eof fp to 0' -e 'write image_data to fp' -e 'close access fp' || osascript -e 'set image_data to (the clipboard as «class TIFF»)' -e 'set fp to open for access POSIX file "${screenshotPath}" with write permission' -e 'set eof fp to 0' -e 'write image_data to fp' -e 'close access fp'`,
       getPath: `osascript -e 'get POSIX path of (the clipboard as «class furl»)'`,
       deleteFile: `rm -f "${screenshotPath}"`,
     },
@@ -88,6 +83,101 @@ export type ImageWithDimensions = {
   base64: string
   mediaType: string
   dimensions?: ImageDimensions
+  sourcePath?: string
+  originalSizeBytes?: number
+}
+
+function readImageDimensions(
+  buffer: Buffer,
+): { width: number; height: number } | null {
+  // PNG: width and height are fixed-width fields in IHDR.
+  if (
+    buffer.length >= 24 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    }
+  }
+
+  // GIF: logical screen width and height are little-endian.
+  if (
+    buffer.length >= 10 &&
+    buffer.subarray(0, 3).toString('ascii') === 'GIF'
+  ) {
+    return {
+      width: buffer.readUInt16LE(6),
+      height: buffer.readUInt16LE(8),
+    }
+  }
+
+  // JPEG: scan for a Start Of Frame marker carrying dimensions.
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    const sofMarkers = new Set([
+      0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd,
+      0xce, 0xcf,
+    ])
+    let offset = 2
+    while (offset + 8 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1
+        continue
+      }
+      const marker = buffer[offset + 1]
+      if (marker === undefined) break
+      if (marker === 0xff || marker === 0x00) {
+        offset += 1
+        continue
+      }
+      if (sofMarkers.has(marker)) {
+        return {
+          height: buffer.readUInt16BE(offset + 5),
+          width: buffer.readUInt16BE(offset + 7),
+        }
+      }
+      // Standalone markers do not carry a segment length.
+      if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2
+        continue
+      }
+      if (offset + 3 >= buffer.length) break
+      const segmentLength = buffer.readUInt16BE(offset + 2)
+      if (segmentLength < 2) break
+      offset += 2 + segmentLength
+    }
+  }
+
+  return null
+}
+
+async function prepareImageForPaste(
+  imageBuffer: Buffer,
+  _extension: string,
+): Promise<ImageWithDimensions> {
+  const base64 = imageBuffer.toString('base64')
+  const mediaType = detectImageFormatFromBase64(base64)
+  const dimensions = readImageDimensions(imageBuffer)
+
+  // Preserve the source bytes exactly. Model providers can apply their own
+  // limits or transforms, but the CLI must not silently resize, recompress,
+  // or change the format of a user's clipboard/drop attachment.
+  return {
+    base64,
+    mediaType,
+    originalSizeBytes: imageBuffer.length,
+    dimensions: dimensions
+      ? {
+          originalWidth: dimensions.width,
+          originalHeight: dimensions.height,
+          displayWidth: dimensions.width,
+          displayHeight: dimensions.height,
+        }
+      : undefined,
+  }
 }
 
 /**
@@ -122,12 +212,18 @@ export async function hasImageInClipboard(): Promise<boolean> {
 }
 
 export async function getImageFromClipboard(): Promise<ImageWithDimensions | null> {
+  // Prefer an actual clipboard file URL over a rasterized pasteboard flavor.
+  // This keeps copied Finder images in their original format and preserves
+  // every source byte, just like a dragged file attachment.
+  const clipboardFile = await tryReadImageFileFromClipboard()
+  if (clipboardFile) return clipboardFile
+
   // Fast path: native NSPasteboard reader (macOS only). Reads PNG bytes
-  // directly in-process and downsamples via CoreGraphics if over the
-  // dimension cap. ~5ms cold, sub-ms warm — vs. ~1.5s for the osascript
-  // path below. Throws if the native module is unavailable, in which case
-  // the catch block falls through to osascript. A `null` return from the
-  // native call is authoritative (clipboard has no image).
+  // directly in-process at the original resolution. ~5ms cold, sub-ms warm
+  // — vs. ~1.5s for the osascript path below. Throws if the native module is
+  // unavailable, in which case the catch block falls through to osascript.
+  // A `null` return means the bitmap flavor was unavailable, so copied Finder
+  // files still fall through to the file-URL path.
   if (
     feature('NATIVE_CLIPBOARD_IMAGE') &&
     process.platform === 'darwin' &&
@@ -139,44 +235,25 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
       if (!readClipboard) {
         throw new Error('native clipboard reader unavailable')
       }
-      const native = readClipboard(IMAGE_MAX_WIDTH, IMAGE_MAX_HEIGHT)
-      if (!native) {
-        return null
-      }
-      // The native path caps dimensions but not file size. A complex
-      // 2000×2000 PNG can still exceed the 3.75MB raw / 5MB base64 API
-      // limit — for that edge case, run through the same size-cap that
-      // the osascript path uses (degrades to JPEG if needed). Cheap if
-      // already under: just a sharp metadata read.
-      const buffer: Buffer = native.png
-      if (buffer.length > IMAGE_TARGET_RAW_SIZE) {
-        const resized = await maybeResizeAndDownsampleImageBuffer(
-          buffer,
-          buffer.length,
-          'png',
-        )
+      // Ask the native reader for the original resolution. The CLI preserves
+      // the returned PNG bytes instead of applying its previous 2000px cap.
+      const native = readClipboard(0x7fffffff, 0x7fffffff)
+      if (native) {
+        const buffer: Buffer = native.png
         return {
-          base64: resized.buffer.toString('base64'),
-          mediaType: `image/${resized.mediaType}`,
-          // resized.dimensions sees the already-downsampled buffer; native knows the true originals.
+          base64: buffer.toString('base64'),
+          mediaType: 'image/png',
+          originalSizeBytes: buffer.length,
           dimensions: {
             originalWidth: native.originalWidth,
             originalHeight: native.originalHeight,
-            displayWidth: resized.dimensions?.displayWidth ?? native.width,
-            displayHeight: resized.dimensions?.displayHeight ?? native.height,
+            displayWidth: native.width,
+            displayHeight: native.height,
           },
         }
       }
-      return {
-        base64: buffer.toString('base64'),
-        mediaType: 'image/png',
-        dimensions: {
-          originalWidth: native.originalWidth,
-          originalHeight: native.originalHeight,
-          displayWidth: native.width,
-          displayHeight: native.height,
-        },
-      }
+      // A copied Finder file has a file URL but no bitmap payload. Fall
+      // through so the portable path can resolve and read that image file.
     } catch (e) {
       logError(e as Error)
       // Fall through to osascript fallback.
@@ -191,7 +268,7 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
       reject: false,
     })
     if (checkResult.exitCode !== 0) {
-      return null
+      return await tryReadImageFileFromClipboard()
     }
 
     // Save the image
@@ -217,27 +294,14 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
       imageBuffer = await sharp(imageBuffer).png().toBuffer()
     }
 
-    // Resize if needed to stay under 5MB API limit
-    const resized = await maybeResizeAndDownsampleImageBuffer(
-      imageBuffer,
-      imageBuffer.length,
-      'png',
-    )
-    const base64Image = resized.buffer.toString('base64')
-
-    // Detect format from magic bytes
-    const mediaType = detectImageFormatFromBase64(base64Image)
+    const prepared = await prepareImageForPaste(imageBuffer, 'png')
 
     // Cleanup (fire-and-forget, don't await)
     void execa(commands.deleteFile, { shell: true, reject: false })
 
-    return {
-      base64: base64Image,
-      mediaType,
-      dimensions: resized.dimensions,
-    }
+    return prepared
   } catch {
-    return null
+    return await tryReadImageFileFromClipboard()
   }
 }
 
@@ -260,6 +324,23 @@ export async function getImagePathFromClipboard(): Promise<string | null> {
   }
 }
 
+async function tryReadImageFileFromClipboard(): Promise<ImageWithDimensions | null> {
+  const clipboardValue = await getImagePathFromClipboard()
+  if (!clipboardValue) return null
+
+  for (const candidate of splitPastedFilePaths(clipboardValue)) {
+    if (!isImageFilePath(candidate)) continue
+    const image = await tryReadImageFromPath(candidate)
+    if (image) {
+      return {
+        ...image,
+        sourcePath: image.path,
+      }
+    }
+  }
+  return null
+}
+
 /**
  * Regex pattern to match supported image file extensions. Kept in sync with
  * MIME_BY_EXT in BriefTool/upload.ts — attachments.ts uses this to set isImage
@@ -268,6 +349,47 @@ export async function getImagePathFromClipboard(): Promise<string | null> {
  * /preview variant → broken thumbnail.
  */
 export const IMAGE_EXTENSION_REGEX = /\.(png|jpe?g|gif|webp)$/i
+
+/**
+ * Split file paths emitted by terminal drag/drop without breaking spaces
+ * inside quoted or shell-escaped filenames.
+ */
+export function splitPastedFilePaths(text: string): string[] {
+  const tokens: string[] = []
+  let token = ""
+  let quote: "'" | '"' | null = null
+  let escaping = false
+
+  const pushToken = () => {
+    const value = token.trim()
+    if (value) tokens.push(value)
+    token = ""
+  }
+
+  for (const char of text.replace(/\r/g, "\n")) {
+    if (escaping) {
+      token += char
+      escaping = false
+      continue
+    }
+    if (char === "\\" && quote !== "'") {
+      escaping = true
+      continue
+    }
+    if ((char === "'" || char === '"') && (!quote || quote === char)) {
+      quote = quote === char ? null : char
+      continue
+    }
+    if (!quote && /\s/.test(char)) {
+      pushToken()
+      continue
+    }
+    token += char
+  }
+  if (escaping) token += "\\"
+  pushToken()
+  return tokens
+}
 
 /**
  * Remove outer single or double quotes from a string
@@ -334,7 +456,17 @@ export function isImageFilePath(text: string): boolean {
  */
 export function asImageFilePath(text: string): string | null {
   const cleaned = removeOuterQuotes(text.trim())
-  const unescaped = stripBackslashEscapes(cleaned)
+  let unescaped = stripBackslashEscapes(cleaned)
+
+  if (unescaped.startsWith("file://")) {
+    try {
+      const fileUrl = new URL(unescaped)
+      if (fileUrl.protocol !== "file:") return null
+      unescaped = decodeURIComponent(fileUrl.pathname)
+    } catch {
+      return null
+    }
+  }
 
   if (IMAGE_EXTENSION_REGEX.test(unescaped)) {
     return unescaped
@@ -359,25 +491,57 @@ export async function tryReadImageFromPath(
   }
 
   const imagePath = cleanedPath
-  let imageBuffer
+  let imageBuffer: Buffer | undefined
+  let resolvedImagePath: string | undefined
 
   try {
+    const fs = getFsImplementation()
+    const candidates: string[] = []
+
     if (isAbsolute(imagePath)) {
-      imageBuffer = getFsImplementation().readFileBytesSync(imagePath)
+      candidates.push(imagePath)
     } else {
-      // VSCode Terminal just grabs the text content which is the filename
-      // instead of getting the full path of the file pasted with cmd-v. So
-      // we check if it matches the filename of the image in the clipboard.
-      const clipboardPath = await getImagePathFromClipboard()
-      if (clipboardPath && imagePath === basename(clipboardPath)) {
-        imageBuffer = getFsImplementation().readFileBytesSync(clipboardPath)
+      // VS Code's integrated terminal can reduce Finder drops to a basename.
+      // Resolve exact, bounded locations first; never recursively scan a home
+      // directory from an input event.
+      candidates.push(
+        resolve(fs.cwd(), imagePath),
+        join(homedir(), 'Downloads', imagePath),
+        join(homedir(), 'Desktop', imagePath),
+        join(homedir(), 'Pictures', imagePath),
+      )
+
+      // A copied Finder image can expose its full file URL on the clipboard
+      // even when the terminal only inserts its basename.
+      const clipboardValue = await getImagePathFromClipboard()
+      if (clipboardValue) {
+        for (const clipboardToken of splitPastedFilePaths(clipboardValue)) {
+          const clipboardPath = asImageFilePath(clipboardToken)
+          if (
+            clipboardPath &&
+            isAbsolute(clipboardPath) &&
+            basename(clipboardPath) === basename(imagePath)
+          ) {
+            candidates.unshift(clipboardPath)
+          }
+        }
+      }
+    }
+
+    for (const candidate of [...new Set(candidates)]) {
+      try {
+        imageBuffer = fs.readFileBytesSync(candidate)
+        resolvedImagePath = candidate
+        break
+      } catch {
+        // Try the next exact candidate.
       }
     }
   } catch (e) {
     logError(e as Error)
     return null
   }
-  if (!imageBuffer) {
+  if (!imageBuffer || !resolvedImagePath) {
     return null
   }
   if (imageBuffer.length === 0) {
@@ -395,22 +559,17 @@ export async function tryReadImageFromPath(
     imageBuffer = await sharp(imageBuffer).png().toBuffer()
   }
 
-  // Resize if needed to stay under 5MB API limit
-  // Extract extension from path for format hint
-  const ext = extname(imagePath).slice(1).toLowerCase() || 'png'
-  const resized = await maybeResizeAndDownsampleImageBuffer(
-    imageBuffer,
-    imageBuffer.length,
-    ext,
-  )
-  const base64Image = resized.buffer.toString('base64')
-
-  // Detect format from the actual file contents using magic bytes
-  const mediaType = detectImageFormatFromBase64(base64Image)
-  return {
-    path: imagePath,
-    base64: base64Image,
-    mediaType,
-    dimensions: resized.dimensions,
+  try {
+    // Extract extension from path for format hint. The actual media type is
+    // still detected from magic bytes by prepareImageForPaste.
+    const ext = extname(resolvedImagePath).slice(1).toLowerCase() || 'png'
+    return {
+      path: resolvedImagePath,
+      sourcePath: resolvedImagePath,
+      ...(await prepareImageForPaste(imageBuffer, ext)),
+    }
+  } catch (error) {
+    logError(error as Error)
+    return null
   }
 }

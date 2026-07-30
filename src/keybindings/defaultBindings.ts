@@ -85,6 +85,9 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
       "ctrl+s": "chat:stash",
       // Image paste shortcut (platform-specific key defined above)
       [IMAGE_PASTE_KEY]: "chat:imagePaste",
+      ...(getPlatform() === "macos"
+        ? { "cmd+v": "chat:imagePaste" as const }
+        : {}),
       ...(feature("MESSAGE_ACTIONS")
         ? { "shift+up": "chat:messageActions" as const }
         : {}),

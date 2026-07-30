@@ -70,7 +70,6 @@ import type {
   ImageBlockParam,
   Base64ImageSource,
 } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { maybeResizeAndDownsampleImageBlock } from "./imageResizer.js";
 import type { PastedContent } from "./config.js";
 import { getGlobalConfig } from "./config.js";
 import {
@@ -1110,22 +1109,17 @@ async function buildImageContentBlocks(
   if (imageContents.length === 0) {
     return [];
   }
-  const results = await Promise.all(
-    imageContents.map(async (img) => {
-      const imageBlock: ImageBlockParam = {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: (img.mediaType ||
-            "image/png") as Base64ImageSource["media_type"],
-          data: img.content,
-        },
-      };
-      const resized = await maybeResizeAndDownsampleImageBlock(imageBlock);
-      return resized.block;
+  return imageContents.map(
+    (img): ImageBlockParam => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: (img.mediaType ||
+          "image/png") as Base64ImageSource["media_type"],
+        data: img.content,
+      },
     })
   );
-  return results;
 }
 
 function getPlanModeAttachmentTurnCount(messages: Message[]): {

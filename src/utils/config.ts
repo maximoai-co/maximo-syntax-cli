@@ -50,7 +50,7 @@ import { jsonParse, jsonStringify } from "./slowOperations.js";
 // reads GrowthBook features from the global config, which calls getConfig again.
 let insideGetConfig = false;
 
-// Image dimension info for coordinate mapping (only set when image was resized)
+// Original image metadata retained for prompt attachment previews and coordinate mapping.
 export type PastedContent = {
   id: number; // Sequential numeric ID
   type: "text" | "image";
@@ -59,6 +59,7 @@ export type PastedContent = {
   filename?: string; // Display name for images in attachment slot
   dimensions?: ImageDimensions;
   sourcePath?: string; // Original file path for images dragged onto the terminal
+  originalSizeBytes?: number; // Exact original attachment size
 };
 
 export interface SerializedStructuredHistoryEntry {
@@ -170,6 +171,21 @@ export type AccountInfo = {
   subscriptionCreatedAt?: string;
 };
 
+export type MyTabulonAccountInfo = {
+  userId?: string;
+  emailAddress?: string;
+  displayName?: string;
+  username?: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  codingPlanActive: boolean;
+  codingPlanTier: string;
+  codingPlanId: string;
+  codingPlanName: string;
+  scopes: string[];
+  updatedAt: string;
+};
+
 // TODO: 'emacs' is kept for backward compatibility - remove after a few releases
 export type EditorMode = "emacs" | (typeof EDITOR_MODES)[number];
 
@@ -221,6 +237,8 @@ export type GlobalConfig = {
   primaryApiKey?: string; // Primary API key for the user when no environment variable is set, set via oauth (TODO: rename)
   maximoApiKey?: string; // Maximo AI API key for OpenAI-compatible API access
   openAIBaseUrl?: string; // Base URL for OpenAI-compatible API (e.g., https://api.maximoai.co/v1)
+  mytabulonDefaultModel?: string;
+  mytabulonAccount?: MyTabulonAccountInfo;
   hasAcknowledgedCostThreshold?: boolean;
   hasSeenUndercoverAutoNotice?: boolean; // ant-only: whether the one-time auto-undercover explainer has been shown
   hasSeenUltraplanTerms?: boolean; // ant-only: whether the one-time CCR terms notice has been shown in the ultraplan launch dialog

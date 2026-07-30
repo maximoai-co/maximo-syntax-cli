@@ -103,12 +103,15 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
       ...current,
       maximoApiKey: tokens.accessToken,
       openAIBaseUrl: "https://api.maximoai.co/v1",
+      mytabulonDefaultModel: undefined,
+      mytabulonAccount: undefined,
     }));
 
     // Set environment variables for immediate use in this session
     process.env.MAXIMO_SYNTAX_USE_OPENAI = "true";
     process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
     process.env.OPENAI_API_KEY = tokens.accessToken;
+    process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
   } else {
     // API key creation is critical for Console users — let it throw.
     const apiKey = await createAndStoreApiKey(tokens.accessToken);

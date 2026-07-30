@@ -86,7 +86,7 @@ test('openai launch ignores mismatched persisted ollama env', async () => {
   })
 
   assert.equal(env.OPENAI_BASE_URL, 'https://api.openai.com/v1')
-  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.7-nano')
+  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.8-nano')
   assert.equal(env.OPENAI_API_KEY, 'sk-live')
   assert.equal(env.CODEX_API_KEY, undefined)
   assert.equal(env.CHATGPT_ACCOUNT_ID, undefined)
@@ -105,7 +105,7 @@ test('openai launch ignores codex shell transport hints', async () => {
   })
 
   assert.equal(env.OPENAI_BASE_URL, 'https://api.openai.com/v1')
-  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.7-nano')
+  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.8-nano')
   assert.equal(env.OPENAI_API_KEY, 'sk-live')
 })
 
@@ -124,7 +124,7 @@ test('openai launch ignores codex persisted transport hints', async () => {
   })
 
   assert.equal(env.OPENAI_BASE_URL, 'https://api.openai.com/v1')
-  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.7-nano')
+  assert.equal(env.OPENAI_MODEL, 'maximo-pandora-3.8-nano')
   assert.equal(env.OPENAI_API_KEY, 'sk-live')
 })
 
@@ -372,7 +372,7 @@ test('openai profiles ignore codex shell transport hints', () => {
 
   assert.deepEqual(env, {
     OPENAI_BASE_URL: 'https://api.openai.com/v1',
-    OPENAI_MODEL: 'maximo-pandora-3.7-nano',
+    OPENAI_MODEL: 'maximo-pandora-3.8-nano',
     OPENAI_API_KEY: 'sk-live',
   })
 })

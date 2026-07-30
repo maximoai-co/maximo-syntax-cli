@@ -6,33 +6,60 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from "src/services/analytics/grow
 import { getAPIProvider } from "./model/providers.js";
 import { get3PModelCapabilityOverride } from "./model/modelSupportOverrides.js";
 import { isEnvTruthy } from "./envUtils.js";
-import type { EffortLevel } from "src/entrypoints/sdk/runtimeTypes.js";
+import { getCachedMaximoModelEffortConfig } from "src/services/api/maximoModels.js";
 
-export type { EffortLevel };
+export type EffortLevel =
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max"
+  | "ultra";
 
 export const EFFORT_LEVELS = [
+  "minimal",
   "low",
   "medium",
   "high",
+  "xhigh",
   "max",
+  "ultra",
 ] as const satisfies readonly EffortLevel[];
 
 export type EffortValue = EffortLevel | number;
 
-// @[MODEL LAUNCH]: Add the new model to the allowlist if it supports the effort parameter.
-export function modelSupportsEffort(model: string): boolean {
+export function getSupportedEffortLevelsForModel(
+  model: string
+): readonly EffortLevel[] | undefined {
+  const providerConfig = getCachedMaximoModelEffortConfig(model);
+  if (providerConfig) {
+    return providerConfig.supportedEfforts.filter(isEffortLevel);
+  }
+
   const m = model.toLowerCase();
+  if (m.includes("opus-4-6")) {
+    return ["low", "medium", "high", "max"];
+  }
+  if (m.includes("sonnet-4-6")) {
+    return ["low", "medium", "high"];
+  }
+  return undefined;
+}
+
+export function modelSupportsEffort(model: string): boolean {
   if (isEnvTruthy(process.env.MAXIMO_SYNTAX_ALWAYS_ENABLE_EFFORT)) {
     return true;
+  }
+  const providerLevels = getSupportedEffortLevelsForModel(model);
+  if (providerLevels !== undefined) {
+    return providerLevels.length > 0;
   }
   const supported3P = get3PModelCapabilityOverride(model, "effort");
   if (supported3P !== undefined) {
     return supported3P;
   }
-  // Supported by a subset of Maximo 4 models
-  if (m.includes("opus-4-6") || m.includes("sonnet-4-6")) {
-    return true;
-  }
+  const m = model.toLowerCase();
   // Exclude any other known legacy models (haiku, older opus/sonnet variants)
   if (m.includes("haiku") || m.includes("sonnet") || m.includes("opus")) {
     return false;
@@ -48,9 +75,13 @@ export function modelSupportsEffort(model: string): boolean {
   return getAPIProvider() === "firstParty";
 }
 
-// @[MODEL LAUNCH]: Add the new model to the allowlist if it supports 'max' effort.
-// Per API docs, 'max' is Opus 4.6 only for public models — other models return an error.
+// Provider metadata is authoritative when available. These compatibility
+// fallbacks are only used for third-party models without metadata.
 export function modelSupportsMaxEffort(model: string): boolean {
+  const providerLevels = getSupportedEffortLevelsForModel(model);
+  if (providerLevels !== undefined) {
+    return providerLevels.includes("max");
+  }
   const supported3P = get3PModelCapabilityOverride(model, "max_effort");
   if (supported3P !== undefined) {
     return supported3P;
@@ -88,25 +119,19 @@ export function parseEffortValue(value: unknown): EffortValue | undefined {
 
 /**
  * Numeric values are model-default only and not persisted.
- * 'max' is session-scoped for external users (ants can persist it).
  * Write sites call this before saving to settings so the Zod schema
  * (which only accepts string levels) never rejects a write.
  */
 export function toPersistableEffort(
   value: EffortValue | undefined
 ): EffortLevel | undefined {
-  if (value === "low" || value === "medium" || value === "high") {
-    return value;
-  }
-  if (value === "max" && process.env.USER_TYPE === "ant") {
+  if (typeof value === "string" && isEffortLevel(value)) {
     return value;
   }
   return undefined;
 }
 
 export function getInitialEffortSetting(): EffortLevel | undefined {
-  // toPersistableEffort filters 'max' for non-ants on read, so a manually
-  // edited settings.json doesn't leak session-scoped max into a fresh session.
   return toPersistableEffort(getInitialSettings().effortLevel);
 }
 
@@ -159,9 +184,21 @@ export function resolveAppliedEffort(
   }
   const resolved =
     envOverride ?? appStateEffortValue ?? getDefaultEffortForModel(model);
-  // API rejects 'max' on non-Opus-4.6 models — downgrade to 'high'.
-  if (resolved === "max" && !modelSupportsMaxEffort(model)) {
-    return "high";
+  if (typeof resolved === "string") {
+    const supportedLevels = getSupportedEffortLevelsForModel(model);
+    if (supportedLevels !== undefined) {
+      if (supportedLevels.length === 0) {
+        return undefined;
+      }
+      if (!supportedLevels.includes(resolved)) {
+        return (
+          getDefaultEffortForModel(model) ??
+          supportedLevels[supportedLevels.length - 1]
+        );
+      }
+    } else if (resolved === "max" && !modelSupportsMaxEffort(model)) {
+      return "high";
+    }
   }
   return resolved;
 }
@@ -183,7 +220,7 @@ export function getDisplayedEffortLevel(
  * Build the ` with {level} effort` suffix shown in Logo/Spinner.
  * Returns empty string if the user hasn't explicitly set an effort value.
  * Delegates to resolveAppliedEffort() so the displayed level matches what
- * the API actually receives (including max→high clamp for non-Opus models).
+ * the API receives, including provider-specific effort clamping.
  */
 export function getEffortSuffix(
   model: string,
@@ -223,14 +260,20 @@ export function convertEffortValueToLevel(value: EffortValue): EffortLevel {
  */
 export function getEffortLevelDescription(level: EffortLevel): string {
   switch (level) {
+    case "minimal":
+      return "Fastest response with minimal deliberate reasoning";
     case "low":
       return "Quick, straightforward implementation with minimal overhead";
     case "medium":
       return "Balanced approach with standard implementation and testing";
     case "high":
       return "Comprehensive implementation with extensive testing and documentation";
+    case "xhigh":
+      return "Extra-high reasoning for difficult multi-step work";
     case "max":
-      return "Maximum capability with deepest reasoning (Opus 4.6 only)";
+      return "Maximum reasoning for models that support it";
+    case "ultra":
+      return "Deepest available reasoning for models that support it";
   }
 }
 
@@ -279,6 +322,15 @@ export function getOpusDefaultEffortConfig(): OpusDefaultEffortConfig {
 export function getDefaultEffortForModel(
   model: string
 ): EffortValue | undefined {
+  const providerConfig = getCachedMaximoModelEffortConfig(model);
+  if (providerConfig) {
+    const configuredDefault = providerConfig.defaultEffort;
+    if (configuredDefault && isEffortLevel(configuredDefault)) {
+      return configuredDefault;
+    }
+    return undefined;
+  }
+
   if (process.env.USER_TYPE === "ant") {
     const config = getAntModelOverrideConfig();
     const isDefaultModel =

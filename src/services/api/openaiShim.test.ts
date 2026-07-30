@@ -133,3 +133,87 @@ test('preserves usage from final OpenAI stream chunk with empty choices', async 
   expect(usageEvent?.usage?.input_tokens).toBe(123)
   expect(usageEvent?.usage?.output_tokens).toBe(45)
 })
+
+test('sends pasted base64 images as OpenAI-compatible data URLs', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    expect(body.messages[0].content).toEqual([
+      { type: 'text', text: 'describe this' },
+      {
+        type: 'image_url',
+        image_url: { url: 'data:image/png;base64,aW1hZ2U=' },
+      },
+    ])
+    return Response.json({
+      id: 'chatcmpl-image',
+      model: 'fake-model',
+      choices: [
+        {
+          message: { role: 'assistant', content: 'done' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 1 },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<unknown>
+      }
+    }
+  }
+  await client.beta.messages.create({
+    model: 'fake-model',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'describe this' },
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data: 'aW1hZ2U=',
+            },
+          },
+        ],
+      },
+    ],
+    max_tokens: 64,
+  })
+})
+
+test('maps the selected effort to OpenAI-compatible reasoning_effort', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    expect(body.reasoning_effort).toBe('medium')
+    return Response.json({
+      id: 'chatcmpl-effort',
+      model: 'maximo-atlas-preview',
+      choices: [
+        {
+          message: { role: 'assistant', content: 'done' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 1 },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<unknown>
+      }
+    }
+  }
+  await client.beta.messages.create({
+    model: 'maximo-atlas-preview',
+    messages: [{ role: 'user', content: 'think about this' }],
+    max_tokens: 64,
+    output_config: { effort: 'medium' },
+  })
+})

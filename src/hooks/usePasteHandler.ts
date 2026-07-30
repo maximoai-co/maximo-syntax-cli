@@ -1,18 +1,17 @@
 import { basename } from 'path'
 import React from 'react'
 import { logError } from 'src/utils/log.js'
-import { useDebounceCallback } from 'usehooks-ts'
 import type { InputEvent, Key } from '../ink.js'
 import {
   getImageFromClipboard,
   isImageFilePath,
   PASTE_THRESHOLD,
+  splitPastedFilePaths,
   tryReadImageFromPath,
 } from '../utils/imagePaste.js'
 import type { ImageDimensions } from '../utils/imageResizer.js'
 import { getPlatform } from '../utils/platform.js'
 
-const CLIPBOARD_CHECK_DEBOUNCE_MS = 50
 const PASTE_COMPLETION_TIMEOUT_MS = 100
 
 type PasteHandlerProps = {
@@ -24,13 +23,16 @@ type PasteHandlerProps = {
     filename?: string,
     dimensions?: ImageDimensions,
     sourcePath?: string,
+    originalSizeBytes?: number,
   ) => void
+  onImagePasteError?: (message: string) => void
 }
 
 export function usePasteHandler({
   onPaste,
   onInput,
   onImagePaste,
+  onImagePasteError,
 }: PasteHandlerProps): {
   wrappedOnInput: (input: string, key: Key, event: InputEvent) => void
   pasteState: {
@@ -60,35 +62,112 @@ export function usePasteHandler({
     }
   }, [])
 
-  const checkClipboardForImageImpl = React.useCallback(() => {
-    if (!onImagePaste || !isMountedRef.current) return
+  const checkClipboardForImage = React.useCallback(async (): Promise<boolean> => {
+    if (!onImagePaste || !isMountedRef.current) return false
 
-    void getImageFromClipboard()
-      .then(imageData => {
-        if (imageData && isMountedRef.current) {
-          onImagePaste(
-            imageData.base64,
-            imageData.mediaType,
-            undefined, // no filename for clipboard images
-            imageData.dimensions,
+    try {
+      const imageData = await getImageFromClipboard()
+      if (!imageData || !isMountedRef.current) return false
+
+      onImagePaste(
+        imageData.base64,
+        imageData.mediaType,
+        imageData.sourcePath
+          ? basename(imageData.sourcePath)
+          : undefined,
+        imageData.dimensions,
+        imageData.sourcePath,
+        imageData.originalSizeBytes,
+      )
+      return true
+    } catch (error) {
+      if (isMountedRef.current) {
+        logError(error as Error)
+      }
+      return false
+    }
+  }, [onImagePaste])
+
+  const processPastedContent = React.useCallback(
+    async (
+      pastedText: string,
+      options: { checkClipboard: boolean },
+    ): Promise<void> => {
+      const cleanedText = pastedText
+        .replace(/\[I$/, '')
+        .replace(/\[O$/, '')
+      const parts = splitPastedFilePaths(cleanedText)
+      const imagePaths = parts.filter(part => isImageFilePath(part))
+
+      try {
+        if (onImagePaste && imagePaths.length > 0) {
+          const results = await Promise.all(
+            imagePaths.map(imagePath => tryReadImageFromPath(imagePath)),
           )
+          const validImages = results.filter(
+            (result): result is NonNullable<typeof result> => result !== null,
+          )
+
+          if (validImages.length > 0 && isMountedRef.current) {
+            for (const imageData of validImages) {
+              onImagePaste(
+                imageData.base64,
+                imageData.mediaType,
+                basename(imageData.path),
+                imageData.dimensions,
+                imageData.path,
+                imageData.originalSizeBytes,
+              )
+            }
+
+            const nonImageParts = parts.filter(part => !isImageFilePath(part))
+            if (nonImageParts.length > 0) {
+              onPaste?.(nonImageParts.join(' '))
+            }
+            return
+          }
+
+          if (
+            options.checkClipboard &&
+            (await checkClipboardForImage())
+          ) {
+            return
+          }
+
+          // A drop/paste that consists only of image-looking paths is an
+          // attachment action. Never degrade it into ordinary filename text.
+          // That was the source of `question?photo.png` in the prompt.
+          if (imagePaths.length === parts.length) {
+            onImagePasteError?.(
+              `Could not attach image: ${basename(imagePaths[0] ?? 'image')}`,
+            )
+            return
+          }
+
+          onPaste?.(cleanedText)
+          return
         }
-      })
-      .catch(error => {
-        if (isMountedRef.current) {
-          logError(error as Error)
+
+        // VS Code and other terminal emulators represent Cmd+V as a
+        // bracketed-paste event. When the clipboard contains an image, that
+        // event can be empty or contain a terminal-specific placeholder.
+        // Resolve the clipboard before treating its payload as ordinary text.
+        if (
+          options.checkClipboard &&
+          onImagePaste &&
+          (await checkClipboardForImage())
+        ) {
+          return
         }
-      })
-      .finally(() => {
+
+        onPaste?.(cleanedText)
+      } finally {
         if (isMountedRef.current) {
           setIsPasting(false)
         }
-      })
-  }, [onImagePaste])
-
-  const checkClipboardForImage = useDebounceCallback(
-    checkClipboardForImageImpl,
-    CLIPBOARD_CHECK_DEBOUNCE_MS,
+      }
+    },
+    [checkClipboardForImage, onImagePaste, onImagePasteError, onPaste],
   )
 
   const resetPasteTimeout = React.useCallback(
@@ -99,110 +178,24 @@ export function usePasteHandler({
       return setTimeout(
         (
           setPasteState,
-          onImagePaste,
-          onPaste,
-          setIsPasting,
-          checkClipboardForImage,
-          isMacOS,
+          processPastedContent,
           pastePendingRef,
         ) => {
           pastePendingRef.current = false
           setPasteState(({ chunks }) => {
-            // Join chunks and filter out orphaned focus sequences
-            // These can appear when focus events split during paste
-            const pastedText = chunks
-              .join('')
-              .replace(/\[I$/, '')
-              .replace(/\[O$/, '')
-
-            // Check if the pasted text contains image file paths
-            // When dragging multiple images, they may come as:
-            // 1. Newline-separated paths (common in some terminals)
-            // 2. Space-separated paths (common when dragging from Finder)
-            // For space-separated paths, we split on spaces that precede absolute paths:
-            // - Unix: space followed by `/` (e.g., `/Users/...`)
-            // - Windows: space followed by drive letter and `:\` (e.g., `C:\Users\...`)
-            // This works because spaces within paths are escaped (e.g., `file\ name.png`)
-            const lines = pastedText
-              .split(/ (?=\/|[A-Za-z]:\\)/)
-              .flatMap(part => part.split('\n'))
-              .filter(line => line.trim())
-            const imagePaths = lines.filter(line => isImageFilePath(line))
-
-            if (onImagePaste && imagePaths.length > 0) {
-              const isTempScreenshot =
-                /\/TemporaryItems\/.*screencaptureui.*\/Screenshot/i.test(
-                  pastedText,
-                )
-
-              // Process all image paths
-              void Promise.all(
-                imagePaths.map(imagePath => tryReadImageFromPath(imagePath)),
-              ).then(results => {
-                const validImages = results.filter(
-                  (r): r is NonNullable<typeof r> => r !== null,
-                )
-
-                if (validImages.length > 0) {
-                  // Successfully read at least one image
-                  for (const imageData of validImages) {
-                    const filename = basename(imageData.path)
-                    onImagePaste(
-                      imageData.base64,
-                      imageData.mediaType,
-                      filename,
-                      imageData.dimensions,
-                      imageData.path,
-                    )
-                  }
-                  // If some paths weren't images, paste them as text
-                  const nonImageLines = lines.filter(
-                    line => !isImageFilePath(line),
-                  )
-                  if (nonImageLines.length > 0 && onPaste) {
-                    onPaste(nonImageLines.join('\n'))
-                  }
-                  setIsPasting(false)
-                } else if (isTempScreenshot && isMacOS) {
-                  // For temporary screenshot files that no longer exist, try clipboard
-                  checkClipboardForImage()
-                } else {
-                  if (onPaste) {
-                    onPaste(pastedText)
-                  }
-                  setIsPasting(false)
-                }
-              })
-              return { chunks: [], timeoutId: null }
-            }
-
-            // If paste is empty (common when trying to paste images with Cmd+V),
-            // check if clipboard has an image (macOS only)
-            if (isMacOS && onImagePaste && pastedText.length === 0) {
-              checkClipboardForImage()
-              return { chunks: [], timeoutId: null }
-            }
-
-            // Handle regular paste
-            if (onPaste) {
-              onPaste(pastedText)
-            }
-            // Reset isPasting state after paste is complete
-            setIsPasting(false)
+            void processPastedContent(chunks.join(''), {
+              checkClipboard: false,
+            })
             return { chunks: [], timeoutId: null }
           })
         },
         PASTE_COMPLETION_TIMEOUT_MS,
         setPasteState,
-        onImagePaste,
-        onPaste,
-        setIsPasting,
-        checkClipboardForImage,
-        isMacOS,
+        processPastedContent,
         pastePendingRef,
       )
     },
-    [checkClipboardForImage, isMacOS, onImagePaste, onPaste],
+    [processPastedContent],
   )
 
   // Paste detection is now done via the InputEvent's keypress.isPasted flag,
@@ -233,19 +226,29 @@ export function usePasteHandler({
     // When dragging multiple images, they may come as newline-separated or
     // space-separated paths. Split on spaces preceding absolute paths:
     // - Unix: ` /` - Windows: ` C:\` etc.
-    const hasImageFilePath = input
-      .split(/ (?=\/|[A-Za-z]:\\)/)
-      .flatMap(part => part.split('\n'))
-      .some(line => isImageFilePath(line.trim()))
+    const hasImageFilePath = splitPastedFilePaths(input).some((line) =>
+      isImageFilePath(line)
+    )
 
-    // Handle empty paste (clipboard image on macOS)
-    // When the user pastes an image with Cmd+V, the terminal sends an empty
-    // bracketed paste sequence. The keypress parser emits this as isPasted=true
-    // with empty input.
-    if (isFromPaste && input.length === 0 && isMacOS && onImagePaste) {
-      checkClipboardForImage()
-      // Reset isPasting since there's no text content to process
-      setIsPasting(false)
+    // Bracketed paste is already a complete payload. Resolve image paths and
+    // the macOS clipboard before ordinary text so the terminal cannot race an
+    // image paste into the delayed text-paste state.
+    if (isFromPaste) {
+      pastePendingRef.current = false
+      if (pasteState.timeoutId) {
+        clearTimeout(pasteState.timeoutId)
+      }
+      setPasteState({ chunks: [], timeoutId: null })
+      void processPastedContent(input, { checkClipboard: isMacOS })
+      return
+    }
+
+    // Finder and some terminal emulators insert a dragged file path without
+    // bracketed-paste markers. Image paths are complete enough to resolve
+    // immediately, avoiding the same text-paste timeout race.
+    if (hasImageFilePath && onImagePaste) {
+      setIsPasting(true)
+      void processPastedContent(input, { checkClipboard: isMacOS })
       return
     }
 
@@ -254,8 +257,7 @@ export function usePasteHandler({
       onPaste &&
       (input.length > PASTE_THRESHOLD ||
         pastePendingRef.current ||
-        hasImageFilePath ||
-        isFromPaste)
+        hasImageFilePath)
 
     if (shouldHandleAsPaste) {
       pastePendingRef.current = true

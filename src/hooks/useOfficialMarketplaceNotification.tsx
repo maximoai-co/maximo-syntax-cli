@@ -10,7 +10,10 @@ import { useStartupNotification } from './notifs/useStartupNotification.js';
  * notifications for success/failure in the bottom right of the REPL.
  */
 export function useOfficialMarketplaceNotification() {
-  useStartupNotification(_temp);
+  // Maximo Syntax must not install or modify another product's marketplace.
+  // Keep the inherited hook call site stable while disabling that startup
+  // side effect until a Maximo-owned marketplace is available.
+  return undefined;
 }
 async function _temp() {
   const result = await checkAndInstallOfficialMarketplace();

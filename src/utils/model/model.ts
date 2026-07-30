@@ -7,6 +7,7 @@
  */
 import { getMainLoopModelOverride } from "../../bootstrap/state.js";
 import {
+  getMaximoAIOAuthTokens,
   getSubscriptionType,
   isMaximoAISubscriber,
   isMaxSubscriber,
@@ -69,6 +70,22 @@ export function isMaximoAIProvider(): boolean {
   return false;
 }
 
+function getOpenAIProviderDefaultModel(fallback: string): string {
+  if (process.env.OPENAI_MODEL) {
+    return process.env.OPENAI_MODEL;
+  }
+  const globalConfig = getGlobalConfig();
+  const baseUrl =
+    process.env.OPENAI_BASE_URL || globalConfig.openAIBaseUrl || "";
+  if (baseUrl.includes("api.mytabulon.com")) {
+    return globalConfig.mytabulonDefaultModel || "maximo-atlas-preview";
+  }
+  if (baseUrl.includes("maximoai.co")) {
+    return "maximo-pandora-3.8-nano";
+  }
+  return fallback;
+}
+
 export type ModelName = string;
 export type ModelSetting = ModelName | ModelAlias | null;
 
@@ -81,12 +98,7 @@ export function getSmallFastModel(): ModelName {
   }
   // For OpenAI provider, use OPENAI_MODEL or a sensible default
   if (getAPIProvider() === "openai") {
-    const baseUrl = process.env.OPENAI_BASE_URL || "";
-    // If using Maximo AI API, use Nano as the fast model
-    if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.7-nano";
-    }
-    return process.env.OPENAI_MODEL || "gpt-4o-mini";
+    return getOpenAIProviderDefaultModel("gpt-4o-mini");
   }
   return getDefaultHaikuModel();
 }
@@ -171,12 +183,7 @@ export function getDefaultOpusModel(): ModelName {
   }
   // OpenAI provider: use user-specified model or default
   if (getAPIProvider() === "openai") {
-    const baseUrl = process.env.OPENAI_BASE_URL || "";
-    // If using Maximo AI API, don't use gpt-4o default
-    if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.5-syntax-fast";
-    }
-    return process.env.OPENAI_MODEL || "gpt-4o";
+    return getOpenAIProviderDefaultModel("gpt-4o");
   }
   // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
   // even when values match, since 3P availability lags firstParty and
@@ -198,12 +205,7 @@ export function getDefaultSonnetModel(): ModelName {
   }
   // OpenAI provider
   if (getAPIProvider() === "openai") {
-    const baseUrl = process.env.OPENAI_BASE_URL || "";
-    // If using Maximo AI API, don't use gpt-4o default
-    if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.5-syntax-fast";
-    }
-    return process.env.OPENAI_MODEL || "gpt-4o";
+    return getOpenAIProviderDefaultModel("gpt-4o");
   }
   // Default to Sonnet 4.5 for 3P since they may not have 4.6 yet
   if (getAPIProvider() !== "firstParty") {
@@ -223,12 +225,7 @@ export function getDefaultHaikuModel(): ModelName {
   }
   // OpenAI provider
   if (getAPIProvider() === "openai") {
-    const baseUrl = process.env.OPENAI_BASE_URL || "";
-    // If using Maximo AI API, don't use gpt-4o-mini default
-    if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.7-nano";
-    }
-    return process.env.OPENAI_MODEL || "gpt-4o-mini";
+    return getOpenAIProviderDefaultModel("gpt-4o-mini");
   }
 
   // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
@@ -280,12 +277,7 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
   }
   // OpenAI provider: always use the configured OpenAI model
   if (getAPIProvider() === "openai") {
-    const baseUrl = process.env.OPENAI_BASE_URL || "";
-    // If using Maximo AI API, use appropriate default
-    if (baseUrl.includes("maximoai.co")) {
-      return process.env.OPENAI_MODEL || "maximo-pandora-3.5-syntax-fast";
-    }
-    return process.env.OPENAI_MODEL || "gpt-4o";
+    return getOpenAIProviderDefaultModel("gpt-4o");
   }
 
   // Ants default to defaultModel from flag config, or Opus 1M if not configured
@@ -329,8 +321,14 @@ export function getDefaultMainLoopModel(): ModelName {
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase();
   // Maximo AI models - check first
+  if (name.includes("maximo-pandora-3.8-nano")) {
+    return "maximo-pandora-3.8-nano";
+  }
   if (name.includes("maximo-pandora-3.7-nano")) {
     return "maximo-pandora-3.7-nano";
+  }
+  if (name.includes("maximo-atlas-preview")) {
+    return "maximo-atlas-preview";
   }
   if (name.includes("maximo-pandora-3.6-nano")) {
     return "maximo-pandora-3.6-nano";
@@ -431,25 +429,29 @@ export function getMaximoAiUserDefaultModelDescription(
           cachedOptions.find(
             (opt) =>
               opt.label.toLowerCase().includes("nano") ||
-              opt.value.toLowerCase().includes("nano")
+              String(opt.value || "")
+                .toLowerCase()
+                .includes("nano")
           ) || cachedOptions[cachedOptions.length - 1];
         return `${nanoModel.label} · Fast & efficient`;
       }
-      // Find the "Syntax" or preferred model, defaulting to the first one
-      const syntaxModel =
-        cachedOptions.find(
-          (opt) =>
-            opt.label.toLowerCase().includes("syntax") ||
-            opt.value.toLowerCase().includes("syntax")
-        ) || cachedOptions[0];
-      return `${syntaxModel.label} · Optimized for coding`;
+      const defaultModel = getOpenAIProviderDefaultModel(
+        String(cachedOptions[0].value || "maximo-pandora-3.8-nano")
+      );
+      const preferredModel =
+        cachedOptions.find((option) => option.value === defaultModel) ||
+        cachedOptions[0];
+      return `${preferredModel.label} · Optimized for coding`;
     }
 
     // Fallback if cache is empty
     if (fastMode) {
-      return "Pandora 3.7 Nano · Fast & efficient";
+      return "Pandora 3.8 Nano · Fast & efficient";
     }
-    return "Pandora 3.5 Syntax Fast · Optimized for coding";
+    return getOpenAIProviderDefaultModel("maximo-pandora-3.8-nano") ===
+      "maximo-atlas-preview"
+      ? "Atlas Preview · Included with MyTabulon Coding Plan"
+      : "Pandora 3.8 Nano · Optimized for coding";
   }
   // Fall back to Anthropic model descriptions for non-Maximo providers
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
@@ -586,6 +588,12 @@ export function renderModelName(model: ModelName): string {
   const publicName = getPublicModelDisplayName(model);
   if (publicName) {
     return publicName;
+  }
+  const providerModel = getCachedMaximoModelOptions()?.find(
+    (option) => option.value === model
+  );
+  if (providerModel) {
+    return providerModel.label;
   }
   if (process.env.USER_TYPE === "ant") {
     const resolved = parseUserSpecifiedModel(model);
@@ -790,8 +798,8 @@ function getMaximoMarketingNameForModel(modelId: string): string | undefined {
   // Try partial match on model ID
   const partialMatch = cachedOptions.find(
     (opt) =>
-      modelId.includes(opt.value) ||
-      opt.value.includes(modelId) ||
+      (typeof opt.value === "string" &&
+        (modelId.includes(opt.value) || opt.value.includes(modelId))) ||
       modelId.includes(opt.label.toLowerCase().replace(/\s+/g, "-"))
   );
   if (partialMatch) {

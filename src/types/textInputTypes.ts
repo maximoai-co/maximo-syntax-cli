@@ -126,7 +126,11 @@ export type BaseTextInputProps = {
     filename?: string,
     dimensions?: ImageDimensions,
     sourcePath?: string,
+    originalSizeBytes?: number,
   ) => void
+
+  /** Called when an image-looking drop/paste could not be resolved. */
+  readonly onImagePasteError?: (message: string) => void
 
   /**
    * Optional callback when a large text (over 800 chars) is pasted

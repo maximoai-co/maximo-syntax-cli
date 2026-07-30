@@ -88,6 +88,20 @@ let hasLoggedInitialLoad = false;
 
 const MEMORY_INSTRUCTION_PROMPT =
   "Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.";
+
+// Maximo-owned instructions are authoritative. Compatibility files are loaded
+// first so users can move an existing project to Maximo Syntax without
+// renaming files immediately, while MAXIMO.md can override them when present.
+export const PROJECT_INSTRUCTION_FILE_NAMES = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "MAXIMO.md",
+] as const;
+const LOCAL_INSTRUCTION_FILE_NAMES = [
+  "CLAUDE.local.md",
+  "MAXIMO.local.md",
+] as const;
+
 // Recommended max character count for a memory file
 export const MAX_MEMORY_CHARACTER_COUNT = 40000;
 
@@ -684,6 +698,27 @@ export async function processMemoryFile(
   return result;
 }
 
+async function processInstructionFiles(
+  dir: string,
+  fileNames: readonly string[],
+  type: MemoryType,
+  processedPaths: Set<string>,
+  includeExternal: boolean
+): Promise<MemoryFileInfo[]> {
+  const result: MemoryFileInfo[] = [];
+  for (const fileName of fileNames) {
+    result.push(
+      ...(await processMemoryFile(
+        join(dir, fileName),
+        type,
+        processedPaths,
+        includeExternal
+      ))
+    );
+  }
+  return result;
+}
+
 /**
  * Processes all .md files in the .maximo/rules/ directory and its subdirectories
  * @param rulesDir The path to the rules directory
@@ -883,12 +918,12 @@ export const getMemoryFiles = memoize(
         pathInWorkingPath(dir, canonicalRoot) &&
         !pathInWorkingPath(dir, gitRoot);
 
-      // Try reading MAXIMO.md (Project) - only if projectSettings is enabled
+      // Load compatible project instructions first, then Maximo-owned rules.
       if (isSettingSourceEnabled("projectSettings") && !skipProject) {
-        const projectPath = join(dir, "MAXIMO.md");
         result.push(
-          ...(await processMemoryFile(
-            projectPath,
+          ...(await processInstructionFiles(
+            dir,
+            PROJECT_INSTRUCTION_FILE_NAMES,
             "Project",
             processedPaths,
             includeExternal
@@ -919,12 +954,12 @@ export const getMemoryFiles = memoize(
         );
       }
 
-      // Try reading MAXIMO.local.md (Local) - only if localSettings is enabled
+      // Support migrated CLAUDE.local.md while keeping MAXIMO.local.md highest.
       if (isSettingSourceEnabled("localSettings")) {
-        const localPath = join(dir, "MAXIMO.local.md");
         result.push(
-          ...(await processMemoryFile(
-            localPath,
+          ...(await processInstructionFiles(
+            dir,
+            LOCAL_INSTRUCTION_FILE_NAMES,
             "Local",
             processedPaths,
             includeExternal
@@ -933,18 +968,22 @@ export const getMemoryFiles = memoize(
       }
     }
 
-    // Process MAXIMO.md from additional directories (--add-dir) if env var is enabled
-    // This is controlled by MAXIMO_SYNTAX_ADDITIONAL_DIRECTORIES_CLAUDE_MD and defaults to off
+    // Process compatible instruction files from --add-dir when enabled.
+    // The legacy env name remains accepted for users migrating existing setup.
     // Note: we don't check isSettingSourceEnabled('projectSettings') here because --add-dir
     // is an explicit user action and the SDK defaults settingSources to [] when not specified
-    if (isEnvTruthy(process.env.MAXIMO_SYNTAX_ADDITIONAL_DIRECTORIES_CLAUDE_MD)) {
+    if (
+      isEnvTruthy(
+        process.env.MAXIMO_SYNTAX_ADDITIONAL_DIRECTORIES_MAXIMO_MD
+      ) ||
+      isEnvTruthy(process.env.MAXIMO_SYNTAX_ADDITIONAL_DIRECTORIES_CLAUDE_MD)
+    ) {
       const additionalDirs = getAdditionalDirectoriesForMaximoMd();
       for (const dir of additionalDirs) {
-        // Try reading MAXIMO.md from the additional directory
-        const projectPath = join(dir, "MAXIMO.md");
         result.push(
-          ...(await processMemoryFile(
-            projectPath,
+          ...(await processInstructionFiles(
+            dir,
+            PROJECT_INSTRUCTION_FILE_NAMES,
             "Project",
             processedPaths,
             includeExternal
@@ -1253,12 +1292,12 @@ export async function getMemoryFilesForNestedDirectory(
 ): Promise<MemoryFileInfo[]> {
   const result: MemoryFileInfo[] = [];
 
-  // Process project memory files (MAXIMO.md and .maximo/MAXIMO.md)
+  // Process compatible project instructions, followed by .maximo/MAXIMO.md.
   if (isSettingSourceEnabled("projectSettings")) {
-    const projectPath = join(dir, "MAXIMO.md");
     result.push(
-      ...(await processMemoryFile(
-        projectPath,
+      ...(await processInstructionFiles(
+        dir,
+        PROJECT_INSTRUCTION_FILE_NAMES,
         "Project",
         processedPaths,
         false
@@ -1275,11 +1314,16 @@ export async function getMemoryFilesForNestedDirectory(
     );
   }
 
-  // Process local memory file (MAXIMO.local.md)
+  // Process compatible local instructions, keeping MAXIMO.local.md highest.
   if (isSettingSourceEnabled("localSettings")) {
-    const localPath = join(dir, "MAXIMO.local.md");
     result.push(
-      ...(await processMemoryFile(localPath, "Local", processedPaths, false))
+      ...(await processInstructionFiles(
+        dir,
+        LOCAL_INSTRUCTION_FILE_NAMES,
+        "Local",
+        processedPaths,
+        false
+      ))
     );
   }
 
@@ -1430,13 +1474,19 @@ export async function shouldShowMaximoMdExternalIncludesWarning(): Promise<boole
 }
 
 /**
- * Check if a file path is a memory file (MAXIMO.md, MAXIMO.local.md, or .maximo/rules/*.md)
+ * Check if a file path is a supported instruction file or .maximo/rules/*.md.
  */
 export function isMemoryFilePath(filePath: string): boolean {
   const name = basename(filePath);
 
-  // MAXIMO.md or MAXIMO.local.md anywhere
-  if (name === "MAXIMO.md" || name === "MAXIMO.local.md") {
+  if (
+    PROJECT_INSTRUCTION_FILE_NAMES.includes(
+      name as (typeof PROJECT_INSTRUCTION_FILE_NAMES)[number]
+    ) ||
+    LOCAL_INSTRUCTION_FILE_NAMES.includes(
+      name as (typeof LOCAL_INSTRUCTION_FILE_NAMES)[number]
+    )
+  ) {
     return true;
   }
 

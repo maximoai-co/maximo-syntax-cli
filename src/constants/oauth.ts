@@ -80,26 +80,27 @@ type OauthConfig = {
   MCP_PROXY_PATH: string;
 };
 
-// Production OAuth configuration - Used in normal operation
+// Production OAuth configuration - Used in normal operation.
+// Maximo Syntax is a fork of Claude Code and authenticates against the
+// Maximo backend (api.maximoai.co) rather than Anthropic's services.
 const PROD_OAUTH_CONFIG = {
-  BASE_API_URL: "https://api.anthropic.com",
-  CONSOLE_AUTHORIZE_URL: "https://platform.maximo.com/oauth/authorize",
-  // Bounces through maximo.com/cai/* so CLI sign-ins connect to maximo.com
-  // visits for attribution. 307s to maximo.ai/oauth/authorize in two hops.
-  CLAUDE_AI_AUTHORIZE_URL: "https://maximo.com/cai/oauth/authorize",
-  CLAUDE_AI_ORIGIN: "https://maximo.ai",
-  TOKEN_URL: "https://platform.maximo.com/v1/oauth/token",
-  API_KEY_URL: "https://api.anthropic.com/api/oauth/claude_cli/create_api_key",
-  ROLES_URL: "https://api.anthropic.com/api/oauth/claude_cli/roles",
+  BASE_API_URL: "https://api.maximoai.co",
+  CONSOLE_AUTHORIZE_URL: "https://api.maximoai.co/syntax/auth/oauth/authorize",
+  // Maximo OAuth authorize endpoint (no maximo.com/cai/* attribution bounce).
+  CLAUDE_AI_AUTHORIZE_URL: "https://api.maximoai.co/syntax/auth/oauth/authorize",
+  CLAUDE_AI_ORIGIN: "https://maximoai.co",
+  TOKEN_URL: "https://api.maximoai.co/syntax/auth/oauth/token",
+  API_KEY_URL: "https://api.maximoai.co/syntax/auth/oauth/claude_cli/create_api_key",
+  ROLES_URL: "https://api.maximoai.co/syntax/auth/oauth/claude_cli/roles",
   CONSOLE_SUCCESS_URL:
-    "https://platform.maximo.com/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code",
+    "https://maximoai.co/syntax/oauth/success",
   CLAUDEAI_SUCCESS_URL:
-    "https://platform.maximo.com/oauth/code/success?app=claude-code",
-  MANUAL_REDIRECT_URL: "https://platform.maximo.com/oauth/code/callback",
-  CLIENT_ID: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+    "https://maximoai.co/syntax/oauth/success",
+  MANUAL_REDIRECT_URL: "https://api.maximoai.co/syntax/auth/oauth/code/callback",
+  CLIENT_ID: "maximo-cli-client",
   // No suffix for production config
   OAUTH_FILE_SUFFIX: "",
-  MCP_PROXY_URL: "https://mcp-proxy.anthropic.com",
+  MCP_PROXY_URL: "https://mcp-proxy.maximoai.co",
   MCP_PROXY_PATH: "/v1/mcp/{server_id}",
 } as const;
 

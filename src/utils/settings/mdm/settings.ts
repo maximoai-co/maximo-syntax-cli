@@ -2,7 +2,7 @@
  * MDM (Mobile Device Management) profile enforcement for Maximo Syntax managed settings.
  *
  * Reads enterprise settings from OS-level MDM configuration:
- * - macOS: `com.anthropic.claudecode` preference domain
+ * - macOS: `com.maximoai.maximo-syntax` preference domain
  *   (MDM profiles at /Library/Managed Preferences/ only — not user-writable ~/Library/Preferences/)
  * - Windows: `HKLM\SOFTWARE\Policies\MaximoCode` (admin-only)
  *   and `HKCU\SOFTWARE\Policies\MaximoCode` (user-writable, lowest priority)

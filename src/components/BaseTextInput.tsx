@@ -62,7 +62,8 @@ export function BaseTextInput(t0) {
       }
       onInput(input, key);
     },
-    onImagePaste: props.onImagePaste
+    onImagePaste: props.onImagePaste,
+    onImagePasteError: props.onImagePasteError
   });
   const isPasting = t3;
   const {

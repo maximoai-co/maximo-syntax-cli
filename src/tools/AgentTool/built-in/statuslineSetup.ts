@@ -39,8 +39,8 @@ How to use the statusLine command:
      "transcript_path": "string", // Path to the conversation transcript
      "cwd": "string",         // Current working directory
      "model": {
-       "id": "string",           // Model ID (e.g., "claude-3-5-sonnet-20241022")
-       "display_name": "string"  // Display name (e.g., "Maximo 3.5 Sonnet")
+       "id": "string",           // Model ID (e.g., "maximo-pandora-3.8-nano")
+       "display_name": "string"  // Display name (e.g., "Pandora 3.8 Nano")
      },
      "workspace": {
        "current_dir": "string",  // Current working directory path

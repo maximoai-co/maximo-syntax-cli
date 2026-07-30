@@ -4,6 +4,39 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.15] - 2026-07-30
+
+### Added
+
+- Added MyTabulon Coding Plan sign-in through a secure browser OAuth flow, while retaining direct `mtb_live_` API-key setup.
+- Added Coding Plan account, workspace, active-plan, model-catalog, and usage-pool integration through MyTabulon's `/v1/me`, `/v1/models`, and `/v1/coding-plan/usage` endpoints.
+- Added per-model reasoning-effort discovery and selection. Maximo Syntax now displays and sends only the exact effort levels advertised for the selected model, including `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` where supported.
+- Added native image attachments from clipboard paste and terminal drag-and-drop. Up to 10 images can be attached per prompt, with format, dimensions, original file size, and path shown before sending.
+- Added `MAXIMO.md` as the primary project-instructions file while retaining compatibility with `CLAUDE.md` and `AGENTS.md` for users migrating from other coding agents.
+
+### Changed
+
+- MyTabulon Coding Plan sessions now default to Maximo Atlas Preview. Maximo AI subscription and API-usage sessions default to Pandora 3.8 Nano.
+- Image attachments preserve the original file bytes without compression or resizing and support payloads up to the 10 MB encoded API limit.
+- Replaced the inherited mascot with the Maximo AI outline mark and updated the startup account, plan, and model presentation.
+- Maximo Syntax now keeps its runtime files and user configuration under Maximo-owned paths so it can coexist with Claude Code without modifying that installation.
+- The MyTabulon authorization completion page now clearly confirms successful authorization and tells the user when it is safe to return to the CLI.
+
+### Fixed
+
+- Fixed pasted and dropped image paths being inserted as plain text instead of being attached to the model request.
+- Fixed multi-image attachment races, basename-only VS Code drops, quoted paths, escaped paths, and `file://` drops.
+- Fixed image-first turns triggering immediate auto-compaction, losing the pixels, and producing answers based on unrelated transcript history.
+- Fixed invalid provider output-token metadata collapsing the effective context window and forcing premature compaction.
+- Fixed MyTabulon model selection showing stale Maximo models or missing the signed-in user's active Coding Plan.
+- Fixed `/usage` for Coding Plan sessions so it reports the user's current plan and five-hour and weekly usage pools.
+- Fixed the model picker reporting that effort was unsupported when the selected MyTabulon model advertises supported effort levels.
+- Fixed Up/Down navigation in slash-command and attachment suggestion menus.
+- Fixed suggestion focus styling so the accent color and cursor marker move with the active row while inactive rows remain neutral.
+- Disabled the inherited Anthropic marketplace auto-install startup hook and its failure notification.
+- Removed inherited hardcoded Claude model assumptions and Anthropic account labels from active Maximo Syntax prompts and login UI.
+- Fixed OAuth login choices appearing selected at the same time.
+
 ## [0.1.13] - 2026-06-05
 
 ### Changed
@@ -61,6 +94,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 0.1.15 | 2026-07-30 | Added MyTabulon Coding Plan OAuth, usage/model metadata, per-model effort, native image attachments, and product de-collision fixes |
 | 0.1.13 | 2026-06-05 | Refreshed startup UI, fixed subscription login billing/input behavior, and repaired session discovery |
 | 0.1.11 | 2026-04-10 | Fixed billing display issues in `/usage` command |
 | 0.1.10 | 2026-04-10 | Added comprehensive `/usage` command with dual auth support |

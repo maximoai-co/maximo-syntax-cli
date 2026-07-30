@@ -494,7 +494,6 @@ import { FeedbackSurvey } from "src/components/FeedbackSurvey/FeedbackSurvey.js"
 import { useInstallMessages } from "src/hooks/notifs/useInstallMessages.js";
 import { useAwaySummary } from "src/hooks/useAwaySummary.js";
 import { useChromeExtensionNotification } from "src/hooks/useChromeExtensionNotification.js";
-import { useOfficialMarketplaceNotification } from "src/hooks/useOfficialMarketplaceNotification.js";
 import { usePromptsFromMaximoInChrome } from "src/hooks/usePromptsFromClaudeInChrome.js";
 import {
   getTipToShowOnSpinner,
@@ -1185,7 +1184,6 @@ export function REPL({
   useAntOrgWarningNotification();
   useInstallMessages();
   useChromeExtensionNotification();
-  useOfficialMarketplaceNotification();
   useLspInitializationNotification();
   useTeammateLifecycleNotification();
   const {

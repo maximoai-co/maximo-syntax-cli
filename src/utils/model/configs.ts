@@ -16,9 +16,9 @@ export const OPENAI_MODEL_DEFAULTS = {
 
 // Maximo AI model mappings - used when Maximo AI API is detected
 export const MAXIMO_AI_MODEL_DEFAULTS = {
-  opus: "maximo-pandora-3.5-syntax-pro", // best reasoning
-  sonnet: "maximo-pandora-3.5-syntax-fast", // balanced
-  haiku: "maximo-pandora-3.7-nano", // fast & cheap
+  opus: "maximo-pandora-3.8-nano",
+  sonnet: "maximo-pandora-3.8-nano",
+  haiku: "maximo-pandora-3.8-nano",
 } as const;
 
 // ---------------------------------------------------------------------------

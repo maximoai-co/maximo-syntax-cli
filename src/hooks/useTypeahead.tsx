@@ -72,6 +72,17 @@ function getPreservedSelection(prevSuggestions: SuggestionItem[], prevSelection:
   // Return the new index if found, otherwise default to 0
   return newIndex >= 0 ? newIndex : 0;
 }
+export function cycleSuggestionIndex(
+  current: number,
+  suggestionCount: number,
+  direction: -1 | 1
+): number {
+  if (suggestionCount <= 0) return -1;
+  if (current < 0 || current >= suggestionCount) {
+    return direction === 1 ? 0 : suggestionCount - 1;
+  }
+  return (current + direction + suggestionCount) % suggestionCount;
+}
 function buildResumeInputFromSuggestion(suggestion: SuggestionItem): string {
   const metadata = suggestion.metadata as {
     sessionId: string;
@@ -1242,7 +1253,11 @@ export function useTypeahead({
   const handleAutocompletePrevious = useCallback(() => {
     setSuggestionsState(prev => ({
       ...prev,
-      selectedSuggestion: prev.selectedSuggestion <= 0 ? suggestions.length - 1 : prev.selectedSuggestion - 1
+      selectedSuggestion: cycleSuggestionIndex(
+        prev.selectedSuggestion,
+        suggestions.length,
+        -1
+      )
     }));
   }, [suggestions.length, setSuggestionsState]);
 
@@ -1250,7 +1265,11 @@ export function useTypeahead({
   const handleAutocompleteNext = useCallback(() => {
     setSuggestionsState(prev => ({
       ...prev,
-      selectedSuggestion: prev.selectedSuggestion >= suggestions.length - 1 ? 0 : prev.selectedSuggestion + 1
+      selectedSuggestion: cycleSuggestionIndex(
+        prev.selectedSuggestion,
+        suggestions.length,
+        1
+      )
     }));
   }, [suggestions.length, setSuggestionsState]);
 
@@ -1338,7 +1357,25 @@ export function useTypeahead({
     // Only continue with navigation if we have suggestions
     if (suggestions.length === 0) return;
 
-    // Handle Ctrl-N/P for navigation (arrows handled by keybindings)
+    // Handle arrows directly as a reliable fallback. The child text input
+    // receives terminal input before this parent hook; while suggestions are
+    // open it intentionally leaves Up/Down unchanged so typeahead owns them.
+    // Resolving them here also prevents a later Chat/user keybinding from
+    // shadowing the Autocomplete context.
+    if (e.key === 'up' && !e.shift) {
+      e.preventDefault();
+      handleAutocompletePrevious();
+      e.stopImmediatePropagation();
+      return;
+    }
+    if (e.key === 'down' && !e.shift) {
+      e.preventDefault();
+      handleAutocompleteNext();
+      e.stopImmediatePropagation();
+      return;
+    }
+
+    // Handle Ctrl-N/P for navigation.
     // Skip if we're in the middle of a chord sequence to allow chords like ctrl+f n
     const hasPendingChord = keybindingContext?.pendingChord != null;
     if (e.ctrl && e.key === 'n' && !hasPendingChord) {

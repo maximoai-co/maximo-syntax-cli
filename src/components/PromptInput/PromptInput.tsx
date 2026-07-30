@@ -315,6 +315,77 @@ type Props = {
 // Bottom slot has maxHeight="50%"; reserve lines for footer, border, status.
 const PROMPT_FOOTER_LINES = 5;
 const MIN_INPUT_VIEWPORT_LINES = 3;
+const MAX_IMAGE_ATTACHMENTS = 10;
+
+function getImageFormat(mediaType?: string): string {
+  const subtype = mediaType?.split("/")[1]?.split(";")[0]?.toLowerCase();
+  if (!subtype) return "IMAGE";
+  if (subtype === "jpg" || subtype === "jpeg") return "JPEG";
+  if (subtype === "svg+xml") return "SVG";
+  return subtype.toUpperCase();
+}
+
+function getBase64ByteLength(content: string): number {
+  const padding = content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((content.length * 3) / 4) - padding);
+}
+
+function formatImageSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function ImageAttachmentPreview({
+  attachment,
+  attachmentCount,
+}: {
+  attachment: PastedContent;
+  attachmentCount: number;
+}): React.ReactNode {
+  const format = getImageFormat(attachment.mediaType);
+  const width =
+    attachment.dimensions?.originalWidth ??
+    attachment.dimensions?.displayWidth;
+  const height =
+    attachment.dimensions?.originalHeight ??
+    attachment.dimensions?.displayHeight;
+  const dimensions =
+    width && height ? `${width}x${height}` : "dimensions unavailable";
+  const sizeBytes =
+    attachment.originalSizeBytes ?? getBase64ByteLength(attachment.content);
+  const size = formatImageSize(sizeBytes);
+  const filename = attachment.filename || "Pasted image";
+  const sourcePath = attachment.sourcePath || "Clipboard image";
+
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderDimColor
+      paddingX={1}
+      width="100%"
+    >
+      <Text bold wrap="truncate-end">
+        Image #{attachment.id} — {format} · {dimensions} · {size} · {filename}
+      </Text>
+      <Text>
+        Format: {format}
+      </Text>
+      <Text>
+        Dimensions: {width && height ? `${width} x ${height}` : "Unavailable"}
+      </Text>
+      <Text>Size: {size}</Text>
+      <Text wrap="truncate-end">Path: {sourcePath}</Text>
+      {attachmentCount > 1 ? (
+        <Text dimColor>
+          {attachmentCount} images attached · maximum {MAX_IMAGE_ATTACHMENTS}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
 function PromptInput({
   debug,
   ideSelection,
@@ -375,6 +446,8 @@ function PromptInput({
     show: false,
   });
   const [cursorOffset, setCursorOffset] = useState<number>(input.length);
+  const cursorOffsetRef = useRef(cursorOffset);
+  cursorOffsetRef.current = cursorOffset;
   // Track the last input value set via internal handlers so we can detect
   // external input changes (e.g. speech-to-text injection) and move cursor to end.
   const lastInternalInputRef = React.useRef(input);
@@ -523,6 +596,12 @@ function PromptInput({
   if (nextPasteIdRef.current === -1) {
     nextPasteIdRef.current = getInitialPasteId(messages);
   }
+  // React may batch multiple image callbacks from one clipboard/drop event.
+  // Keep an immediately updated view so all images are retained and the
+  // attachment limit is enforced within that same event.
+  const pastedContentsRef = useRef(pastedContents);
+  pastedContentsRef.current = pastedContents;
+  const pendingImageIdsRef = useRef(new Set<number>());
   // Armed by onImagePaste; if the very next keystroke is a non-space
   // printable, inputFilter prepends a space before it. Any other input
   // (arrow, escape, backspace, paste, space) disarms without inserting.
@@ -839,11 +918,37 @@ function PromptInput({
       parseReferences(displayedValue)
         .filter((r) => r.match.startsWith("[Image"))
         .map((r) => ({
+          id: r.id,
           start: r.index,
           end: r.index + r.match.length,
         })),
     [displayedValue]
   );
+  const imageAttachmentsInPrompt = useMemo(() => {
+    const attachments: PastedContent[] = [];
+    for (const reference of imageRefPositions) {
+      const attachment = pastedContents[reference.id];
+      if (attachment?.type === "image") attachments.push(attachment);
+    }
+    return attachments;
+  }, [imageRefPositions, pastedContents]);
+  const previewImageAttachment = useMemo(() => {
+    if (imageAttachmentsInPrompt.length === 0) return undefined;
+    const selectedReference = imageRefPositions.find(
+      (reference) =>
+        cursorOffset >= reference.start && cursorOffset <= reference.end
+    );
+    if (selectedReference) {
+      const selected = pastedContents[selectedReference.id];
+      if (selected?.type === "image") return selected;
+    }
+    return imageAttachmentsInPrompt[imageAttachmentsInPrompt.length - 1];
+  }, [
+    cursorOffset,
+    imageAttachmentsInPrompt,
+    imageRefPositions,
+    pastedContents,
+  ]);
 
   // chip.start is the "selected" state: the inverted chip IS the cursor.
   // chip.end stays a normal position so you can park the cursor right after
@@ -1537,8 +1642,23 @@ function PromptInput({
     mediaType?: string,
     filename?: string,
     dimensions?: ImageDimensions,
-    sourcePath?: string
+    sourcePath?: string,
+    originalSizeBytes?: number
   ) {
+    const currentContents = pastedContentsRef.current;
+    const imageCount = Object.values(currentContents).filter(
+      (content) => content.type === "image"
+    ).length;
+    if (imageCount >= MAX_IMAGE_ATTACHMENTS) {
+      addNotification({
+        key: "image-attachment-limit",
+        text: `Image attachment limit reached (maximum ${MAX_IMAGE_ATTACHMENTS})`,
+        priority: "immediate",
+        timeoutMs: 5000,
+      });
+      return;
+    }
+
     logEvent("tengu_paste_image", {});
     onModeChange("prompt");
     const pasteId = nextPasteIdRef.current++;
@@ -1551,6 +1671,7 @@ function PromptInput({
       filename: filename || "Pasted image",
       dimensions,
       sourcePath,
+      originalSizeBytes,
     };
 
     // Cache path immediately (fast) so links work on render
@@ -1560,15 +1681,18 @@ function PromptInput({
     void storeImage(newContent);
 
     // Update UI
-    setPastedContents((prev) => ({
-      ...prev,
+    const nextContents = {
+      ...currentContents,
       [pasteId]: newContent,
-    }));
+    };
+    pastedContentsRef.current = nextContents;
+    pendingImageIdsRef.current.add(pasteId);
     // Multi-image paste calls onImagePaste in a loop. If the ref is already
     // armed, the previous pill's lazy space fires now (before this pill)
     // rather than being lost.
     const prefix = pendingSpaceAfterPillRef.current ? " " : "";
     insertTextAtCursor(prefix + formatImageRef(pasteId));
+    setPastedContents(nextContents);
     pendingSpaceAfterPillRef.current = true;
   }
 
@@ -1578,15 +1702,22 @@ function PromptInput({
   // same event, so this effect sees the placeholder already present.
   useEffect(() => {
     const referencedIds = new Set(parseReferences(input).map((r) => r.id));
+    for (const id of referencedIds) {
+      pendingImageIdsRef.current.delete(id);
+    }
     setPastedContents((prev) => {
       const orphaned = Object.values(prev).filter(
-        (c) => c.type === "image" && !referencedIds.has(c.id)
+        (c) =>
+          c.type === "image" &&
+          !referencedIds.has(c.id) &&
+          !pendingImageIdsRef.current.has(c.id)
       );
       if (orphaned.length === 0) return prev;
       const next = {
         ...prev,
       };
       for (const img of orphaned) delete next[img.id];
+      pastedContentsRef.current = next;
       return next;
     });
   }, [input, setPastedContents]);
@@ -1640,12 +1771,22 @@ function PromptInput({
     []
   );
   function insertTextAtCursor(text: string) {
+    const currentInput = lastInternalInputRef.current;
+    const currentCursorOffset = cursorOffsetRef.current;
     // Push current state to buffer before inserting
-    pushToBuffer(input, cursorOffset, pastedContents);
+    pushToBuffer(
+      currentInput,
+      currentCursorOffset,
+      pastedContentsRef.current
+    );
     const newInput =
-      input.slice(0, cursorOffset) + text + input.slice(cursorOffset);
+      currentInput.slice(0, currentCursorOffset) +
+      text +
+      currentInput.slice(currentCursorOffset);
     trackAndSetInput(newInput);
-    setCursorOffset(cursorOffset + text.length);
+    const nextCursorOffset = currentCursorOffset + text.length;
+    cursorOffsetRef.current = nextCursorOffset;
+    setCursorOffset(nextCursorOffset);
   }
   const doublePressEscFromEmpty = useDoublePress(
     () => {},
@@ -2088,7 +2229,16 @@ function PromptInput({
   const handleImagePaste = useCallback(() => {
     void getImageFromClipboard().then((imageData) => {
       if (imageData) {
-        onImagePaste(imageData.base64, imageData.mediaType);
+        onImagePaste(
+          imageData.base64,
+          imageData.mediaType,
+          imageData.sourcePath
+            ? path.basename(imageData.sourcePath)
+            : undefined,
+          imageData.dimensions,
+          imageData.sourcePath,
+          imageData.originalSizeBytes
+        );
       } else {
         const shortcutDisplay = getShortcutDisplay(
           "chat:imagePaste",
@@ -2866,6 +3016,14 @@ function PromptInput({
         key,
       }),
     onImagePaste,
+    onImagePasteError: (message) => {
+      addNotification({
+        key: "image-paste-failed",
+        text: message,
+        priority: "immediate",
+        timeoutMs: 5000,
+      });
+    },
     columns: textInputColumns,
     maxVisibleLines,
     disableCursorMovementForUpDownKeys:
@@ -2955,6 +3113,12 @@ function PromptInput({
         </Box>
       )}
       <PromptInputStashNotice hasStash={stashedPrompt !== undefined} />
+      {previewImageAttachment ? (
+        <ImageAttachmentPreview
+          attachment={previewImageAttachment}
+          attachmentCount={imageAttachmentsInPrompt.length}
+        />
+      ) : null}
       {swarmBanner ? (
         <>
           <Text color={swarmBanner.bgColor}>

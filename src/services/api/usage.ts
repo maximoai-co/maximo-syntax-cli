@@ -178,7 +178,115 @@ export type Utilization = {
   seven_day_opus?: RateLimit | null;
   seven_day_sonnet?: RateLimit | null;
   extra_usage?: ExtraUsage | null;
+  coding_plan?: {
+    active: boolean;
+    plan_id: string;
+    tier: string;
+    name: string;
+    concurrency: number | null;
+    models: string[];
+    daily: Array<{
+      day: string;
+      requests: number;
+      input_tokens: number | string;
+      output_tokens: number | string;
+      used_percent: number;
+    }>;
+  };
 };
+
+type MyTabulonPool = {
+  usedPercent?: number;
+  resetAt?: string | null;
+} | null;
+
+type MyTabulonCodingUsage = {
+  active?: boolean;
+  plan_id?: string;
+  tier?: string;
+  name?: string;
+  concurrency?: number;
+  models?: string[];
+  window?: MyTabulonPool;
+  weekly?: MyTabulonPool;
+  daily?: Array<{
+    day: string;
+    requests: number;
+    input_tokens: number | string;
+    output_tokens: number | string;
+    used_percent: number;
+  }>;
+  error?: { message?: string };
+};
+
+function getMyTabulonProviderConfig(): {
+  baseUrl: string;
+  apiKey: string;
+} | null {
+  const globalConfig = getGlobalConfig();
+  const baseUrl = (
+    process.env.OPENAI_BASE_URL ||
+    globalConfig.openAIBaseUrl ||
+    ""
+  ).replace(/\/+$/, "");
+  const apiKey = process.env.OPENAI_API_KEY || globalConfig.maximoApiKey || "";
+  if (!baseUrl.includes("api.mytabulon.com") || !apiKey) {
+    return null;
+  }
+  return { baseUrl, apiKey };
+}
+
+async function fetchMyTabulonCodingPlanUsage(): Promise<Utilization> {
+  const provider = getMyTabulonProviderConfig();
+  if (!provider) {
+    return {};
+  }
+  const response = await fetch(`${provider.baseUrl}/coding-plan/usage`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${provider.apiKey}`,
+      "User-Agent": getMaximoCodeUserAgent(),
+    },
+  });
+  const data = (await response.json().catch(() => null)) as
+    | MyTabulonCodingUsage
+    | null;
+  if (!response.ok || !data) {
+    throw new Error(
+      data?.error?.message ||
+        `MyTabulon usage request failed (${response.status}).`
+    );
+  }
+  const account = getGlobalConfig().mytabulonAccount;
+  const toLimit = (pool: MyTabulonPool | undefined): RateLimit | null =>
+    pool
+      ? {
+          utilization:
+            typeof pool.usedPercent === "number" ? pool.usedPercent : null,
+          resets_at: pool.resetAt || null,
+        }
+      : null;
+  return {
+    five_hour: toLimit(data.window),
+    seven_day: toLimit(data.weekly),
+    seven_day_oauth_apps: null,
+    seven_day_opus: null,
+    seven_day_sonnet: null,
+    extra_usage: null,
+    coding_plan: {
+      active: Boolean(data.active),
+      plan_id: String(
+        data.plan_id || account?.codingPlanId || "coding_free_v1"
+      ),
+      tier: String(data.tier || account?.codingPlanTier || "free"),
+      name: String(data.name || account?.codingPlanName || "Coding Free"),
+      concurrency:
+        typeof data.concurrency === "number" ? data.concurrency : null,
+      models: Array.isArray(data.models) ? data.models : [],
+      daily: Array.isArray(data.daily) ? data.daily : [],
+    },
+  };
+}
 
 // New detailed usage types
 export type AllocationWindow = {
@@ -271,6 +379,9 @@ export type DetailedUsageResponse = {
 };
 
 export async function fetchUtilization(): Promise<Utilization | null> {
+  if (getMyTabulonProviderConfig()) {
+    return fetchMyTabulonCodingPlanUsage();
+  }
   if (!canFetchUsage()) {
     return {};
   }
@@ -340,6 +451,9 @@ export async function fetchUtilization(): Promise<Utilization | null> {
 }
 
 export async function fetchDetailedUsage(): Promise<DetailedUsageResponse | null> {
+  if (getMyTabulonProviderConfig()) {
+    return null;
+  }
   if (!canFetchUsage()) {
     console.log("[Usage] canFetchUsage returned false - cannot fetch usage data");
     return null;
