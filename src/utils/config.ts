@@ -237,6 +237,8 @@ export type GlobalConfig = {
   primaryApiKey?: string; // Primary API key for the user when no environment variable is set, set via oauth (TODO: rename)
   maximoApiKey?: string; // Maximo AI API key for OpenAI-compatible API access
   openAIBaseUrl?: string; // Base URL for OpenAI-compatible API (e.g., https://api.maximoai.co/v1)
+  cencoriApiKey?: string; // Cencori API key for OpenAI-compatible API access
+  openAIModel?: string; // Default model for an OpenAI-compatible provider
   mytabulonDefaultModel?: string;
   mytabulonAccount?: MyTabulonAccountInfo;
   hasAcknowledgedCostThreshold?: boolean;
@@ -681,6 +683,8 @@ export const GLOBAL_CONFIG_KEYS = [
   "remoteDialogSeen",
   "maximoApiKey",
   "openAIBaseUrl",
+  "cencoriApiKey",
+  "openAIModel",
 ] as const;
 
 export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number];

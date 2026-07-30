@@ -177,6 +177,7 @@ import tag from "./commands/tag/index.js";
 import outputStyle from "./commands/output-style/index.js";
 import remoteEnv from "./commands/remote-env/index.js";
 import upgrade from "./commands/upgrade/index.js";
+import update from "./commands/update/index.js";
 import {
   extraUsage,
   extraUsageNonInteractive,
@@ -311,6 +312,7 @@ const COMMANDS = memoize((): Command[] => [
   securityReview,
   terminalSetup,
   upgrade,
+  update(),
   extraUsage,
   extraUsageNonInteractive,
   rateLimitOptions,

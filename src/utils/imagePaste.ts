@@ -501,14 +501,22 @@ export async function tryReadImageFromPath(
     if (isAbsolute(imagePath)) {
       candidates.push(imagePath)
     } else {
-      // VS Code's integrated terminal can reduce Finder drops to a basename.
-      // Resolve exact, bounded locations first; never recursively scan a home
-      // directory from an input event.
+      // VS Code / Terminal.app can reduce Finder drags to a basename. Resolve
+      // exact, bounded locations first; never recursively scan a home
+      // directory from an input event. Include the common drag-source folders
+      // so a file dropped from Documents (or iCloud) attaches just like paste.
       candidates.push(
         resolve(fs.cwd(), imagePath),
         join(homedir(), 'Downloads', imagePath),
         join(homedir(), 'Desktop', imagePath),
         join(homedir(), 'Pictures', imagePath),
+        join(homedir(), 'Documents', imagePath),
+        join(homedir(), 'Documents', 'Images', imagePath),
+        join(homedir(), 'Movies', imagePath),
+        join(homedir(), 'iCloud Drive', imagePath),
+        ...(homedir() !== '/'
+          ? [join(homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', imagePath)]
+          : []),
       )
 
       // A copied Finder image can expose its full file URL on the clipboard

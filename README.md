@@ -60,6 +60,54 @@ All five commands are equivalent and natively supported.
 
 ---
 
+## Login
+
+Maximo Syntax CLI supports several ways to sign in. Run the login flow and pick the option that matches your setup:
+
+```bash
+maximo login
+```
+
+| Option | What it is | Notes |
+|--------|------------|-------|
+| **Maximo AI account** | First-party Maximo AI subscription/pro API key | Default provider; routes through `https://api.maximoai.co/v1`. |
+| **MyTabulon Coding Plan** | MyTabulon platform API key (`mtb_live_…`) | Sign in via browser OAuth or paste a `mtb_live_` key. |
+| **Cencori** | Cencori OpenAI-compatible API key (`csk_…`) | Cencori is OpenAI-compatible, so chat and models go through `https://api.cencori.com/v1`. Paste your `csk_` key at the prompt — the key is saved to your global config and used for all API calls. |
+| **3rd-party platform** | OpenAI, Gemini, Bedrock, Ollama, and more | Set the relevant environment variables and restart. See [Alternative Providers](#alternative-providers). |
+
+To switch providers (e.g. to Cencori) at any time, run `maximo login` again and choose the provider you want.
+
+---
+
+## Keeping Maximo Syntax up to date
+
+Maximo Syntax installs via npm, so updating is just reinstalling the latest published version:
+
+```bash
+npm install -g @maximoai/maximo-syntax-cli
+```
+
+You can also update right from inside the CLI:
+
+```bash
+/update
+```
+
+`/update` runs `npm install -g @maximoai/maximo-syntax-cli` (always pulls the `latest` dist-tag) and tells you to restart the CLI once it finishes. Native and OS-package-manager installs are left to their own update channels.
+
+---
+
+## Images: paste and drag-and-drop
+
+You can attach images to a prompt by **copy-paste** or by **dragging and dropping** a file into the terminal — both work the same way:
+
+- Pasted images are read from the clipboard and attached inline.
+- Dragged images are resolved from the dropped file path (including basename-only drops from common folders like `~/Documents`, `~/Desktop`, `~/Pictures`, and iCloud Drive).
+
+In both cases the image is previewed with a `[Image #N]` reference before you send, and the original bytes are preserved (no silent resize or recompress). Up to 10 images can be attached per prompt.
+
+---
+
 ## Quick Start
 
 ### 1. Set up Maximo AI (Recommended)

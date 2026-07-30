@@ -4,6 +4,28 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.16] - 2026-07-30
+
+### Added
+
+- Added Cencori as a login option. Users can connect with a Cencori API key (`csk_...`); it is OpenAI-compatible and routes through the existing OpenAI shim (`https://api.cencori.com/v1`).
+- Added Cencori model listing and provider detection so connected users get Cencori models and chat requests target Cencori.
+- Added `cencoriApiKey` and `openAIModel` fields to the global config and whitelist.
+
+### Changed
+
+- Cencori login no longer blocks on a failed `/v1/models` fetch. The key is persisted and login succeeds; a one-line note tells the user to pick a model when starting a session.
+- API-key screens (Cencori, MyTabulon, Maximo AI) now accept pasted text (Cmd/Ctrl+V) via the bracketed-paste handler instead of silently dropping it.
+
+### Fixed
+
+- Fixed Escape not returning to the login selector from the Cencori key-entry screen.
+- Fixed drag-and-drop image attachment failing for basename-only drops (e.g. from `~/Documents` or iCloud Drive). Dropped images now resolve and attach with the same preview and placeholder as copied-paste images.
+
+### Added
+
+- Added `/update` command to update Maximo Syntax to the latest published version via `npm install -g @maximoai/maximo-syntax-cli` (always pulls the `latest` dist-tag). Native and OS-package-manager installs are left to their own update channels.
+
 ## [0.1.15] - 2026-07-30
 
 ### Added

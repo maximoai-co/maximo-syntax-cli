@@ -131,6 +131,7 @@ let cachedModelsBaseUrl: string | null = null;
 let cachedMyTabulonAccount: MyTabulonAccountInfo | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MYTABULON_BASE_URL = "https://api.mytabulon.com/v1";
+const CENCORI_BASE_URL = "https://api.cencori.com/v1";
 
 export type MaximoModelLimits = {
   id: string;
@@ -313,6 +314,10 @@ function isMaximoAIProviderInternal(): boolean {
     return true;
   }
 
+  if (isCencoriProvider()) {
+    return true;
+  }
+
   const oauthTokens = getMaximoAIOAuthTokens();
   if (oauthTokens?.accessToken && isMaximoAISubscriber()) {
     return true;
@@ -333,6 +338,21 @@ export function isMyTabulonProvider(): boolean {
 }
 
 /**
+ * Check if we're using Cencori as the OpenAI-compatible provider.
+ * Cencori exposes an OpenAI-compatible /v1 API (https://api.cencori.com/v1).
+ */
+export function isCencoriProvider(): boolean {
+  const globalConfig = getGlobalConfig();
+  const baseUrl =
+    process.env.OPENAI_BASE_URL || globalConfig.openAIBaseUrl || "";
+  const hasOpenAIConfig =
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "1" ||
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "true" ||
+    Boolean(globalConfig.cencoriApiKey);
+  return hasOpenAIConfig && baseUrl.includes("api.cencori.com");
+}
+
+/**
  * Get the base URL for Maximo AI API
  */
 function getMaximoAIBaseUrl(): string {
@@ -340,7 +360,8 @@ function getMaximoAIBaseUrl(): string {
   const configuredBaseUrl =
     globalConfig.openAIBaseUrl || process.env.OPENAI_BASE_URL;
   return configuredBaseUrl?.includes("maximoai.co") ||
-    configuredBaseUrl?.includes("api.mytabulon.com")
+    configuredBaseUrl?.includes("api.mytabulon.com") ||
+    configuredBaseUrl?.includes("api.cencori.com")
     ? configuredBaseUrl
     : "https://api.maximoai.co/v1";
 }
@@ -544,6 +565,12 @@ export async function getMaximoModelOptions(): Promise<ModelOption[] | null> {
   }
 
   if (isMyTabulonProvider()) {
+    return models.map(toModelOption);
+  }
+
+  if (isCencoriProvider()) {
+    // Cencori model IDs (e.g. gpt-4o, claude-sonnet-4.5) don't follow the
+    // maximo-<family>- naming scheme, so skip family grouping and list as-is.
     return models.map(toModelOption);
   }
 
@@ -772,6 +799,82 @@ export async function configureMyTabulonProvider(
   }
   persistMyTabulonState(trimmedKey, MYTABULON_BASE_URL, models, account);
   return account;
+}
+
+function persistCencoriState(
+  apiKey: string,
+  baseUrl: string,
+  model?: string
+): void {
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
+  process.env.OPENAI_API_KEY = apiKey;
+  process.env.OPENAI_BASE_URL = baseUrl;
+  if (model) process.env.OPENAI_MODEL = model;
+  saveGlobalConfig((current) => ({
+    ...current,
+    cencoriApiKey: apiKey,
+    openAIBaseUrl: baseUrl,
+    openAIModel: model ?? current.openAIModel,
+    mytabulonDefaultModel: undefined,
+    mytabulonAccount: undefined,
+  }));
+}
+
+export type ConfigureCencoriResult = {
+  models: MaximoModel[];
+  defaultModel?: string;
+  /** Present when the key was accepted but /v1/models could not be read.
+   *  Login still succeeds — the user can pick a model later. */
+  warning?: string;
+};
+
+/**
+ * Configure the CLI to use Cencori as an OpenAI-compatible provider.
+ *
+ * Validates the key, then fetches the available models from Cencori to pick a
+ * sensible default. A failure to list models (e.g. a 401 on /v1/models while
+ * the key is still valid, network blip, schematic surprise) MUST NOT block
+ * login — we persist the key and return with a warning so the user can get
+ * started immediately and choose a model later.
+ */
+export async function configureCencoriProvider(
+  apiKey: string
+): Promise<ConfigureCencoriResult> {
+  const trimmedKey = apiKey.trim();
+  if (!trimmedKey) {
+    throw new Error("Enter your Cencori API key.");
+  }
+  if (!trimmedKey.startsWith("csk_")) {
+    throw new Error(
+      "Cencori API keys begin with csk_. Check you copied the right key from api.cencori.com."
+    );
+  }
+  clearMaximoModelsCache();
+  try {
+    const models = await fetchMaximoModels({
+      baseUrl: CENCORI_BASE_URL,
+      apiKey: trimmedKey,
+      forceRefresh: true,
+      persistMyTabulonAccount: false,
+      throwOnError: true,
+    });
+    const defaultModel = models[0]?.id;
+    persistCencoriState(trimmedKey, CENCORI_BASE_URL, defaultModel);
+    return { models, defaultModel };
+  } catch (error) {
+    // The key may still be valid (e.g. /v1/models returns 401 for some keys
+    // while /v1/chat/completions works). Persist auth so login succeeds; the
+    // chat layer uses OPENAI_MODEL if the user sets one later.
+    persistCencoriState(trimmedKey, CENCORI_BASE_URL);
+    const reason =
+      error instanceof Error ? error.message : "unknown error";
+    return {
+      models: [],
+      warning:
+        "Connected to Cencori, but couldn't read the model list " +
+        `(${reason}). You're logged in — pick a model when you start a session.`,
+    };
+  }
 }
 
 /**

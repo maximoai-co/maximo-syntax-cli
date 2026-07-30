@@ -11,7 +11,10 @@ import { useTerminalNotification } from "../ink/useTerminalNotification.js";
 import { Box, Link, Text } from "../ink.js";
 import { useKeybinding } from "../keybindings/useKeybinding.js";
 import { getSSLErrorHint } from "../services/api/errorUtils.js";
-import { configureMyTabulonProvider } from "../services/api/maximoModels.js";
+import {
+  configureCencoriProvider,
+  configureMyTabulonProvider,
+} from "../services/api/maximoModels.js";
 import { sendNotification } from "../services/notifier.js";
 import { OAuthService } from "../services/oauth/index.js";
 import { MyTabulonOAuthService } from "../services/oauth/mytabulon.js";
@@ -47,6 +50,9 @@ type OAuthStatus =
   | {
       state: "mytabulon_setup";
     } // Show MyTabulon Coding Plan API key setup
+  | {
+      state: "cencori_setup";
+    } // Show Cencori API key setup
   | {
       state: "mytabulon_waiting_for_login";
       url: string;
@@ -211,7 +217,8 @@ export function ConsoleOAuthFlow({
       isActive:
         oauthStatus.state === "maximoai_setup" ||
         oauthStatus.state === "mytabulon_method" ||
-        oauthStatus.state === "mytabulon_setup",
+        oauthStatus.state === "mytabulon_setup" ||
+        oauthStatus.state === "cencori_setup",
     }
   );
   useEffect(() => {
@@ -529,7 +536,7 @@ type OAuthStatusMessageProps = {
   onDone: () => void;
 };
 function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
-  const $ = _c(51);
+  const $ = _c(66);
   const {
     oauthStatus,
     mode,
@@ -629,12 +636,29 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
       } else {
         t5 = $[5];
       }
+      let t_cencori;
+      if ($[51] === Symbol.for("react.memo_cache_sentinel")) {
+        t_cencori = {
+          label: (
+            <Text>
+              Cencori ·{" "}
+              <Text dimColor={true}>API key from api.cencori.com</Text>
+              {"\n"}
+            </Text>
+          ),
+          value: "cencori",
+        };
+        $[51] = t_cencori;
+      } else {
+        t_cencori = $[51];
+      }
       let t6;
       if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
         t6 = [
           t4,
           t_maximo,
           t5,
+          t_cencori,
           {
             label: (
               <Text>
@@ -673,6 +697,11 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                   logEvent("tengu_oauth_platform_selected", {});
                   setOAuthStatus({
                     state: "platform_setup",
+                  });
+                } else if (value_0 === "cencori") {
+                  logEvent("tengu_oauth_cencori_selected", {});
+                  setOAuthStatus({
+                    state: "cencori_setup",
                   });
                 } else {
                   setOAuthStatus({
@@ -748,6 +777,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
             <TextInput
               value={maximoApiKey}
               onChange={setMaximoApiKey}
+              onPaste={setMaximoApiKey}
               onSubmit={(value: string) => {
                 // Save the API key and proceed
                 // Validate that it looks like a valid API key (non-empty, reasonable length)
@@ -918,6 +948,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
             <TextInput
               value={maximoApiKey}
               onChange={setMaximoApiKey}
+              onPaste={setMaximoApiKey}
               onSubmit={(value: string) => {
                 if (!value.trim()) {
                   setOAuthStatus({
@@ -994,6 +1025,121 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         $[25] = t5;
       } else {
         t5 = $[25];
+      }
+      return t5;
+    }
+    case "cencori_setup": {
+      let t1;
+      if ($[52] === Symbol.for("react.memo_cache_sentinel")) {
+        t1 = <Text bold={true}>Connect with Cencori</Text>;
+        $[52] = t1;
+      } else {
+        t1 = $[52];
+      }
+      let t2;
+      if ($[53] === Symbol.for("react.memo_cache_sentinel")) {
+        t2 = (
+          <Text>
+            Cencori is OpenAI-compatible. Enter your API key below to connect.{"\n"}
+            Your key will be saved securely and used for all API calls.
+          </Text>
+        );
+        $[53] = t2;
+      } else {
+        t2 = $[53];
+      }
+      let t3;
+      if (
+        $[54] !== maximoApiKey ||
+        $[55] !== maximoApiKeyCursor ||
+        $[56] !== setMaximoApiKey ||
+        $[57] !== setMaximoApiKeyCursor ||
+        $[58] !== textInputColumns
+      ) {
+        t3 = (
+          <Box flexDirection="column">
+            <Text>{"Enter your Cencori API key:"}</Text>
+            <TextInput
+              value={maximoApiKey}
+              onChange={setMaximoApiKey}
+              onPaste={setMaximoApiKey}
+              onSubmit={(value: string) => {
+                void configureCencoriProvider(value)
+                  .then((result) => {
+                    logEvent("tengu_oauth_cencori_api_key_saved", {});
+                    if (result.warning) {
+                      // Connected, but model list couldn't be read. We're
+                      // logged in — just surface a one-line note so the user
+                      // knows they can pick a model when starting a session.
+                      logError(new Error(result.warning));
+                      console.log(`\n${result.warning}\n`);
+                    }
+                    setOAuthStatus({ state: "success" });
+                    if (typeof onDone === "function") {
+                      onDone();
+                    }
+                  })
+                  .catch((error) => {
+                    logError(error);
+                    setOAuthStatus({
+                      state: "error",
+                      message: (error as Error).message,
+                      toRetry: { state: "cencori_setup" },
+                    });
+                  });
+              }}
+              cursorOffset={maximoApiKeyCursor}
+              onChangeCursorOffset={setMaximoApiKeyCursor}
+              columns={textInputColumns}
+              mask="*"
+              placeholder="Enter your Cencori API key..."
+            />
+          </Box>
+        );
+        $[54] = maximoApiKey;
+        $[55] = maximoApiKeyCursor;
+        $[56] = setMaximoApiKey;
+        $[57] = setMaximoApiKeyCursor;
+        $[58] = textInputColumns;
+        $[59] = t3;
+      } else {
+        t3 = $[59];
+      }
+      let t4;
+      if ($[60] === Symbol.for("react.memo_cache_sentinel")) {
+        t4 = (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>
+              Get your API key from: https://api.cencori.com/dashboard/keys
+            </Text>
+            <Box marginTop={1}>
+              <Text dimColor>
+                Press <Text bold>Escape</Text> to go back.
+              </Text>
+            </Box>
+          </Box>
+        );
+        $[60] = t4;
+      } else {
+        t4 = $[60];
+      }
+      let t5;
+      if ($[61] !== t1 || $[62] !== t2 || $[63] !== t3 || $[64] !== t4) {
+        t5 = (
+          <Box flexDirection="column" gap={1} marginTop={1}>
+            {t1}
+            {t2}
+            {t3}
+            {t4}
+          </Box>
+        );
+        $[61] = t1;
+        $[62] = t2;
+        $[63] = t3;
+        $[64] = t4;
+        $[65] = t5;
+      } else {
+        t5 = $[65];
       }
       return t5;
     }
