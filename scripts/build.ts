@@ -13,8 +13,11 @@ import { readFileSync } from "fs";
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 const version = pkg.version;
 
-// Feature flags — all disabled for the open build.
-// These gate Anthropic-internal features (voice, proactive, kairos, etc.)
+// Feature flags for the open build.
+// Most Anthropic-internal features stay off. TRANSCRIPT_CLASSIFIER is enabled
+// so Maximo ships auto mode (LLM permission classifier) for Maximo AI /
+// MyTabulon logins. Do not flip unrelated flags without verifying those
+// subsystems work in the open tree.
 const featureFlags: Record<string, boolean> = {
   VOICE_MODE: false,
   PROACTIVE: false,
@@ -33,13 +36,20 @@ const featureFlags: Record<string, boolean> = {
   UDS_INBOX: false,
   BG_SESSIONS: false,
   AWAY_SUMMARY: false,
-  TRANSCRIPT_CLASSIFIER: false,
+  TRANSCRIPT_CLASSIFIER: true,
   WEB_BROWSER_TOOL: false,
   MESSAGE_ACTIONS: false,
   BUDDY: false,
   CHICAGO_MCP: false,
   COWORKER_TYPE_TELEMETRY: false,
 };
+
+// Compile-time feature() constants. Bun replaces feature("X") with true/false
+// during bundling based on this list — the bun:bundle plugin shim alone is not
+// enough because Bun DCE's the false branch before the plugin runs.
+const enabledFeatures = Object.entries(featureFlags)
+  .filter(([, on]) => on)
+  .map(([name]) => name);
 
 const result = await Bun.build({
   entrypoints: ["./src/entrypoints/cli.tsx"],
@@ -50,6 +60,8 @@ const result = await Bun.build({
   sourcemap: "external",
   minify: false,
   naming: "cli.mjs",
+  // @ts-expect-error Bun.BuildConfig.features is supported at runtime (bun:bundle DCE)
+  features: enabledFeatures,
   define: {
     // MACRO.* build-time constants
     // Keep the internal compatibility version high enough to pass
@@ -113,7 +125,9 @@ export async function handleBgFlag() { throw new Error("Background sessions are 
           namespace: "bun-bundle-shim",
         }));
         build.onLoad({ filter: /.*/, namespace: "bun-bundle-shim" }, () => ({
-          contents: `export function feature(name) { return false; }`,
+          // Whitelist only explicitly enabled flags — default false for safety.
+          contents: `const FLAGS = ${JSON.stringify(featureFlags)};
+export function feature(name) { return FLAGS[name] === true; }`,
           loader: "js",
         }));
 

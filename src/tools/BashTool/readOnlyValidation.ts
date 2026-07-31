@@ -1531,13 +1531,57 @@ const READONLY_COMMAND_REGEXES = new Set([
 
   // Development tools version checking - exact match only, no suffix allowed.
   // SECURITY: `node -v --run <task>` would execute package.json scripts because
-  // Node processes --run before -v. Python/python3 --version are also anchored
-  // for defense-in-depth. These were previously in EXTERNAL_READONLY_COMMANDS which
-  // flows through makeRegexForSafeCommand and permits arbitrary suffixes.
+  // Node processes --run before -v. All of these are anchored for defense-in-depth.
+  // Compound chains (node -v || bun -v || npm -v) are allowed only when EVERY
+  // segment matches one of these (see checkReadOnlyConstraints).
   /^node -v$/,
   /^node --version$/,
+  /^bun -v$/,
+  /^bun --version$/,
+  /^npm -v$/,
+  /^npm -version$/,
+  /^npm --version$/,
+  /^pnpm -v$/,
+  /^pnpm --version$/,
+  /^yarn -v$/,
+  /^yarn --version$/,
+  /^deno -v$/,
+  /^deno --version$/,
   /^python --version$/,
   /^python3 --version$/,
+  /^python -V$/,
+  /^python3 -V$/,
+  /^go version$/,
+  /^rustc --version$/,
+  /^cargo --version$/,
+  /^ruby -v$/,
+  /^ruby --version$/,
+  /^php -v$/,
+  /^php --version$/,
+  /^java -version$/,
+  /^java --version$/,
+  /^tsc --version$/,
+  /^swift --version$/,
+  /^dotnet --version$/,
+  /^kotlin -version$/,
+  /^scala -version$/,
+  /^perl -v$/,
+  /^lua -v$/,
+  /^R --version$/,
+  /^gcc --version$/,
+  /^clang --version$/,
+  /^make --version$/,
+  /^cmake --version$/,
+  /^git --version$/,
+  /^gh --version$/,
+  /^docker --version$/,
+  /^docker version$/,
+  /^kubectl version --client$/,
+  /^which node$/,
+  /^which bun$/,
+  /^which npm$/,
+  /^which python3?$/,
+  /^command -v (?:node|bun|npm|pnpm|yarn|python3?|go|rustc|cargo|ruby|php|java|git)$/,
 
   // Misc. safe commands
   // tree command moved to COMMAND_ALLOWLIST for proper flag validation (blocks -o/--output)

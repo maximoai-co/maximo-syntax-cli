@@ -161,10 +161,23 @@ export function modelSupportsStructuredOutputs(model: string): boolean {
 // @[MODEL LAUNCH]: Add the new model if it supports auto mode (specifically PI probes) — ask in #proj-claude-code-safety-research.
 export function modelSupportsAutoMode(model: string): boolean {
   if (feature("TRANSCRIPT_CLASSIFIER")) {
+    // Maximo open build: classifier auto mode is available when the user is
+    // logged in via Maximo AI or MyTabulon. The active main-loop model is used
+    // as the classifier (same login credentials via sideQuery).
+    // Lazy require avoids a circular import at module init (autoModeAuth →
+    // auth / maximoModels → other utils that may import betas).
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { supportsClassifierAutoModeAuth } = require("./permissions/autoModeAuth.js") as typeof import("./permissions/autoModeAuth.js");
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    if (supportsClassifierAutoModeAuth()) {
+      // Any selected model on an eligible login can classify; empty model
+      // string is treated as unsupported until a model is resolved.
+      return Boolean(model && model.trim().length > 0);
+    }
+
     const m = getCanonicalName(model);
-    // External: firstParty-only at launch (PI probes not wired for
-    // Bedrock/Vertex/Foundry yet). Checked before allowModels so the GB
-    // override can't enable auto mode on unsupported providers.
+    // Legacy path for ant / Anthropic first-party (kept for compatibility).
+    // Checked after Maximo/MyTabulon so open builds do not require Claude IDs.
     if (process.env.USER_TYPE !== "ant" && getAPIProvider() !== "firstParty") {
       return false;
     }

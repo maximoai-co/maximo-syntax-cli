@@ -4,6 +4,36 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.18] - 2026-07-31
+
+### Added
+
+- **Permission modes: auto (classifier) and always-approve (YOLO)**
+  - Classifier **auto mode**: many tool calls are approved or blocked by a side-query safety classifier so interactive work needs fewer manual prompts. Available when logged in via **Maximo AI** or **MyTabulon**.
+  - **Always-approve** (no classifier): full no-prompt mode for sandboxed/trusted environments; deny rules and hooks still apply.
+  - TUI **`/auto`** picker to choose **Auto · classifier**, **Always-approve · no classifier**, or **Off** (restore default prompts). Aliases: `/yolo`, `/always-approve`, `/bypass-permissions`.
+  - CLI flags: `--always-approve`, `--yolo` (aliases for `--dangerously-skip-permissions`); `--permission-mode auto` and `--enable-auto-mode` for classifier auto.
+  - Classifier uses the **active selected model** and the same Maximo AI / MyTabulon login credentials (`sideQuery`). Optional override: `MAXIMO_AUTO_MODE_MODEL` / `MAXIMO_SYNTAX_AUTO_MODE_MODEL`.
+  - Opt-in dialogs with clear **usage-pool warning** for classifier auto (extra API calls) and sandbox warning for always-approve.
+  - TUI visibility: prompt footer shows the active mode (`◎ auto · classifier on` vs `⚠ always-approve · no classifier on`); Shift+Tab cycle toast; `/status` lists permission mode.
+  - Build flag `TRANSCRIPT_CLASSIFIER` enabled for the open build (via Bun `features`), with Maximo-owned classifier system/permission prompt assets.
+  - README section documenting permission modes, activation, and safety notes.
+
+### Changed
+
+- Expanded **read-only Bash allowlist** so routine version/help checks auto-allow under auto mode without a classifier call (e.g. `node -v`, `bun -v`, `npm -v`, and safe compounds like `node -v || bun -v || npm -v`), while still blocking dangerous suffixes such as `node -v --run …`.
+- Auto-mode denial and system guidance now tell the agent to prefer dedicated tools (Read/Write/Edit/Grep/Glob) when Bash is blocked, instead of retrying the same shell command.
+- Auto mode feature gate defaults to **opt-in** when remote GrowthBook config is absent, so open builds can enable auto after consent without a remote kill-switch defaulting everything off.
+
+### Fixed
+
+- **Web search routing**: the Maximo AI backend web-search endpoint is served at `/v1/api/web-search` (mounted at `/v1/api` in `run.js`) to bypass the globally-guarded `/api` prefix that returned 403. `WebSearchTool` now targets `/v1/api/web-search` for `api.maximoai.co` (MyTabulon's `/v1/web-search` unchanged).
+
+### Fixed
+
+- **Grep / ripgrep**: when the bundled `dist/vendor/ripgrep/…` binary is missing, the CLI falls back to system `rg` on `PATH`, then to a pure-JavaScript content search so Grep works on open builds without a vendored binary.
+- Classifier auto mode model support is no longer limited to Claude model ID allowlists for Maximo/MyTabulon sessions; any selected model on an eligible login can drive the classifier.
+
 ## [0.1.17] - 2026-07-31
 
 ### Changed

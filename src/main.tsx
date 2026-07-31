@@ -910,16 +910,22 @@ export async function main() {
       const ccUrl = rawCliArgs[ccIdx]!;
       const { parseConnectUrl } = await import("./server/parseConnectUrl.js");
       const parsed = parseConnectUrl(ccUrl);
-      _pendingConnect.dangerouslySkipPermissions = rawCliArgs.includes(
-        "--dangerously-skip-permissions"
-      );
+      _pendingConnect.dangerouslySkipPermissions =
+        rawCliArgs.includes("--dangerously-skip-permissions") ||
+        rawCliArgs.includes("--always-approve") ||
+        rawCliArgs.includes("--yolo");
+      const stripBypassFlags = (args: string[]): string[] =>
+        args.filter(
+          a =>
+            a !== "--dangerously-skip-permissions" &&
+            a !== "--always-approve" &&
+            a !== "--yolo",
+        );
       if (rawCliArgs.includes("-p") || rawCliArgs.includes("--print")) {
         // Headless: rewrite to internal `open` subcommand
-        const stripped = rawCliArgs.filter((_, i) => i !== ccIdx);
-        const dspIdx = stripped.indexOf("--dangerously-skip-permissions");
-        if (dspIdx !== -1) {
-          stripped.splice(dspIdx, 1);
-        }
+        const stripped = stripBypassFlags(
+          rawCliArgs.filter((_, i) => i !== ccIdx),
+        );
         process.argv = [
           process.argv[0]!,
           process.argv[1]!,
@@ -931,11 +937,9 @@ export async function main() {
         // Interactive: strip cc:// URL and flags, run main command
         _pendingConnect.url = parsed.serverUrl;
         _pendingConnect.authToken = parsed.authToken;
-        const stripped = rawCliArgs.filter((_, i) => i !== ccIdx);
-        const dspIdx = stripped.indexOf("--dangerously-skip-permissions");
-        if (dspIdx !== -1) {
-          stripped.splice(dspIdx, 1);
-        }
+        const stripped = stripBypassFlags(
+          rawCliArgs.filter((_, i) => i !== ccIdx),
+        );
         process.argv = [process.argv[0]!, process.argv[1]!, ...stripped];
       }
     }
@@ -1017,10 +1021,16 @@ export async function main() {
         _pendingSSH.local = true;
         rawCliArgs.splice(localIdx, 1);
       }
-      const dspIdx = rawCliArgs.indexOf("--dangerously-skip-permissions");
-      if (dspIdx !== -1) {
-        _pendingSSH.dangerouslySkipPermissions = true;
-        rawCliArgs.splice(dspIdx, 1);
+      for (const flag of [
+        "--dangerously-skip-permissions",
+        "--always-approve",
+        "--yolo",
+      ]) {
+        const dspIdx = rawCliArgs.indexOf(flag);
+        if (dspIdx !== -1) {
+          _pendingSSH.dangerouslySkipPermissions = true;
+          rawCliArgs.splice(dspIdx, 1);
+        }
       }
       const pmIdx = rawCliArgs.indexOf("--permission-mode");
       if (
@@ -1410,7 +1420,17 @@ async function run(): Promise<CommanderCommand> {
     )
     .option(
       "--dangerously-skip-permissions",
-      "Bypass all permission checks. Recommended only for sandboxes with no internet access.",
+      "Bypass all permission checks (no classifier). Recommended only for sandboxes with no internet access.",
+      () => true
+    )
+    .option(
+      "--always-approve",
+      "Alias for --dangerously-skip-permissions: full no-prompt mode without a safety classifier. Sandbox recommended.",
+      () => true
+    )
+    .option(
+      "--yolo",
+      "Alias for --dangerously-skip-permissions / --always-approve (no classifier).",
       () => true
     )
     .option(
@@ -1825,13 +1845,15 @@ async function run(): Promise<CommanderCommand> {
       const {
         debug = false,
         debugToStderr = false,
-        dangerouslySkipPermissions,
+        dangerouslySkipPermissions: dangerouslySkipPermissionsOpt,
+        alwaysApprove = false,
+        yolo = false,
         allowDangerouslySkipPermissions = false,
         tools: baseTools = [],
         allowedTools = [],
         disallowedTools = [],
         mcpConfig = [],
-        permissionMode: permissionModeCli,
+        permissionMode: permissionModeCliOpt,
         addDir = [],
         fallbackModel,
         betas = [],
@@ -1840,6 +1862,22 @@ async function run(): Promise<CommanderCommand> {
         includeHookEvents,
         includePartialMessages,
       } = options;
+      // --always-approve / --yolo are aliases for full no-classifier bypass
+      const dangerouslySkipPermissions =
+        Boolean(dangerouslySkipPermissionsOpt) ||
+        Boolean(alwaysApprove) ||
+        Boolean(yolo);
+      // --enable-auto-mode / --permission-mode-auto start classifier auto mode
+      // (same as --permission-mode auto) when no explicit mode was given.
+      const enableAutoModeFlag = Boolean(
+        (options as { enableAutoMode?: boolean }).enableAutoMode ||
+          (options as { permissionModeAuto?: boolean }).permissionModeAuto,
+      );
+      const permissionModeCli: string | undefined =
+        permissionModeCliOpt ??
+        (enableAutoModeFlag && feature("TRANSCRIPT_CLASSIFIER")
+          ? "auto"
+          : undefined);
       if (options.prefill) {
         seedEarlyInput(options.prefill);
       }
@@ -5403,7 +5441,16 @@ async function run(): Promise<CommanderCommand> {
   }
   if (feature("TRANSCRIPT_CLASSIFIER")) {
     program.addOption(
-      new Option("--enable-auto-mode", "Opt in to auto mode").hideHelp()
+      new Option(
+        "--enable-auto-mode",
+        "Opt in to classifier auto mode (uses extra usage; Maximo AI / MyTabulon login required). Prefer /auto in the TUI.",
+      ),
+    );
+    program.addOption(
+      new Option(
+        "--permission-mode-auto",
+        "Shorthand: start in classifier auto mode (same as --permission-mode auto)",
+      ).hideHelp(),
     );
   }
   if (feature("PROACTIVE") || feature("KAIROS")) {

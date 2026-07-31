@@ -125,6 +125,7 @@ import thinkback from "./commands/thinkback/index.js";
 import thinkbackPlay from "./commands/thinkback-play/index.js";
 import permissions from "./commands/permissions/index.js";
 import plan from "./commands/plan/index.js";
+import auto from "./commands/auto/index.js";
 import fast from "./commands/fast/index.js";
 import passes from "./commands/passes/index.js";
 import privacySettings from "./commands/privacy-settings/index.js";
@@ -332,6 +333,7 @@ const COMMANDS = memoize((): Command[] => [
   thinkbackPlay,
   permissions,
   plan,
+  auto,
   privacySettings,
   hooks,
   exportCommand,

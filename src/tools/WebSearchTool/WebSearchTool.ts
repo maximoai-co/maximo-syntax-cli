@@ -82,7 +82,7 @@ import type { WebSearchProgress } from "../../types/tools.js";
 
 /**
  * Resolve the web-search endpoint for the configured Maximo AI API base URL.
- * - api.maximoai.co      -> /api/web-search
+ * - api.maximoai.co      -> /v1/api/web-search
  * - api.mytabulon.com    -> /v1/web-search
  * Returns null when the base URL is a backend we don't provide web search for.
  */
@@ -95,7 +95,10 @@ function resolveWebSearchEndpoint(baseUrl: string): {
     return { url: `${trimmed}/web-search`, path: "/v1/web-search" };
   }
   // Default to the Maximo AI API (api.maximoai.co and any other host).
-  return { url: `${trimmed.replace(/\/v1$/, "")}/web-search`, path: "/api/web-search" };
+  // The backend serves web search at /v1/api/web-search (mounted at /v1/api in
+  // run.js) to bypass the globally-locked /api prefix. The trailing /v1 on the
+  // base URL is stripped, then /v1/api/web-search is appended.
+  return { url: `${trimmed.replace(/\/v1$/, "")}/v1/api/web-search`, path: "/v1/api/web-search" };
 }
 
 export const WebSearchTool = buildTool({

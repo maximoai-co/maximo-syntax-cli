@@ -273,9 +273,16 @@ export function buildYoloRejectionMessage(reason: string): string {
       `At the end of your session, recommend what permission rules to add so you don't get blocked again.`
     : `To allow this type of action in the future, the user can add a Bash permission rule to their settings.`;
 
+  const toolFallbackHint =
+    `Prefer built-in tools instead of shell when possible: ` +
+    `use Read/Write/Edit for files, Grep/Glob for search, and other dedicated tools for their domains. ` +
+    `Only use Bash when a dedicated tool cannot accomplish the task. ` +
+    `Do not re-attempt the exact same Bash command; use a safer tool or a narrower command.`;
+
   return (
     `${prefix}${reason}. ` +
     `If you have other tasks that don't depend on this action, continue working on those. ` +
+    `${toolFallbackHint} ` +
     `${DENIAL_WORKAROUND_GUIDANCE} ` +
     ruleHint
   );

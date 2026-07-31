@@ -1339,14 +1339,17 @@ type AutoModeConfig = {
 
 /**
  * Get the model for the classifier.
- * Ant-only env var takes precedence, then GrowthBook JSON config override,
- * then the main loop model.
+ * Precedence: MAXIMO_SYNTAX_AUTO_MODE_MODEL / MAXIMO_AUTO_MODE_MODEL env →
+ * GrowthBook JSON config override → the active main-loop model (same login).
+ *
+ * Default is the user's currently selected model so classifier requests bill
+ * against the same Maximo AI / MyTabulon usage pool as the main agent.
  */
 function getClassifierModel(): string {
-  if (process.env.USER_TYPE === "ant") {
-    const envModel = process.env.MAXIMO_SYNTAX_AUTO_MODE_MODEL;
-    if (envModel) return envModel;
-  }
+  const envModel =
+    process.env.MAXIMO_SYNTAX_AUTO_MODE_MODEL ||
+    process.env.MAXIMO_AUTO_MODE_MODEL;
+  if (envModel) return envModel;
   const config = getFeatureValue_CACHED_MAY_BE_STALE(
     "tengu_auto_mode_config",
     {} as AutoModeConfig

@@ -1042,7 +1042,11 @@ export type AutoModeGateCheckResult = {
   notification?: string
 }
 
-export type AutoModeUnavailableReason = 'settings' | 'circuit-breaker' | 'model'
+export type AutoModeUnavailableReason =
+  | 'settings'
+  | 'circuit-breaker'
+  | 'model'
+  | 'auth'
 
 export function getAutoModeUnavailableNotification(
   reason: AutoModeUnavailableReason,
@@ -1057,6 +1061,10 @@ export function getAutoModeUnavailableNotification(
       break
     case 'model':
       base = 'auto mode unavailable for this model'
+      break
+    case 'auth':
+      base =
+        'auto mode requires Maximo AI or MyTabulon login (use --always-approve for no-classifier mode)'
       break
   }
   return process.env.USER_TYPE === 'ant'
@@ -1296,7 +1304,19 @@ export function getAutoModeUnavailableReason(): AutoModeUnavailableReason | null
   if (autoModeStateModule?.isAutoModeCircuitBroken() ?? false) {
     return 'circuit-breaker'
   }
-  if (!modelSupportsAutoMode(getMainLoopModel())) return 'model'
+  if (!modelSupportsAutoMode(getMainLoopModel())) {
+    // Distinguish login gate from "model id unsupported" for clearer UX.
+    try {
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { supportsClassifierAutoModeAuth } =
+        require('./autoModeAuth.js') as typeof import('./autoModeAuth.js')
+      /* eslint-enable @typescript-eslint/no-require-imports */
+      if (!supportsClassifierAutoModeAuth()) return 'auth'
+    } catch {
+      // fall through
+    }
+    return 'model'
+  }
   return null
 }
 
@@ -1310,7 +1330,10 @@ export function getAutoModeUnavailableReason(): AutoModeUnavailableReason | null
  */
 export type AutoModeEnabledState = 'enabled' | 'disabled' | 'opt-in'
 
-const AUTO_MODE_ENABLED_DEFAULT: AutoModeEnabledState = 'disabled'
+// Open builds default to opt-in so auto mode is available without a remote
+// GrowthBook config. Explicit 'disabled' from remote/settings still kills it.
+// Users must still consent (AutoModeOptInDialog / --enable-auto-mode / /auto).
+const AUTO_MODE_ENABLED_DEFAULT: AutoModeEnabledState = 'opt-in'
 
 function parseAutoModeEnabledState(value: unknown): AutoModeEnabledState {
   if (value === 'enabled' || value === 'disabled' || value === 'opt-in') {

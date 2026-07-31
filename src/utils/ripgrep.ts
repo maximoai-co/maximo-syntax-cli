@@ -1,5 +1,7 @@
 import type { ChildProcess, ExecFileException } from "child_process";
 import { execFile, spawn } from "child_process";
+import { existsSync } from "fs";
+import { readdir, readFile, stat } from "fs/promises";
 import memoize from "lodash-es/memoize.js";
 import { homedir } from "os";
 import * as path from "path";
@@ -22,28 +24,25 @@ const __dirname = path.join(
 );
 
 type RipgrepConfig = {
-  mode: "system" | "builtin" | "embedded";
+  mode: "system" | "builtin" | "embedded" | "js-fallback";
   command: string;
   args: string[];
   argv0?: string;
 };
 
-const getRipgrepConfig = memoize((): RipgrepConfig => {
-  const userWantsSystemRipgrep = isEnvDefinedFalsy(
-    process.env.USE_BUILTIN_RIPGREP
-  );
-
-  // Try system ripgrep if user wants it
-  if (userWantsSystemRipgrep) {
-    const { cmd: systemPath } = findExecutable("rg", []);
-    if (systemPath !== "rg") {
-      // SECURITY: Use command name 'rg' instead of systemPath to prevent PATH hijacking
-      // If we used systemPath, a malicious ./rg.exe in current directory could be executed
-      // Using just 'rg' lets the OS resolve it safely with NoDefaultCurrentDirectoryInExePath protection
-      return { mode: "system", command: "rg", args: [] };
-    }
+function resolveSystemRg(): RipgrepConfig | null {
+  const { cmd: systemPath } = findExecutable("rg", []);
+  // findExecutable returns the original name when not found
+  if (systemPath === "rg") {
+    return null;
   }
+  // SECURITY: Use command name 'rg' (PATH lookup) rather than a cwd-relative
+  // absolute path that could be hijacked. whichSync already returned an abs path
+  // from PATH; still invoke as 'rg' so the OS resolves safely.
+  return { mode: "system", command: "rg", args: [] };
+}
 
+function resolveBuiltinRg(): RipgrepConfig | null {
   // In bundled (native) mode, ripgrep is statically compiled into bun-internal
   // and dispatches based on argv[0]. We spawn ourselves with argv0='rg'.
   if (isInBundledMode()) {
@@ -55,13 +54,48 @@ const getRipgrepConfig = memoize((): RipgrepConfig => {
     };
   }
 
-  const rgRoot = path.resolve(__dirname, "vendor", "ripgrep");
-  const command =
-    process.platform === "win32"
-      ? path.resolve(rgRoot, `${process.arch}-win32`, "rg.exe")
-      : path.resolve(rgRoot, `${process.arch}-${process.platform}`, "rg");
+  // Prefer package root vendor/ when running from dist/cli.mjs (__dirname ≈ dist)
+  const candidates = [
+    path.resolve(__dirname, "vendor", "ripgrep"),
+    path.resolve(__dirname, "..", "vendor", "ripgrep"),
+  ];
+  for (const rgRoot of candidates) {
+    const command =
+      process.platform === "win32"
+        ? path.resolve(rgRoot, `${process.arch}-win32`, "rg.exe")
+        : path.resolve(rgRoot, `${process.arch}-${process.platform}`, "rg");
+    if (existsSync(command)) {
+      return { mode: "builtin", command, args: [] };
+    }
+  }
+  return null;
+}
 
-  return { mode: "builtin", command, args: [] };
+const getRipgrepConfig = memoize((): RipgrepConfig => {
+  const userWantsSystemRipgrep = isEnvDefinedFalsy(
+    process.env.USE_BUILTIN_RIPGREP
+  );
+
+  if (userWantsSystemRipgrep) {
+    return (
+      resolveSystemRg() ??
+      resolveBuiltinRg() ?? { mode: "js-fallback", command: "", args: [] }
+    );
+  }
+
+  // Default: bundled binary if present, else system PATH, else pure-JS fallback
+  // (open builds often ship without dist/vendor/ripgrep/*).
+  const resolved =
+    resolveBuiltinRg() ??
+    resolveSystemRg() ?? { mode: "js-fallback", command: "", args: [] };
+
+  if (resolved.mode === "js-fallback") {
+    logForDebugging(
+      "ripgrep binary not found (vendor or system); using JavaScript search fallback",
+      { level: "warn" }
+    );
+  }
+  return resolved;
 });
 
 export function ripgrepCommand(): {
@@ -339,11 +373,175 @@ export async function ripGrepStream(
   });
 }
 
+/**
+ * Minimal pure-JS content search used when no `rg` binary is available.
+ * Supports the GrepTool arg patterns we emit: -i, -n, -l, -c, -e, --glob, pattern.
+ * Not a full ripgrep replacement — good enough for local open builds.
+ */
+async function ripGrepJsFallback(
+  args: string[],
+  target: string,
+  abortSignal: AbortSignal
+): Promise<string[]> {
+  let caseInsensitive = false;
+  let filesWithMatches = false;
+  let countMode = false;
+  let showLineNumbers = false;
+  let pattern = "";
+  const globs: string[] = [];
+  const ignoreGlobs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === "-i") caseInsensitive = true;
+    else if (a === "-l") filesWithMatches = true;
+    else if (a === "-c") countMode = true;
+    else if (a === "-n") showLineNumbers = true;
+    else if (a === "-e" || a === "--regexp") pattern = args[++i] ?? "";
+    else if (a === "--glob" || a === "-g") {
+      const g = args[++i] ?? "";
+      if (g.startsWith("!")) ignoreGlobs.push(g.slice(1));
+      else globs.push(g);
+    } else if (a === "--max-columns" || a === "-A" || a === "-B" || a === "-C" || a === "--type") {
+      i++; // skip value
+    } else if (a === "-U" || a === "--multiline-dotall" || a === "--hidden" || a === "--no-config") {
+      // ignore
+    } else if (!a.startsWith("-") && !pattern) {
+      pattern = a;
+    }
+  }
+
+  if (!pattern) return [];
+
+  let regex: RegExp;
+  try {
+    regex = new RegExp(pattern, caseInsensitive ? "i" : undefined);
+  } catch {
+    // Invalid regex — treat as literal
+    regex = new RegExp(
+      pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      caseInsensitive ? "i" : undefined
+    );
+  }
+
+  const SKIP_DIRS = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "vendor",
+    ".turbo",
+    ".cache",
+  ]);
+
+  const results: string[] = [];
+  const fileCounts = new Map<string, number>();
+  const matchedFiles = new Set<string>();
+
+  async function walk(dir: string): Promise<void> {
+    if (abortSignal.aborted) return;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (abortSignal.aborted) return;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (SKIP_DIRS.has(ent.name) || ent.name.startsWith(".")) continue;
+        // honor simple !**/dir ignore globs
+        if (ignoreGlobs.some((g) => g.includes(ent.name))) continue;
+        await walk(full);
+      } else if (ent.isFile()) {
+        // skip large/binary-ish by extension
+        if (/\.(png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot|zip|gz|br|mp4|mp3|wasm|node)$/i.test(ent.name)) {
+          continue;
+        }
+        let content: string;
+        try {
+          const st = await stat(full);
+          if (st.size > 2_000_000) continue;
+          content = await readFile(full, "utf8");
+        } catch {
+          continue;
+        }
+        const lines = content.split(/\r?\n/);
+        let hits = 0;
+        for (let li = 0; li < lines.length; li++) {
+          const line = lines[li]!;
+          if (line.length > 500) continue;
+          if (!regex.test(line)) continue;
+          hits++;
+          matchedFiles.add(full);
+          if (filesWithMatches) break;
+          if (countMode) continue;
+          if (showLineNumbers) {
+            results.push(`${full}:${li + 1}:${line}`);
+          } else {
+            results.push(`${full}:${line}`);
+          }
+        }
+        if (hits > 0 && countMode) {
+          fileCounts.set(full, hits);
+        }
+      }
+    }
+  }
+
+  const root = path.resolve(target);
+  try {
+    const st = await stat(root);
+    if (st.isFile()) {
+      // single-file search
+      const content = await readFile(root, "utf8");
+      const lines = content.split(/\r?\n/);
+      for (let li = 0; li < lines.length; li++) {
+        const line = lines[li]!;
+        if (regex.test(line)) {
+          if (filesWithMatches) {
+            results.push(root);
+            break;
+          }
+          if (countMode) {
+            fileCounts.set(root, (fileCounts.get(root) ?? 0) + 1);
+          } else if (showLineNumbers) {
+            results.push(`${root}:${li + 1}:${line}`);
+          } else {
+            results.push(`${root}:${line}`);
+          }
+        }
+      }
+    } else {
+      await walk(root);
+    }
+  } catch {
+    return [];
+  }
+
+  if (filesWithMatches) {
+    return Array.from(matchedFiles);
+  }
+  if (countMode) {
+    return Array.from(fileCounts.entries()).map(([f, c]) => `${f}:${c}`);
+  }
+  return results;
+}
+
 export async function ripGrep(
   args: string[],
   target: string,
   abortSignal: AbortSignal
 ): Promise<string[]> {
+  const config = getRipgrepConfig();
+  if (config.mode === "js-fallback" || !config.command) {
+    logEvent("tengu_ripgrep_js_fallback", {});
+    return ripGrepJsFallback(args, target, abortSignal);
+  }
+
   await codesignRipgrepIfNecessary();
 
   // Test ripgrep on first use and cache the result (fire and forget)
@@ -376,11 +574,15 @@ export async function ripGrep(
         return;
       }
 
-      // Critical errors that indicate ripgrep is broken, not "no matches"
-      // These should be surfaced to the user rather than silently returning empty results
+      // Missing binary → JS fallback instead of hard failure (open builds)
       const CRITICAL_ERROR_CODES = ["ENOENT", "EACCES", "EPERM"];
       if (CRITICAL_ERROR_CODES.includes(error.code as string)) {
-        reject(error);
+        logForDebugging(
+          `ripgrep spawn failed (${error.code}); using JavaScript search fallback`,
+          { level: "warn" }
+        );
+        logEvent("tengu_ripgrep_js_fallback", {});
+        void ripGrepJsFallback(args, target, abortSignal).then(resolve, reject);
         return;
       }
 

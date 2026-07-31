@@ -97,6 +97,47 @@ You can also update right from inside the CLI:
 
 ---
 
+## Permission modes (auto & always-approve)
+
+Maximo Syntax can run with fewer (or no) permission prompts. There are **two different modes**:
+
+| Mode | How to enable | Classifier? | Notes |
+|------|---------------|-------------|--------|
+| **Default (ask)** | *(default)* | No | Prompts for risky tools; read-only work is free |
+| **Accept edits** | Shift+Tab | No | File edits in the project without prompts |
+| **Plan** | `/plan` or Shift+Tab | No | Read-only planning until you approve |
+| **Auto (classifier)** | `/auto` → pick **Auto · classifier**, or `--permission-mode auto` | **Yes** | Safe tools run; risky ones are classified first. Footer: `◎ auto · classifier on` |
+| **Always-approve (YOLO)** | `/auto` → pick **Always-approve**, or `/yolo`, `--always-approve`, `--yolo` | **No** | Almost no prompts — **sandbox/VM recommended**. Footer: `⚠ always-approve · no classifier on` |
+
+**In the TUI, run `/auto`** and choose which version you want (classifier, always-approve, or off). Aliases `/yolo` and `/always-approve` open the same picker. The prompt footer and Shift+Tab toast show the active mode; `/status` lists it too.
+
+### Classifier auto mode
+
+- Available when you are logged in via **Maximo AI** or **MyTabulon**.
+- Uses your **currently selected model** as the classifier (same login credentials).
+- **Warning:** each classified tool call is an extra API request and **consumes additional usage-pool quota** beyond the main agent.
+- Deny rules and hooks still apply. Prefer a sandbox for long unattended runs.
+
+```bash
+maximo --permission-mode auto
+# or in the TUI:
+/auto
+```
+
+### Always-approve (no classifier)
+
+```bash
+maximo --always-approve
+maximo --yolo
+# or in the TUI:
+/always-approve
+/yolo
+```
+
+Deny rules and PreToolUse hooks still apply. There is **no** safety classifier — only use this when you trust the environment.
+
+---
+
 ## Images: paste and drag-and-drop
 
 You can attach images to a prompt by **copy-paste** or by **dragging and dropping** a file into the terminal — both work the same way:

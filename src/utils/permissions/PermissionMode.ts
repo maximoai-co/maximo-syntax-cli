@@ -34,10 +34,19 @@ type ModeColorKey =
 type PermissionModeConfig = {
   title: string
   shortTitle: string
+  /** Compact footer line under the prompt (distinct for classifier vs YOLO). */
+  footerLabel: string
+  /** One-line toast when the mode becomes active. */
+  activateMessage: string
   symbol: string
   color: ModeColorKey
   external: ExternalPermissionMode
 }
+
+/** Distinct glyph for classifier auto (not the same as accept-edits / bypass). */
+const AUTO_CLASSIFIER_SYMBOL = '◎'
+/** Warning glyph for full always-approve / no-classifier mode. */
+const ALWAYS_APPROVE_SYMBOL = '⚠'
 
 const PERMISSION_MODE_CONFIG: Partial<
   Record<PermissionMode, PermissionModeConfig>
@@ -45,6 +54,8 @@ const PERMISSION_MODE_CONFIG: Partial<
   default: {
     title: 'Default',
     shortTitle: 'Default',
+    footerLabel: 'default',
+    activateMessage: 'Default mode · permission prompts restored',
     symbol: '',
     color: 'text',
     external: 'default',
@@ -52,6 +63,8 @@ const PERMISSION_MODE_CONFIG: Partial<
   plan: {
     title: 'Plan Mode',
     shortTitle: 'Plan',
+    footerLabel: 'plan mode',
+    activateMessage: 'Plan mode on · read-only until you approve a plan',
     symbol: PAUSE_ICON,
     color: 'planMode',
     external: 'plan',
@@ -59,20 +72,27 @@ const PERMISSION_MODE_CONFIG: Partial<
   acceptEdits: {
     title: 'Accept edits',
     shortTitle: 'Accept',
+    footerLabel: 'accept edits',
+    activateMessage: 'Accept edits on · file edits auto-approved in project',
     symbol: '⏵⏵',
     color: 'autoAccept',
     external: 'acceptEdits',
   },
   bypassPermissions: {
-    title: 'Bypass Permissions',
-    shortTitle: 'Bypass',
-    symbol: '⏵⏵',
+    title: 'Always-approve',
+    shortTitle: 'YOLO',
+    footerLabel: 'always-approve · no classifier',
+    activateMessage:
+      'Always-approve ON · no permission prompts, no safety classifier (sandbox recommended)',
+    symbol: ALWAYS_APPROVE_SYMBOL,
     color: 'error',
     external: 'bypassPermissions',
   },
   dontAsk: {
     title: "Don't Ask",
     shortTitle: 'DontAsk',
+    footerLabel: "don't ask",
+    activateMessage: "Don't-ask mode on · only pre-approved tools run",
     symbol: '⏵⏵',
     color: 'error',
     external: 'dontAsk',
@@ -80,9 +100,12 @@ const PERMISSION_MODE_CONFIG: Partial<
   ...(feature('TRANSCRIPT_CLASSIFIER')
     ? {
         auto: {
-          title: 'Auto mode',
-          shortTitle: 'Auto',
-          symbol: '⏵⏵',
+          title: 'Auto · classifier',
+          shortTitle: 'Auto+',
+          footerLabel: 'auto · classifier',
+          activateMessage:
+            'Auto (classifier) ON · safe tools run; risky tools classified (uses extra usage)',
+          symbol: AUTO_CLASSIFIER_SYMBOL,
           color: 'warning' as ModeColorKey,
           external: 'default' as ExternalPermissionMode,
         },
@@ -138,4 +161,24 @@ export function permissionModeSymbol(mode: PermissionMode): string {
 
 export function getModeColor(mode: PermissionMode): ModeColorKey {
   return getModeConfig(mode).color
+}
+
+/**
+ * Footer status line label (shown while mode is active under the prompt).
+ * Distinguishes classifier auto from always-approve (no classifier).
+ */
+export function permissionModeFooterLabel(mode: PermissionMode): string {
+  return getModeConfig(mode).footerLabel
+}
+
+/**
+ * Toast / notification text when switching into this mode (Shift+Tab, /auto, etc.).
+ */
+export function permissionModeActivateMessage(mode: PermissionMode): string {
+  return getModeConfig(mode).activateMessage
+}
+
+/** True for modes that skip ordinary user prompts (classifier or full bypass). */
+export function isAutonomousPermissionMode(mode: PermissionMode): boolean {
+  return mode === 'auto' || mode === 'bypassPermissions'
 }

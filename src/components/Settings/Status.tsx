@@ -8,6 +8,12 @@ import { useIsInsideModal } from '../../context/modalContext.js';
 import { Box, Text, useTheme } from '../../ink.js';
 import { type AppState, useAppState } from '../../state/AppState.js';
 import { getCwd } from '../../utils/cwd.js';
+import {
+  getModeColor,
+  permissionModeFooterLabel,
+  permissionModeSymbol,
+  permissionModeTitle,
+} from '../../utils/permissions/PermissionMode.js';
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js';
 import { buildAccountProperties, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
 import type { ThemeName } from '../../utils/theme.js';
@@ -38,17 +44,28 @@ function buildSecondarySection({
   mainLoopModel,
   mcp,
   theme,
-  context
+  context,
+  permissionMode,
 }: {
   mainLoopModel: AppState['mainLoopModel'];
   mcp: AppState['mcp'];
   theme: ThemeName;
   context: LocalJSXCommandContext;
+  permissionMode: AppState['toolPermissionContext']['mode'];
 }): Property[] {
   const modelLabel = getModelDisplayLabel(mainLoopModel);
+  const modeSym = permissionModeSymbol(permissionMode);
+  const modeLabel = `${modeSym ? modeSym + ' ' : ''}${permissionModeTitle(permissionMode)} (${permissionModeFooterLabel(permissionMode)})`;
   return [{
     label: 'Model',
     value: modelLabel
+  }, {
+    label: 'Permission mode',
+    value: (
+      <Text color={getModeColor(permissionMode)}>
+        {modeLabel}
+      </Text>
+    ),
   }, ...buildIDEProperties(mcp.clients, context.options.ideInstallationStatus, theme), ...buildMcpProperties(mcp.clients, theme), ...buildSandboxProperties(), ...buildSettingSourcesProperties()];
 }
 export async function buildDiagnostics(): Promise<Diagnostic[]> {
@@ -100,13 +117,14 @@ function PropertyValue(t0) {
   return value;
 }
 export function Status(t0) {
-  const $ = _c(20);
+  const $ = _c(22);
   const {
     context,
     diagnosticsPromise
   } = t0;
   const mainLoopModel = useAppState(_temp);
   const mcp = useAppState(_temp2);
+  const permissionMode = useAppState(_tempPermissionMode);
   const [theme] = useTheme();
   let t1;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -116,17 +134,19 @@ export function Status(t0) {
     t1 = $[0];
   }
   let t2;
-  if ($[1] !== context || $[2] !== mainLoopModel || $[3] !== mcp || $[4] !== theme) {
+  if ($[1] !== context || $[2] !== mainLoopModel || $[3] !== mcp || $[4] !== theme || $[20] !== permissionMode) {
     t2 = buildSecondarySection({
       mainLoopModel,
       mcp,
       theme,
-      context
+      context,
+      permissionMode,
     });
     $[1] = context;
     $[2] = mainLoopModel;
     $[3] = mcp;
     $[4] = theme;
+    $[20] = permissionMode;
     $[5] = t2;
   } else {
     t2 = $[5];
@@ -200,6 +220,9 @@ function _temp2(s_0) {
 }
 function _temp(s) {
   return s.mainLoopModel;
+}
+function _tempPermissionMode(s) {
+  return s.toolPermissionContext.mode;
 }
 function Diagnostics(t0) {
   const $ = _c(5);

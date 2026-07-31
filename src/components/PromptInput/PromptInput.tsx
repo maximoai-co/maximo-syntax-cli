@@ -158,6 +158,10 @@ import {
   cyclePermissionMode,
   getNextPermissionMode,
 } from "../../utils/permissions/getNextPermissionMode.js";
+import {
+  permissionModeActivateMessage,
+  permissionModeSymbol,
+} from "../../utils/permissions/PermissionMode.js";
 import { transitionPermissionMode } from "../../utils/permissions/permissionSetup.js";
 import { getPlatform } from "../../utils/platform.js";
 import type { ProcessUserInputContext } from "../../utils/processUserInput/processUserInput.js";
@@ -2131,6 +2135,22 @@ function PromptInput({
     // If this is a teammate, update config.json so team lead sees the change
     syncTeammateMode(nextMode, teamContext?.teamName);
 
+    // Toast so the active autonomous mode is obvious (classifier vs always-approve)
+    addNotification({
+      key: "permission-mode-cycled",
+      text: `${permissionModeSymbol(nextMode) ? permissionModeSymbol(nextMode) + " " : ""}${permissionModeActivateMessage(nextMode)}`,
+      color:
+        nextMode === "bypassPermissions"
+          ? "error"
+          : nextMode === "auto"
+            ? "warning"
+            : nextMode === "plan"
+              ? "planMode"
+              : undefined,
+      priority: "immediate",
+      timeoutMs: nextMode === "default" ? 2500 : 4500,
+    });
+
     // Close help tips if they're open when mode is cycled
     if (helpOpen) {
       setHelpOpen(false);
@@ -2144,6 +2164,7 @@ function PromptInput({
     setToolPermissionContext,
     helpOpen,
     showAutoModeOptIn,
+    addNotification,
   ]);
 
   // Handler for auto mode opt-in dialog acceptance
@@ -2172,6 +2193,14 @@ function PromptInput({
         mode: "auto",
       });
 
+      addNotification({
+        key: "permission-mode-cycled",
+        text: `${permissionModeSymbol("auto")} ${permissionModeActivateMessage("auto")}`,
+        color: "warning",
+        priority: "immediate",
+        timeoutMs: 4500,
+      });
+
       // Close help tips if they're open when auto mode is enabled
       if (helpOpen) {
         setHelpOpen(false);
@@ -2184,6 +2213,7 @@ function PromptInput({
     toolPermissionContext,
     setAppState,
     setToolPermissionContext,
+    addNotification,
   ]);
 
   // Handler for auto mode opt-in dialog decline

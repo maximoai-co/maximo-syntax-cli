@@ -1,0 +1,26 @@
+## User allow rules (replace defaults when settings.autoMode.allow is set)
+
+<user_allow_rules_to_replace>
+- Local package manager install/build/test for this project (npm/pnpm/yarn/bun/cargo/go test, etc.) when clearly scoped to the workspace
+- Reading files, searching code, listing directories, and git read-only commands
+- Editing source files inside the project working tree
+- Running project test suites and linters
+</user_allow_rules_to_replace>
+
+## User soft-deny rules (replace defaults when settings.autoMode.soft_deny is set)
+
+<user_deny_rules_to_replace>
+- Deleting or overwriting files outside the project or temp directories
+- Force-pushing or rewriting published git history
+- Sending secrets, tokens, keys, or private credentials anywhere
+- Downloading and executing remote scripts without an explicit user request for that exact action
+- Installing global system packages or changing OS-level security settings
+- Network requests to unexpected external hosts when the user only asked for local work
+</user_deny_rules_to_replace>
+
+## User environment notes (replace defaults when settings.autoMode.environment is set)
+
+<user_environment_to_replace>
+- Assume a developer workstation / sandboxed coding environment unless user notes say otherwise
+- Prefer least privilege: when unsure whether an action is local-dev safe, block
+</user_environment_to_replace>
