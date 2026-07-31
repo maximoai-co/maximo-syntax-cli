@@ -18,7 +18,7 @@ const MAXIMO_SYNTAX_DOCS_MAP_URL =
   "https://code.maximo.com/docs/en/maximo_syntax_docs_map.md";
 const CDP_DOCS_MAP_URL = "https://api.maximoai.co/llms.txt";
 
-export const MAXIMO_SYNTAX_GUIDE_AGENT_TYPE = "claude-code-guide";
+export const MAXIMO_SYNTAX_GUIDE_AGENT_TYPE = "maximo-syntax-guide";
 
 function getMaximoCodeGuideBasePrompt(): string {
   // Ant-native builds alias find/grep to embedded bfs/ugrep and remove the
@@ -97,7 +97,7 @@ function getFeedbackGuideline(): string {
 
 export const MAXIMO_SYNTAX_GUIDE_AGENT: BuiltInAgentDefinition = {
   agentType: MAXIMO_SYNTAX_GUIDE_AGENT_TYPE,
-  whenToUse: `Use this agent when the user asks questions ("Can Maximo...", "Does Maximo...", "How do I...") about: (1) Maximo Syntax (the CLI tool) - features, hooks, slash commands, MCP servers, settings, IDE integrations, keyboard shortcuts; (2) Maximo Agent SDK - building custom agents; (3) Maximo AI API - API usage, tool use, vision, and OpenAI-compatible SDK usage. **IMPORTANT:** Before spawning a new agent, check if there is already a running or recently completed claude-code-guide agent that you can continue via ${SEND_MESSAGE_TOOL_NAME}.`,
+  whenToUse: `Use this agent when the user asks questions ("Can Maximo...", "Does Maximo...", "How do I...") about: (1) Maximo Syntax (the CLI tool) - features, hooks, slash commands, MCP servers, settings, IDE integrations, keyboard shortcuts; (2) Maximo Agent SDK - building custom agents; (3) Maximo AI API - API usage, tool use, vision, and OpenAI-compatible SDK usage. **IMPORTANT:** Before spawning a new agent, check if there is already a running or recently completed maximo-syntax-guide agent that you can continue via ${SEND_MESSAGE_TOOL_NAME}.`,
   // Ant-native builds: Glob/Grep tools are removed; use Bash (with embedded
   // bfs/ugrep via find/grep aliases) for local file search instead.
   tools: hasEmbeddedSearchTools()

@@ -355,7 +355,7 @@ export function isCencoriProvider(): boolean {
 /**
  * Get the base URL for Maximo AI API
  */
-function getMaximoAIBaseUrl(): string {
+export function getMaximoAIBaseUrl(): string {
   const globalConfig = getGlobalConfig();
   const configuredBaseUrl =
     globalConfig.openAIBaseUrl || process.env.OPENAI_BASE_URL;
@@ -369,7 +369,7 @@ function getMaximoAIBaseUrl(): string {
 /**
  * Get the API key for Maximo AI
  */
-function getMaximoApiKey(): string | undefined {
+export function getMaximoApiKey(): string | undefined {
   const globalConfig = getGlobalConfig();
   return (
     globalConfig.maximoApiKey ||
