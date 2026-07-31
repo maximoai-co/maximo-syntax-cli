@@ -4,6 +4,17 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.17] - 2026-07-31
+
+### Changed
+
+- Web search no longer depends on the model provider's server-side search. `WebSearchTool` now calls the Maximo AI backend's Pandora (Exa-backed) web search endpoint over the API, routed by host: `/api/web-search` for `api.maximoai.co` and `/v1/web-search` for `api.mytabulon.com`.
+- Web search is now available for both Maximo AI and MyTabulon logins. The Syntax AI controls search parameters (result count, type, content depth, domain filters) end-to-end via the backend.
+
+### Fixed
+
+- Web search is enabled only when a Maximo-issued credential is present, so pure Cencori logins no longer trigger broken provider searches.
+
 ## [0.1.16] - 2026-07-30
 
 ### Added
