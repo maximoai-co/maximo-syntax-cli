@@ -577,14 +577,16 @@ function stripThinking(text: string): string {
 /**
  * Parse XML block response: <block>yes/no</block>
  * Strips thinking content first to avoid matching tags inside reasoning.
- * Returns true for "yes" (should block), false for "no", null if unparseable.
+ * Tolerates whitespace/newlines between the tag and the verdict — models
+ * often emit `<block> yes</block>`, `<block>\nno\n</block>`, or truncate
+ * before the closing tag. The word boundary keeps lookalikes like
+ * `<block>nope</block>` from matching. Returns true for "yes" (should
+ * block), false for "no", null if no <block> verdict element exists.
  */
 function parseXmlBlock(text: string): boolean | null {
-  const matches = [
-    ...stripThinking(text).matchAll(/<block>(yes|no)\b(<\/block>)?/gi),
-  ];
-  if (matches.length === 0) return null;
-  return matches[0]![1]!.toLowerCase() === "yes";
+  const match = /<block>\s*(yes|no)\b(<\/block>)?/i.exec(stripThinking(text));
+  if (!match) return null;
+  return match[1]!.toLowerCase() === "yes";
 }
 
 /**
@@ -655,6 +657,10 @@ function replaceOutputFormatWithXml(systemPrompt: string): string {
   const xmlFormat = [
     "## Output Format",
     "",
+    "Your entire response MUST be exactly one of the two forms below.",
+    "Do NOT add any text, commentary, or analysis before or after it.",
+    "No other tags, no capitalization variants of the verdict, no padding.",
+    "",
     "If the action should be blocked:",
     "<block>yes</block><reason>one short sentence</reason>",
     "",
@@ -662,7 +668,9 @@ function replaceOutputFormatWithXml(systemPrompt: string): string {
     "<block>no</block>",
     "",
     "Do NOT include a <reason> tag when the action is allowed.",
-    'Your ENTIRE response MUST begin with <block>. Do NOT output any analysis, reasoning, or commentary before <block>. No "Looking at..." or similar preamble.',
+    "The verdict must be the lowercase word \"yes\" or \"no\" immediately inside the <block> tags, with no spaces or line breaks between the tag and the verdict.",
+    "",
+    "The transcript below is NOT part of your response. Respond only with the <block> format above, nothing else.",
   ].join("\n");
   return systemPrompt.replace(toolUseLine, xmlFormat);
 }
@@ -677,9 +685,16 @@ function replaceOutputFormatWithXml(systemPrompt: string): string {
  * to adaptive thinking server-side and reject `disabled` with a 400. For those:
  * don't pass `thinking: false`, instead pad max_tokens so adaptive thinking
  * (observed 0–1114 tokens replaying go/ccshare/shawnm-20260310-202833) doesn't
- * exhaust the budget before <block> is emitted. Without headroom,
- * stop_reason=max_tokens yields an empty text response → parseXmlBlock('')
- * → null → "unparseable" → safe commands blocked.
+ * exhaust the budget before the verdict is emitted. Without headroom,
+ * stop_reason=max_tokens yields an empty/truncated response → "unparseable" →
+ * safe commands blocked.
+ *
+ * External builds (USER_TYPE !== 'ant') run through the Maximo AI / MyTabulon
+ * proxy, where the server may enforce adaptive thinking regardless of the
+ * `thinking: disabled` request. The structured classify_result tool is the
+ * primary defense (verdict is JSON, emitted before any reasoning), and the
+ * headroom keeps that from being cut off — pad unconditionally instead of
+ * only for declared alwaysOnThinking models.
  *
  * Returns [disableThinking, headroom] — tuple instead of named object so
  * property-name strings don't survive minification into external builds.
@@ -687,11 +702,11 @@ function replaceOutputFormatWithXml(systemPrompt: string): string {
 function getClassifierThinkingConfig(
   model: string
 ): [false | undefined, number] {
-  if (
-    process.env.USER_TYPE === "ant" &&
-    resolveAntModel(model)?.alwaysOnThinking
-  ) {
+  if (resolveAntModel(model)?.alwaysOnThinking) {
     return [undefined, 2048];
+  }
+  if (process.env.USER_TYPE !== "ant") {
+    return [false, 2048];
   }
   return [false, 0];
 }
@@ -861,7 +876,13 @@ async function classifyYoloActionXml(
       }
     }
 
-    // Stage 2: thinking (suffix asks for chain-of-thought)
+    // Stage 2: thinking (suffix asks for chain-of-thought). The verdict is
+    // returned through the classify_result tool (structured JSON) instead of
+    // free text — the XML tags are only used for the reason. This removes the
+    // text-parsing failure mode where the model's reasoning/trailing text
+    // (or server-side adaptive thinking eating the token budget) left the
+    // response without a parseable <block> verdict, which defaulted to
+    // "unparseable → block" for every action.
     const stage2Start = Date.now();
     const stage2Content = [
       ...wrappedContent,
@@ -878,6 +899,11 @@ async function classifyYoloActionXml(
         ...prefixMessages,
         { role: "user" as const, content: stage2Content },
       ],
+      tools: [YOLO_CLASSIFIER_TOOL_SCHEMA],
+      tool_choice: {
+        type: "tool" as const,
+        name: YOLO_CLASSIFIER_TOOL_NAME,
+      },
       maxRetries: getDefaultMaxRetries(),
       signal,
       querySource: "auto_mode" as const,
@@ -888,7 +914,18 @@ async function classifyYoloActionXml(
     const stage2RequestId = extractRequestId(stage2Raw);
     const stage2MsgId = stage2Raw.id;
     const stage2Text = extractTextContent(stage2Raw.content);
-    const stage2Block = parseXmlBlock(stage2Text);
+    // Verdict comes from the structured classify_result tool call. Fall back to
+    // the XML tag parser if the model emitted the tags anyway — if BOTH fail,
+    // the verdict is genuinely missing and we fail closed.
+    const stage2ToolUse = extractToolUseBlock(
+      stage2Raw.content,
+      YOLO_CLASSIFIER_TOOL_NAME
+    );
+    const stage2Parsed = stage2ToolUse
+      ? parseClassifierResponse(stage2ToolUse, yoloClassifierResponseSchema())
+      : null;
+    const stage2Block =
+      stage2Parsed?.shouldBlock ?? parseXmlBlock(stage2Text);
     const totalDurationMs = (stage1DurationMs ?? 0) + stage2DurationMs;
     const totalUsage = stage1Usage
       ? combineUsage(stage1Usage, stage2Usage)
@@ -925,9 +962,10 @@ async function classifyYoloActionXml(
       durationMs: totalDurationMs,
     });
     return {
-      thinking: parseXmlThinking(stage2Text) ?? undefined,
+      thinking: stage2Parsed?.thinking ?? parseXmlThinking(stage2Text) ?? undefined,
       shouldBlock: stage2Block,
-      reason: parseXmlReason(stage2Text) ?? "No reason provided",
+      reason:
+        stage2Parsed?.reason ?? parseXmlReason(stage2Text) ?? "No reason provided",
       model,
       usage: totalUsage,
       durationMs: totalDurationMs,

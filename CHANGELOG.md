@@ -4,6 +4,15 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.19] - 2026-07-31
+
+### Fixed
+
+- **Auto-mode classifier stage 2 "unparseable" blocks**: the two-stage XML classifier now returns its verdict through the structured `classify_result` tool call (guaranteed JSON) instead of relying on a free-text `<block>` tag. Stage-2 responses that contained reasoning or trailing text — or had the verdict cut off by server-side adaptive thinking — previously failed the text parser and defaulted to `shouldBlock: true` for every action. The XML tag parser remains as a fallback, and a genuinely missing verdict still fails closed.
+- **XML verdict parsing is now whitespace-tolerant**: `<block> yes</block>`, `<block>\nno\n</block>`, and truncated tags parse correctly, while lookalikes like `<block>nope</block>` still do not match (fail closed).
+- **Classifier prompt no longer self-contradicts**: the output-format instruction previously required the response to begin with `<block>` while the stage-2 suffix simultaneously required `<thinking>` first — the instruction is now strict, non-contradictory, and explicitly states the transcript is not part of the response.
+- **Token headroom for external classifier calls**: auto-mode classifier calls for Maximo AI / MyTabulon logins now pad `max_tokens` so server-enforced adaptive thinking cannot exhaust the budget before the verdict is emitted.
+
 ## [0.1.18] - 2026-07-31
 
 ### Added
