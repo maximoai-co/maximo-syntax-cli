@@ -199,7 +199,11 @@ import {
 } from "./tools/AgentTool/loadAgentsDir.js";
 import type { LogOption } from "./types/logs.js";
 import type { Message as MessageType } from "./types/message.js";
-import { assertMinVersion } from "./utils/autoUpdater.js";
+import {
+  assertMinVersion,
+  checkAndInstallUpdate,
+} from "./utils/autoUpdater.js";
+import { reconcileAutoUpdateScheduler } from "./utils/autoUpdateSchedulerSetup.js";
 import {
   CLAUDE_IN_CHROME_SKILL_HINT,
   CLAUDE_IN_CHROME_SKILL_HINT_WITH_WEBBROWSER,
@@ -687,6 +691,20 @@ export function startDeferredPrefetches(): void {
   void prefetchOfficialMcpUrls();
   void refreshModelCapabilities();
   prefetchMaximoModels();
+
+  // Eager auto-update check. Runs after first render so it doesn't block the
+  // initial paint, and is skipped entirely for --bare. This catches updates on
+  // short interactive sessions and headless (-p) runs that never mount the
+  // REPL footer's 30-minute updater. checkAndInstallUpdate() self-throttles to
+  // once per hour and is guarded by the same disable checks as the React
+  // updater, so it composes without double-installing.
+  void checkAndInstallUpdate();
+
+  // Reconcile the OS-level daily auto-update scheduler (launchd / cron /
+  // schtasks) with the current auto-update preference: register it once when
+  // enabled (so users who rarely open the CLI still get updates), unregister
+  // when disabled. Best-effort and idempotent.
+  void reconcileAutoUpdateScheduler();
 
   // File change detectors deferred from init() to unblock first render
   void settingsChangeDetector.initialize();

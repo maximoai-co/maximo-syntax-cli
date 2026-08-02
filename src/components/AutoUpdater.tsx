@@ -1,30 +1,14 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from "src/services/analytics/index.js";
 import { useInterval } from "usehooks-ts";
 import { useUpdateNotification } from "../hooks/useUpdateNotification.js";
 import { Box, Text } from "../ink.js";
 import {
   type AutoUpdaterResult,
-  getLatestVersion,
-  getMaxVersion,
-  type InstallStatus,
-  installGlobalPackage,
-  shouldSkipVersion,
+  checkAndInstallUpdate,
+  getCurrentRealVersion,
 } from "../utils/autoUpdater.js";
-import { getGlobalConfig, isAutoUpdaterDisabled } from "../utils/config.js";
-import { logForDebugging } from "../utils/debug.js";
-import { getCurrentInstallationType } from "../utils/doctorDiagnostic.js";
-import {
-  installOrUpdateMaximoPackage,
-  localInstallationExists,
-} from "../utils/localInstaller.js";
-import { removeInstalledSymlink } from "../utils/nativeInstaller/index.js";
-import { gt, gte } from "../utils/semver.js";
-import { getInitialSettings } from "../utils/settings/settings.js";
+import { localInstallationExists } from "../utils/localInstaller.js";
 type Props = {
   isUpdating: boolean;
   onChangeIsUpdating: (isUpdating: boolean) => void;
@@ -62,134 +46,29 @@ export function AutoUpdater({
     if (isUpdatingRef.current) {
       return;
     }
-    if ("production" === "test" || "production" === "development") {
-      logForDebugging(
-        "AutoUpdater: Skipping update check in test/dev environment"
-      );
-      return;
-    }
-    const currentVersion = MACRO.VERSION;
-    const channel = getInitialSettings()?.autoUpdatesChannel ?? "latest";
-    let latestVersion = await getLatestVersion(channel);
-    const isDisabled = isAutoUpdaterDisabled();
-
-    // Check if max version is set (server-side kill switch for auto-updates)
-    const maxVersion = await getMaxVersion();
-    if (maxVersion && latestVersion && gt(latestVersion, maxVersion)) {
-      logForDebugging(
-        `AutoUpdater: maxVersion ${maxVersion} is set, capping update from ${latestVersion} to ${maxVersion}`
-      );
-      if (gte(currentVersion, maxVersion)) {
-        logForDebugging(
-          `AutoUpdater: current version ${currentVersion} is already at or above maxVersion ${maxVersion}, skipping update`
-        );
-        setVersions({
-          global: currentVersion,
-          latest: latestVersion,
-        });
+    onChangeIsUpdating(true);
+    try {
+      // Delegates the full guard chain + install dispatch to the shared
+      // non-React engine (also used by the eager startup check). It uses the
+      // real package version for comparisons and records a cooldown so the
+      // startup check and this 30-min interval don't double-install.
+      const result = await checkAndInstallUpdate();
+      if (!result) {
         return;
       }
-      latestVersion = maxVersion;
-    }
-    setVersions({
-      global: currentVersion,
-      latest: latestVersion,
-    });
-
-    // Check if update needed and perform update
-    if (
-      !isDisabled &&
-      currentVersion &&
-      latestVersion &&
-      !gte(currentVersion, latestVersion) &&
-      !shouldSkipVersion(latestVersion)
-    ) {
-      const startTime = Date.now();
-      onChangeIsUpdating(true);
-
-      // Remove native installer symlink since we're using JS-based updates
-      // But only if user hasn't migrated to native installation
-      const config = getGlobalConfig();
-      if (config.installMethod !== "native") {
-        await removeInstalledSymlink();
-      }
-
-      // Detect actual running installation type
-      const installationType = await getCurrentInstallationType();
-      logForDebugging(
-        `AutoUpdater: Detected installation type: ${installationType}`
-      );
-
-      // Skip update for development builds
-      if (installationType === "development") {
-        logForDebugging("AutoUpdater: Cannot auto-update development build");
-        onChangeIsUpdating(false);
-        return;
-      }
-
-      // Choose the appropriate update method based on what's actually running
-      let installStatus: InstallStatus;
-      let updateMethod: "local" | "global";
-      if (installationType === "npm-local") {
-        // Use local update for local installations
-        logForDebugging("AutoUpdater: Using local update method");
-        updateMethod = "local";
-        installStatus = await installOrUpdateMaximoPackage(channel);
-      } else if (installationType === "npm-global") {
-        // Use global update for global installations
-        logForDebugging("AutoUpdater: Using global update method");
-        updateMethod = "global";
-        installStatus = await installGlobalPackage();
-      } else if (installationType === "native") {
-        // This shouldn't happen - native should use NativeAutoUpdater
-        logForDebugging(
-          "AutoUpdater: Unexpected native installation in non-native updater"
-        );
-        onChangeIsUpdating(false);
-        return;
-      } else {
-        // Fallback to config-based detection for unknown types
-        logForDebugging(
-          `AutoUpdater: Unknown installation type, falling back to config`
-        );
-        const isMigrated = config.installMethod === "local";
-        updateMethod = isMigrated ? "local" : "global";
-        if (isMigrated) {
-          installStatus = await installOrUpdateMaximoPackage(channel);
-        } else {
-          installStatus = await installGlobalPackage();
-        }
-      }
-      onChangeIsUpdating(false);
-      if (installStatus === "success") {
-        logEvent("tengu_auto_updater_success", {
-          fromVersion:
-            currentVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          toVersion:
-            latestVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          durationMs: Date.now() - startTime,
-          wasMigrated: updateMethod === "local",
-          installationType:
-            installationType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        });
-      } else {
-        logEvent("tengu_auto_updater_fail", {
-          fromVersion:
-            currentVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          attemptedVersion:
-            latestVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          status:
-            installStatus as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          durationMs: Date.now() - startTime,
-          wasMigrated: updateMethod === "local",
-          installationType:
-            installationType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        });
-      }
-      onAutoUpdaterResult({
-        version: latestVersion,
-        status: installStatus,
+      const currentVersion = getCurrentRealVersion();
+      setVersions({
+        global: currentVersion,
+        latest: result.version,
       });
+      if (result.status !== "success") {
+        onAutoUpdaterResult(result);
+      } else if (result.version && result.version !== currentVersion) {
+        // Only surface the "updated" toast when an install actually happened.
+        onAutoUpdaterResult(result);
+      }
+    } finally {
+      onChangeIsUpdating(false);
     }
     // isUpdating intentionally omitted from deps; we read isUpdatingRef
     // instead so the guard is always current without changing callback

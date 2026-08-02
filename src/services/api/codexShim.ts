@@ -133,6 +133,7 @@ function convertToolResultToText(content: unknown): string {
   if (!Array.isArray(content)) return JSON.stringify(content ?? '')
 
   const chunks: string[] = []
+  let hasImage = false
   for (const block of content) {
     if (block?.type === 'text' && typeof block.text === 'string') {
       chunks.push(block.text)
@@ -140,6 +141,7 @@ function convertToolResultToText(content: unknown): string {
     }
 
     if (block?.type === 'image') {
+      hasImage = true
       const src = block.source
       if (src?.type === 'url' && src.url) {
         chunks.push(`[Image](${src.url})`)
@@ -152,7 +154,40 @@ function convertToolResultToText(content: unknown): string {
     }
   }
 
+  // Responses function_call_output is text-only. The actual image is sent
+  // as a separate user message by convertAnthropicMessagesToResponsesInput.
+  // Keep a marker here so the function output is never empty.
+  if (hasImage && chunks.length === 0) {
+    chunks.push('[Tool returned an image.]')
+  }
+
   return chunks.join('\n')
+}
+
+function convertToolResultToImageParts(
+  content: unknown,
+): ResponsesInputPart[] {
+  if (!Array.isArray(content)) return []
+
+  const parts: ResponsesInputPart[] = []
+  for (const block of content) {
+    if (block?.type !== 'image') continue
+
+    const source = block.source
+    if (source?.type === 'base64' && source.media_type && source.data) {
+      parts.push({
+        type: 'input_image',
+        image_url: `data:${source.media_type};base64,${source.data}`,
+      })
+    } else if (source?.type === 'url' && source.url) {
+      parts.push({
+        type: 'input_image',
+        image_url: source.url,
+      })
+    }
+  }
+
+  return parts
 }
 
 function convertContentBlocksToResponsesParts(
@@ -228,6 +263,7 @@ export function convertAnthropicMessagesToResponsesInput(
         const otherContent = content.filter(
           (block: { type?: string }) => block.type !== 'tool_result',
         )
+        const toolResultImages: ResponsesInputPart[] = []
 
         for (const toolResult of toolResults) {
           const { callId } = normalizeToolUseId(toolResult.tool_use_id)
@@ -235,6 +271,26 @@ export function convertAnthropicMessagesToResponsesInput(
             type: 'function_call_output',
             call_id: callId,
             output: convertToolResultToText(toolResult.content),
+          })
+          toolResultImages.push(
+            ...convertToolResultToImageParts(toolResult.content),
+          )
+        }
+
+        // Responses function_call_output cannot contain images. Keep all
+        // function outputs contiguous for call pairing, then expose the
+        // returned images as ordinary user input for vision-capable models.
+        if (toolResultImages.length > 0) {
+          items.push({
+            type: 'message',
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: 'The previous tool returned the following image(s):',
+              },
+              ...toolResultImages,
+            ],
           })
         }
 

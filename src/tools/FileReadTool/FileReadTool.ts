@@ -4,6 +4,8 @@ import * as path from "path";
 import { posix, win32 } from "path";
 import { z } from "zod/v4";
 import {
+  IMAGE_MAX_HEIGHT,
+  IMAGE_MAX_WIDTH,
   PDF_AT_MENTION_INLINE_THRESHOLD,
   PDF_EXTRACT_SIZE_THRESHOLD,
   PDF_MAX_PAGES_PER_READ,
@@ -48,6 +50,7 @@ import {
   ImageResizeError,
   maybeResizeAndDownsampleImageBuffer,
 } from "../../utils/imageResizer.js";
+import { getImageProcessor } from "./imageProcessor.js";
 import { lazySchema } from "../../utils/lazySchema.js";
 import { logError } from "../../utils/log.js";
 import { isAutoMemFile } from "../../utils/memoryFileDetection.js";
@@ -802,6 +805,32 @@ function createImageResponse(
 }
 
 /**
+ * Estimate vision cost from pixels, matching the provider's image-cost
+ * formula. Base64 length is request size, not image token cost; using it here
+ * made ordinary screenshots look hundreds of thousands of tokens large and
+ * forced an unnecessary compression path in builds without Sharp.
+ */
+function estimateImageTokens(dimensions?: ImageDimensions): number {
+  const width = dimensions?.displayWidth ?? dimensions?.originalWidth;
+  const height = dimensions?.displayHeight ?? dimensions?.originalHeight;
+  if (
+    width === undefined ||
+    height === undefined ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return 0;
+  }
+
+  // The API caps effective image dimensions. Preserve the aspect ratio while
+  // estimating the post-cap pixel cost when the optional processor is absent.
+  const scale = Math.min(1, IMAGE_MAX_WIDTH / width, IMAGE_MAX_HEIGHT / height);
+  return Math.ceil(((width * scale) * (height * scale)) / 750);
+}
+
+/**
  * Inner implementation of call, separated to allow ENOENT handling in the outer call.
  */
 async function callInner(
@@ -1139,7 +1168,7 @@ export async function readImageWithTokenBudget(
   }
 
   // Check if it fits in token budget
-  const estimatedTokens = Math.ceil(result.file.base64.length * 0.125);
+  const estimatedTokens = estimateImageTokens(result.file.dimensions);
   if (estimatedTokens > maxTokens) {
     // Aggressive compression from the SAME buffer (no re-read)
     try {
@@ -1160,13 +1189,7 @@ export async function readImageWithTokenBudget(
       logError(e);
       // Fallback: heavily compressed version from the SAME buffer
       try {
-        const sharpModule = await import("sharp");
-        const sharp =
-          (
-            sharpModule as {
-              default?: typeof sharpModule;
-            } & typeof sharpModule
-          ).default || sharpModule;
+        const sharp = await getImageProcessor();
 
         const fallbackBuffer = await sharp(imageBuffer)
           .resize(400, 400, {

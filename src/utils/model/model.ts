@@ -132,11 +132,18 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
     specifiedModel = modelOverride;
   } else {
     const settings = getSettings_DEPRECATED() || {};
+    // OPENAI_MODEL is set internally by the CLI's provider setup (Maximo AI
+    // OAuth login, managedEnv maximoApiKey injection) to a hardcoded default
+    // like "maximo-pandora-3.8-nano". Treating it as a user override here
+    // silently clobbers an explicit /model choice saved in settings.model on
+    // every restart. Prefer the saved setting; only fall through to
+    // OPENAI_MODEL when no explicit model is configured. ANTHROPIC_MODEL and
+    // GEMINI_MODEL remain genuine user/env overrides with higher priority.
     specifiedModel =
       process.env.ANTHROPIC_MODEL ||
       process.env.GEMINI_MODEL ||
-      process.env.OPENAI_MODEL ||
       settings.model ||
+      process.env.OPENAI_MODEL ||
       undefined;
   }
 

@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { logEvent } from "src/services/analytics/index.js";
 import {
+  getCurrentRealVersion,
   getLatestVersion,
   type InstallStatus,
   installGlobalPackage,
@@ -29,7 +30,11 @@ import { getInitialSettings } from "src/utils/settings/settings.js";
 
 export async function update() {
   logEvent("tengu_update_check", {});
-  writeToStdout(`Current version: ${MACRO.VERSION}\n`);
+  // MACRO.VERSION is the internal compatibility version (99.0.0 in open
+  // builds), not the real package version — use the real one for comparison
+  // and display so "up to date" checks against npm/GCS are correct.
+  const currentVersion = getCurrentRealVersion();
+  writeToStdout(`Current version: ${currentVersion}\n`);
 
   const channel = getInitialSettings()?.autoUpdatesChannel ?? "latest";
   writeToStdout(`Checking for updates to ${channel} version...\n`);
@@ -122,8 +127,8 @@ export async function update() {
     if (packageManager === "homebrew") {
       writeToStdout("Maximo is managed by Homebrew.\n");
       const latest = await getLatestVersion(channel);
-      if (latest && !gte(MACRO.VERSION, latest)) {
-        writeToStdout(`Update available: ${MACRO.VERSION} → ${latest}\n`);
+      if (latest && !gte(currentVersion, latest)) {
+        writeToStdout(`Update available: ${currentVersion} → ${latest}\n`);
         writeToStdout("\n");
         writeToStdout("To update, run:\n");
         writeToStdout(chalk.bold("  brew upgrade maximo-syntax-cli") + "\n");
@@ -133,8 +138,8 @@ export async function update() {
     } else if (packageManager === "winget") {
       writeToStdout("Maximo is managed by winget.\n");
       const latest = await getLatestVersion(channel);
-      if (latest && !gte(MACRO.VERSION, latest)) {
-        writeToStdout(`Update available: ${MACRO.VERSION} → ${latest}\n`);
+      if (latest && !gte(currentVersion, latest)) {
+        writeToStdout(`Update available: ${currentVersion} → ${latest}\n`);
         writeToStdout("\n");
         writeToStdout("To update, run:\n");
         writeToStdout(
@@ -146,8 +151,8 @@ export async function update() {
     } else if (packageManager === "apk") {
       writeToStdout("Maximo is managed by apk.\n");
       const latest = await getLatestVersion(channel);
-      if (latest && !gte(MACRO.VERSION, latest)) {
-        writeToStdout(`Update available: ${MACRO.VERSION} → ${latest}\n`);
+      if (latest && !gte(currentVersion, latest)) {
+        writeToStdout(`Update available: ${currentVersion} → ${latest}\n`);
         writeToStdout("\n");
         writeToStdout("To update, run:\n");
         writeToStdout(chalk.bold("  apk upgrade maximo-syntax-cli") + "\n");
@@ -236,14 +241,14 @@ export async function update() {
         await gracefulShutdown(1);
       }
 
-      if (result.latestVersion === MACRO.VERSION) {
+      if (result.latestVersion === currentVersion) {
         writeToStdout(
-          chalk.green(`Maximo Syntax is up to date (${MACRO.VERSION})`) + "\n"
+          chalk.green(`Maximo Syntax is up to date (${currentVersion})`) + "\n"
         );
       } else {
         writeToStdout(
           chalk.green(
-            `Successfully updated from ${MACRO.VERSION} to version ${result.latestVersion}`
+            `Successfully updated from ${currentVersion} to version ${result.latestVersion}`
           ) + "\n"
         );
         await regenerateCompletionCache();
@@ -302,15 +307,15 @@ export async function update() {
   }
 
   // Check if versions match exactly, including any build metadata (like SHA)
-  if (latestVersion === MACRO.VERSION) {
+  if (latestVersion === currentVersion) {
     writeToStdout(
-      chalk.green(`Maximo Syntax is up to date (${MACRO.VERSION})`) + "\n"
+      chalk.green(`Maximo Syntax is up to date (${currentVersion})`) + "\n"
     );
     await gracefulShutdown(0);
   }
 
   writeToStdout(
-    `New version available: ${latestVersion} (current: ${MACRO.VERSION})\n`
+    `New version available: ${latestVersion} (current: ${currentVersion})\n`
   );
   writeToStdout("Installing update...\n");
 
@@ -370,7 +375,7 @@ export async function update() {
     case "success":
       writeToStdout(
         chalk.green(
-          `Successfully updated from ${MACRO.VERSION} to version ${latestVersion}`
+          `Successfully updated from ${currentVersion} to version ${latestVersion}`
         ) + "\n"
       );
       await regenerateCompletionCache();

@@ -4,6 +4,25 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.20] - 2026-08-02
+
+### Added
+
+- **Eager auto-update check at startup**: the CLI now checks for updates right after first render on both interactive and headless (`-p`) sessions, instead of only after the REPL footer mounts (which never happens headless). The check is non-blocking, skipped for `--bare` and when auto-updates are disabled, and throttled to once per hour via a persisted cooldown so it composes with the existing 30-minute REPL interval without double-installing.
+- **Reusable update engine** (`checkAndInstallUpdate`): the check+install guard chain (disable checks, server max-version kill switch, min-version skip, lock file, installation-type dispatch) was extracted from the React `AutoUpdater` into a non-React function shared by the startup check and the REPL updater, so all paths stay in sync.
+- **OS-level daily background updater**: a hidden `--auto-update` entrypoint runs the update engine headlessly and fires a native OS notification when an update installs. The CLI reconciles an OS scheduled task (launchd on macOS, cron on Linux/WSL, Task Scheduler on Windows) at startup so users who rarely open a terminal still get automatic daily updates; the task is unregistered when auto-updates are turned off.
+- **`/config` auto-update toggle**: a new "Auto-update" on/off setting in `/config` enables or disables auto-updates (persisting `autoUpdates` in config and reconciling the OS scheduler), replacing the previous env-var-only control.
+- **`/status` auto-update info**: `/status` now shows the real package version, and an "Auto-update" line reporting enabled/disabled state, release channel, whether the daily background task is active, and how long ago the last check ran.
+- **Staged rollout + security force-updates** (server-driven via `tengu_update_rollout_config`): a rollout percentage gates auto-updates to a deterministic, sticky cohort per release (hash of user ID + target version), so a new release can be rolled out gradually. A security cutoff date + minimum version force-installs critical patches after the deadline, bypassing the user's auto-update opt-out and the rollout gate (but still respecting the incident kill switch).
+
+### Fixed
+
+- **Auto-update version comparison now uses the real package version**: `MACRO.VERSION` is the internal compatibility version (`99.0.0` in open builds, kept high to pass first-party minimum-version guards) — comparing it against npm's `latest` always looked "up to date", so auto-update never triggered for open builds. Update checks, `/update`, and the `update` CLI subcommand now compare against `MACRO.DISPLAY_VERSION` (the actual published version, e.g. `0.1.20`) via a new `getCurrentRealVersion()` helper.
+- **Native installer version comparison uses the real package version**: the native installer's "already running this exact version" fast-path and its max-version check compared against the internal `MACRO.VERSION` (`99.0.0`), so the fast-path never matched and the native updater would re-download/reinstall on every check even when already current. Both now use `getCurrentRealVersion()`.
+- **Saved `/model` choice no longer resets on restart**: `OPENAI_MODEL` is set internally by the CLI's provider setup (Maximo AI OAuth login, `managedEnv` key injection) to a hardcoded default like `maximo-pandora-3.8-nano`. That internal value was being read *before* the user's saved `settings.model`, silently clobbering an explicit `/model` selection every session. Model resolution now prefers `settings.model` over the internal `OPENAI_MODEL` env var (genuine user `ANTHROPIC_MODEL`/`GEMINI_MODEL` overrides and `--model` still take precedence).
+- **`/auto` permission mode now survives restart**: `/auto` (classifier), `/auto always-approve`, and `/auto off` previously set the mode only for the current session (`destination: 'session'`) without persisting, so the mode reset to default prompts on every launch. The mode is now written to `settings.permissions.defaultMode` (restored by `initialPermissionModeFromCLI` at startup). The always-approve confirm dialog's "for this session" option and the auto opt-in dialog's plain "enable" option remain session-only; "remember my choice" / "make it my default" persist.
+- **Image reads no longer stall across providers**: images returned by `Read` are now forwarded as vision inputs for OpenAI-compatible Chat Completions providers (Maximo AI, MyTabulon, Cencori) and Codex Responses, with `API_TIMEOUT_MS` (10-minute default) covering both request headers and streaming bodies. Packaged builds also use image-header dimensions when optional image processors are unavailable, avoiding unnecessary compression retries.
+
 ## [0.1.19] - 2026-07-31
 
 ### Fixed

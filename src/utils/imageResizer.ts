@@ -394,6 +394,7 @@ export async function maybeResizeAndDownsampleImageBuffer(
     // Detect actual format from magic bytes instead of trusting extension
     const detected = detectImageFormatFromBuffer(imageBuffer)
     const normalizedExt = detected.slice(6) // Remove 'image/' prefix
+    const dimensions = detectImageDimensionsFromBuffer(imageBuffer)
 
     // Calculate the base64 size (API limit is on base64-encoded length)
     const base64Size = Math.ceil((originalSize * 4) / 3)
@@ -417,7 +418,18 @@ export async function maybeResizeAndDownsampleImageBuffer(
         base64_size_bytes: base64Size,
         error_type: errorType,
       })
-      return { buffer: imageBuffer, mediaType: normalizedExt }
+      return {
+        buffer: imageBuffer,
+        mediaType: normalizedExt,
+        dimensions: dimensions
+          ? {
+              originalWidth: dimensions.width,
+              originalHeight: dimensions.height,
+              displayWidth: dimensions.width,
+              displayHeight: dimensions.height,
+            }
+          : undefined,
+      }
     }
 
     // Image is too large and we failed to compress it - fail with user-friendly error
@@ -809,6 +821,82 @@ export function detectImageFormatFromBuffer(buffer: Buffer): ImageMediaType {
 
   // Default to PNG if unknown
   return 'image/png'
+}
+
+/**
+ * Reads dimensions from common image headers without requiring Sharp.
+ * Packaged CLI builds keep native image modules optional, so normal images
+ * still need accurate vision-token estimates when the processor is absent.
+ */
+export function detectImageDimensionsFromBuffer(
+  buffer: Buffer,
+): { width: number; height: number } | null {
+  // PNG: width and height are fixed-width fields in IHDR.
+  if (
+    buffer.length >= 24 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    }
+  }
+
+  // GIF: logical screen width and height are little-endian.
+  if (
+    buffer.length >= 10 &&
+    buffer.subarray(0, 3).toString('ascii') === 'GIF'
+  ) {
+    return {
+      width: buffer.readUInt16LE(6),
+      height: buffer.readUInt16LE(8),
+    }
+  }
+
+  // JPEG: scan for a Start Of Frame marker carrying dimensions.
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    const sofMarkers = new Set([
+      0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd,
+      0xce, 0xcf,
+    ])
+    let offset = 2
+    while (offset + 8 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1
+        continue
+      }
+      const marker = buffer[offset + 1]
+      if (marker === undefined) break
+      if (marker === 0xff || marker === 0x00) {
+        offset += 1
+        continue
+      }
+      if (sofMarkers.has(marker)) {
+        return {
+          height: buffer.readUInt16BE(offset + 5),
+          width: buffer.readUInt16BE(offset + 7),
+        }
+      }
+      // Standalone markers do not carry a segment length.
+      if (
+        marker === 0xd8 ||
+        marker === 0xd9 ||
+        (marker >= 0xd0 && marker <= 0xd7)
+      ) {
+        offset += 2
+        continue
+      }
+      if (offset + 3 >= buffer.length) break
+      const segmentLength = buffer.readUInt16BE(offset + 2)
+      if (segmentLength < 2) break
+      offset += 2 + segmentLength
+    }
+  }
+
+  return null
 }
 
 /**

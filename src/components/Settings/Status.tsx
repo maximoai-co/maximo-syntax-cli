@@ -15,6 +15,13 @@ import {
   permissionModeTitle,
 } from '../../utils/permissions/PermissionMode.js';
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js';
+import { getCurrentRealVersion } from '../../utils/autoUpdater.js';
+import {
+  formatAutoUpdaterDisabledReason,
+  getAutoUpdaterDisabledReason,
+  getGlobalConfig,
+} from '../../utils/config.js';
+import { getInitialSettings } from '../../utils/settings/settings.js';
 import { buildAccountProperties, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
 import type { ThemeName } from '../../utils/theme.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
@@ -28,7 +35,12 @@ function buildPrimarySection(): Property[] {
   const nameValue = customTitle ?? <Text dimColor>/rename to add a name</Text>;
   return [{
     label: 'Version',
-    value: MACRO.VERSION
+    // MACRO.VERSION is the internal compatibility version (99.0.0 in open
+    // builds); show the real package version to users.
+    value: getCurrentRealVersion()
+  }, {
+    label: 'Auto-update',
+    value: buildAutoUpdateStatus()
   }, {
     label: 'Session name',
     value: nameValue
@@ -39,6 +51,26 @@ function buildPrimarySection(): Property[] {
     label: 'cwd',
     value: getCwd()
   }, ...buildAccountProperties(), ...buildAPIProviderProperties()];
+}
+
+function buildAutoUpdateStatus(): string {
+  const config = getGlobalConfig();
+  const disabledReason = getAutoUpdaterDisabledReason();
+  if (disabledReason) {
+    return `Disabled (${formatAutoUpdaterDisabledReason(disabledReason)})`;
+  }
+  const channel = getInitialSettings()?.autoUpdatesChannel ?? 'latest';
+  const lastCheck = config.lastEagerUpdateCheck;
+  const schedulerRegistered = config.autoUpdateSchedulerRegistered;
+  const parts = [`On (${channel})`];
+  if (schedulerRegistered) {
+    parts.push('daily background task active');
+  }
+  if (lastCheck) {
+    const ago = Math.max(0, Math.floor((Date.now() - lastCheck) / 60000));
+    parts.push(`last check ${ago}m ago`);
+  }
+  return parts.join(' · ');
 }
 function buildSecondarySection({
   mainLoopModel,

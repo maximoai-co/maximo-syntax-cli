@@ -367,6 +367,23 @@ async function main(): Promise<void> {
     process.env.MAXIMO_SYNTAX_SIMPLE = "1";
   }
 
+  // Fast-path for `--auto-update`: headless background updater entrypoint
+  // invoked by the OS scheduler (launchd / cron / Task Scheduler). Checks for
+  // an update, installs it if available, sends an OS notification, and exits.
+  // Deliberately lightweight: enables configs (for the disable gate + install
+  // method) but does NOT boot the full CLI.
+  if (args[0] === "--auto-update") {
+    profileCheckpoint("cli_auto_update_path");
+    const { enableConfigs } = await import("../utils/config.js");
+    enableConfigs();
+    const { runAutoUpdateCheck } = await import("../cli/autoUpdate.js");
+    await runAutoUpdateCheck();
+    // process.exit (not return) so lingering handles (sinks, keychain
+    // prefetches) don't keep the scheduler-spawned process alive.
+    // eslint-disable-next-line custom-rules/no-process-exit
+    process.exit(0);
+  }
+
   // No special flags detected, load and run the full CLI
   if (process.env.OPENCLAUDE_ENABLE_EARLY_INPUT === "1") {
     const { startCapturingEarlyInput } = await import("../utils/earlyInput.js");

@@ -34,7 +34,11 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from "src/services/analytics/index.js";
-import { getMaxVersion, shouldSkipVersion } from "../autoUpdater.js";
+import {
+  getCurrentRealVersion,
+  getMaxVersion,
+  shouldSkipVersion,
+} from "../autoUpdater.js";
 import { registerCleanup } from "../cleanupRegistry.js";
 import { getGlobalConfig, saveGlobalConfig } from "../config.js";
 import { logForDebugging } from "../debug.js";
@@ -518,9 +522,10 @@ async function updateLatest(
         `Native installer: maxVersion ${maxVersion} is set, capping update from ${version} to ${maxVersion}`
       );
       // If we're already at or above maxVersion, skip the update entirely
-      if (gte(MACRO.VERSION, maxVersion)) {
+      const currentRealVersion = getCurrentRealVersion();
+      if (gte(currentRealVersion, maxVersion)) {
         logForDebugging(
-          `Native installer: current version ${MACRO.VERSION} is already at or above maxVersion ${maxVersion}, skipping update`
+          `Native installer: current version ${currentRealVersion} is already at or above maxVersion ${maxVersion}, skipping update`
         );
         logEvent("tengu_native_update_skipped_max_version", {
           latency_ms: Date.now() - startTime,
@@ -538,9 +543,11 @@ async function updateLatest(
   // Early exit: if we're already running this exact version AND both the version binary
   // and executable exist and are valid. We need to proceed if the executable doesn't exist,
   // is invalid (e.g., empty/corrupted from a failed install), or we're running via npx.
+  // Compare against the real package version (MACRO.VERSION is the internal
+  // 99.0.0 in open builds and would never match a real published version).
   if (
     !forceReinstall &&
-    version === MACRO.VERSION &&
+    version === getCurrentRealVersion() &&
     (await versionIsAvailable(version)) &&
     (await isPossibleMaximoBinary(executablePath))
   ) {

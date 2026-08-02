@@ -1,14 +1,24 @@
 import axios from "axios";
+import { createHash } from "crypto";
 import { constants as fsConstants } from "fs";
 import { access, writeFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
-import { getDynamicConfig_BLOCKS_ON_INIT } from "src/services/analytics/growthbook.js";
+import {
+  getDynamicConfig_BLOCKS_ON_INIT,
+  getDynamicConfig_CACHED_MAY_BE_STALE,
+} from "src/services/analytics/growthbook.js";
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from "src/services/analytics/index.js";
-import { type ReleaseChannel, saveGlobalConfig } from "./config.js";
+import {
+  type ReleaseChannel,
+  getGlobalConfig,
+  getOrCreateUserID,
+  isAutoUpdaterDisabled,
+  saveGlobalConfig,
+} from "./config.js";
 import { logForDebugging } from "./debug.js";
 import { env } from "./env.js";
 import { getMaximoConfigHomeDir } from "./envUtils.js";
@@ -17,7 +27,7 @@ import { execFileNoThrowWithCwd } from "./execFileNoThrow.js";
 import { getFsImplementation } from "./fsOperations.js";
 import { gracefulShutdownSync } from "./gracefulShutdown.js";
 import { logError } from "./log.js";
-import { gte, lt } from "./semver.js";
+import { gt, gte, lt } from "./semver.js";
 import { getInitialSettings } from "./settings/settings.js";
 import {
   filterMaximoAliases,
@@ -38,11 +48,95 @@ export type InstallStatus =
   | "install_failed"
   | "in_progress";
 
+/**
+ * The real, user-facing package version used for update comparisons.
+ *
+ * MACRO.VERSION is the internal compatibility version (99.0.0 in open builds,
+ * kept high to pass first-party minimum-version guards) — it is NOT the npm
+ * package version and comparing it against the registry always looks
+ * "up to date". MACRO.DISPLAY_VERSION carries the actual published version
+ * (e.g. 0.1.20) and is what must be compared against npm's latest.
+ */
+export function getCurrentRealVersion(): string {
+  return (MACRO as { DISPLAY_VERSION?: string }).DISPLAY_VERSION ?? MACRO.VERSION;
+}
+
 export type AutoUpdaterResult = {
   version: string | null;
   status: InstallStatus;
   notifications?: string[];
 };
+
+/**
+ * Server-driven rollout config for staged auto-updates (Step 5).
+ * Backend publishes this under the same GrowthBook config family as
+ * tengu_version_config / tengu_max_version_config.
+ *
+ *  - rolloutPercent (0-100): fraction of users eligible for a given release.
+ *    Cohort is sticky per (userID, targetVersion).
+ *  - securityCutoffDate (ISO): after this date, securityMinVersion is forced.
+ *  - securityMinVersion: the minimum version to force users onto after the
+ *    cutoff (critical security patches). Bypasses the rollout gate and the
+ *    user's autoUpdates opt-out, but still respects maxVersion (kill switch).
+ */
+export type UpdateRolloutConfig = {
+  rolloutPercent?: number;
+  securityCutoffDate?: string;
+  securityMinVersion?: string;
+};
+
+async function getRolloutConfig(): Promise<UpdateRolloutConfig> {
+  // Non-blocking read (disk-cache fallback) so the scheduler path never blocks.
+  try {
+    return getDynamicConfig_CACHED_MAY_BE_STALE<UpdateRolloutConfig>(
+      "tengu_update_rollout_config",
+      {},
+    );
+  } catch (error) {
+    logError(error as Error);
+    return {};
+  }
+}
+
+/**
+ * Deterministic, sticky cohort check. Hash(userID + ":" + targetVersion) → 0..99.
+ * Including targetVersion keeps the cohort stable per release even as the
+ * rollout percent rises, so users already selected for vX stay selected.
+ */
+export function isInRolloutCohort(
+  rolloutPercent: number,
+  targetVersion: string,
+): boolean {
+  const userID = getOrCreateUserID();
+  const hash = createHash("sha256")
+    .update(`${userID}:${targetVersion}`)
+    .digest();
+  const bucket = hash.readUInt32BE(0) % 100;
+  return bucket < rolloutPercent;
+}
+
+/**
+ * Returns the version to force onto the user when a security patch is past its
+ * cutoff date, or undefined when no force applies. Callers must still respect
+ * the maxVersion kill switch (force never beats an incident pause).
+ */
+function getForcedSecurityVersion(
+  config: UpdateRolloutConfig,
+  currentVersion: string,
+): string | undefined {
+  if (!config.securityCutoffDate || !config.securityMinVersion) {
+    return undefined;
+  }
+  const cutoff = Date.parse(config.securityCutoffDate);
+  if (isNaN(cutoff) || Date.now() < cutoff) {
+    return undefined;
+  }
+  // Only force when the user is actually behind the required minimum.
+  if (lt(currentVersion, config.securityMinVersion)) {
+    return config.securityMinVersion;
+  }
+  return undefined;
+}
 
 export type MaxVersionConfig = {
   external?: string;
@@ -555,5 +649,241 @@ async function removeMaximoAliasesFromShellConfigs(): Promise<void> {
         level: "error",
       });
     }
+  }
+}
+
+// Minimum time between eager startup update attempts. The React AutoUpdater
+// (mounted in the REPL footer) runs its own check on mount and every 30 min;
+// without a cooldown the startup check + mount check would double-install.
+const EAGER_UPDATE_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
+// In-memory guard so concurrent callers in one process (startup + REPL mount)
+// don't both run installs before either sets the cooldown timestamp.
+let eagerUpdateInFlight = false;
+
+/**
+ * Check for an update and install it if available. Non-React engine shared by
+ * the eager startup check and (optionally) other non-UI callers.
+ *
+ * Mirrors the guard chain in the React AutoUpdater but uses the real package
+ * version (getCurrentRealVersion) for comparisons and is safe to call from
+ * anywhere (no React state). Fires once per process at most (eagerUpdateInFlight)
+ * and is throttled to once per hour via the persisted lastEagerUpdateCheck
+ * timestamp in global config, so it composes with the 30-minute REPL interval
+ * without double-installing.
+ *
+ * Returns the AutoUpdaterResult (or null when throttled/skipped) for callers
+ * that want to surface it (e.g. the REPL footer).
+ */
+export async function checkAndInstallUpdate(
+  opts: {
+    force?: boolean;
+  } = {},
+): Promise<AutoUpdaterResult | null> {
+  if (eagerUpdateInFlight) {
+    return null;
+  }
+
+  // Skip in test/dev environments (same gate as the React updater).
+  if ("production" === "test" || "production" === "development") {
+    logForDebugging(
+      "AutoUpdater: Skipping update check in test/dev environment",
+    );
+    return null;
+  }
+  // Read the rollout/force config up front (non-blocking cached read). A
+  // security force bypasses the user's auto-update opt-out, so the
+  // isAutoUpdaterDisabled() gate below is conditional on no force applying.
+  const rolloutConfig = await getRolloutConfig();
+  const currentVersion = getCurrentRealVersion();
+  const forcedSecurityVersion = getForcedSecurityVersion(
+    rolloutConfig,
+    currentVersion,
+  );
+
+  if (!forcedSecurityVersion && isAutoUpdaterDisabled()) {
+    return null;
+  }
+
+  // Throttle: at most one eager check per hour unless forced (--force) or a
+  // security force applies (critical patches must not be cooldown-throttled).
+  if (!opts.force && !forcedSecurityVersion) {
+    const config = getGlobalConfig();
+    const lastCheck = config.lastEagerUpdateCheck ?? 0;
+    if (Date.now() - lastCheck < EAGER_UPDATE_COOLDOWN_MS) {
+      logForDebugging(
+        `AutoUpdater: Skipping eager check, last check ${Date.now() - lastCheck}ms ago`,
+      );
+      return null;
+    }
+  }
+
+  eagerUpdateInFlight = true;
+  try {
+    const channel = getInitialSettings()?.autoUpdatesChannel ?? "latest";
+    let latestVersion = await getLatestVersion(channel);
+
+    // Security force: a past-cutoff critical patch wins over the user's
+    // opt-out and the rollout gate. Still respect the maxVersion kill switch
+    // below (force never beats an incident pause).
+    if (forcedSecurityVersion && forcedSecurityVersion !== currentVersion) {
+      latestVersion = forcedSecurityVersion;
+      logForDebugging(
+        `AutoUpdater: security force applies — targeting ${forcedSecurityVersion} (current ${currentVersion})`,
+      );
+    }
+
+    // Server-side kill switch: cap to maxVersion if set.
+    const maxVersion = await getMaxVersion();
+    if (maxVersion && latestVersion && gt(latestVersion, maxVersion)) {
+      logForDebugging(
+        `AutoUpdater: maxVersion ${maxVersion} is set, capping update from ${latestVersion} to ${maxVersion}`,
+      );
+      if (gte(currentVersion, maxVersion)) {
+        logForDebugging(
+          `AutoUpdater: current version ${currentVersion} is already at or above maxVersion ${maxVersion}, skipping update`,
+        );
+        // No install — report running version (see note at the up-to-date path).
+        return { version: currentVersion, status: "success" };
+      }
+      latestVersion = maxVersion;
+    }
+
+    // Record the check timestamp (even when there's nothing to install) so the
+    // hourly throttle prevents repeated npm lookups.
+    saveGlobalConfig((current) => ({
+      ...current,
+      lastEagerUpdateCheck: Date.now(),
+    }));
+
+    if (
+      !currentVersion ||
+      !latestVersion ||
+      gte(currentVersion, latestVersion) ||
+      // A security force must not be blocked by the user's minimumVersion
+      // preference — critical patches win. The rollout gate also doesn't apply.
+      (!forcedSecurityVersion && shouldSkipVersion(latestVersion))
+    ) {
+      // No install happened. Report the running version so callers can tell
+      // "already up to date / deferred" (version === running) apart from a real
+      // upgrade (version !== running).
+      return { version: currentVersion, status: "success" };
+    }
+
+    // Staged rollout gate (Step 5): if the server is rolling this release out
+    // to a percentage of users, only install for the deterministic cohort.
+    // Security forces bypass the gate; the opt-out bypass already happened at
+    // the top of the engine.
+    const rolloutPercent = rolloutConfig.rolloutPercent;
+    if (
+      !forcedSecurityVersion &&
+      typeof rolloutPercent === "number" &&
+      rolloutPercent > 0 &&
+      rolloutPercent < 100 &&
+      !isInRolloutCohort(rolloutPercent, latestVersion)
+    ) {
+      logForDebugging(
+        `AutoUpdater: update ${latestVersion} is in staged rollout (${rolloutPercent}%), user not in cohort — skipping`,
+      );
+      return { version: currentVersion, status: "success" };
+    }
+
+    const startTime = Date.now();
+    const config = getGlobalConfig();
+
+    // Remove native installer symlink since we're using JS-based updates,
+    // unless the user migrated to a native installation.
+    if (config.installMethod !== "native") {
+      // Lazy import to avoid a module cycle: nativeInstaller/installer.ts
+      // statically imports this file.
+      const { removeInstalledSymlink } = await import(
+        "./nativeInstaller/index.js"
+      );
+      await removeInstalledSymlink();
+    }
+
+    // Lazy import to avoid a module cycle: doctorDiagnostic.ts statically
+    // imports this file, so importing it back at module scope would cycle.
+    const { getCurrentInstallationType } = await import(
+      "./doctorDiagnostic.js"
+    );
+    const installationType = await getCurrentInstallationType();
+    logForDebugging(
+      `AutoUpdater: Detected installation type: ${installationType}`,
+    );
+
+    // Skip update for development builds.
+    if (installationType === "development") {
+      logForDebugging("AutoUpdater: Cannot auto-update development build");
+      return { version: latestVersion, status: "install_failed" };
+    }
+
+    let installStatus: InstallStatus;
+    let updateMethod: "local" | "global";
+    if (installationType === "npm-local") {
+      logForDebugging("AutoUpdater: Using local update method");
+      updateMethod = "local";
+      // Lazy import to avoid a module cycle (localInstaller imports config,
+      // not this file, but keeping the pattern consistent is cheap).
+      const { installOrUpdateMaximoPackage } = await import(
+        "./localInstaller.js"
+      );
+      installStatus = await installOrUpdateMaximoPackage(channel);
+    } else if (installationType === "npm-global") {
+      logForDebugging("AutoUpdater: Using global update method");
+      updateMethod = "global";
+      installStatus = await installGlobalPackage();
+    } else if (installationType === "native") {
+      // Native installations self-update via NativeAutoUpdater; the JS-side
+      // updater shouldn't handle them (and cannot — the binary is managed by
+      // the native installer). Report the running version (no JS install).
+      logForDebugging(
+        "AutoUpdater: Native installation, deferring to native updater",
+      );
+      return { version: currentVersion, status: "success" };
+    } else {
+      // Fallback to config-based detection for unknown types.
+      logForDebugging(
+        `AutoUpdater: Unknown installation type, falling back to config`,
+      );
+      const isMigrated = config.installMethod === "local";
+      updateMethod = isMigrated ? "local" : "global";
+      const { installOrUpdateMaximoPackage } = await import(
+        "./localInstaller.js"
+      );
+      installStatus = isMigrated
+        ? await installOrUpdateMaximoPackage(channel)
+        : await installGlobalPackage();
+    }
+
+    if (installStatus === "success") {
+      logEvent("tengu_auto_updater_success", {
+        fromVersion:
+          currentVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        toVersion:
+          latestVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        durationMs: Date.now() - startTime,
+        wasMigrated: updateMethod === "local",
+        installationType:
+          installationType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      });
+    } else {
+      logEvent("tengu_auto_updater_fail", {
+        fromVersion:
+          currentVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        attemptedVersion:
+          latestVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        status:
+          installStatus as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        durationMs: Date.now() - startTime,
+        wasMigrated: updateMethod === "local",
+        installationType:
+          installationType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      });
+    }
+
+    return { version: latestVersion, status: installStatus };
+  } finally {
+    eagerUpdateInFlight = false;
   }
 }

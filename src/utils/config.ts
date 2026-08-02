@@ -204,6 +204,13 @@ export type GlobalConfig = {
   autoUpdates?: boolean;
   // Flag to distinguish protection-based disabling from user preference
   autoUpdatesProtectedForNative?: boolean;
+  // Timestamp (ms) of the last eager startup auto-update check, used to
+  // throttle the startup check so it composes with the 30-min REPL interval
+  // without double-installing.
+  lastEagerUpdateCheck?: number;
+  // True once the OS-level daily auto-update scheduler (launchd/cron/schtasks)
+  // has been registered, so startup doesn't re-register it on every launch.
+  autoUpdateSchedulerRegistered?: boolean;
   // Session count when Doctor was last shown
   doctorShownAtSession?: number;
   userID?: string;

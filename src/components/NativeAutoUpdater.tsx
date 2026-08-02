@@ -7,7 +7,11 @@ import { useInterval } from 'usehooks-ts';
 import { useUpdateNotification } from '../hooks/useUpdateNotification.js';
 import { Box, Text } from '../ink.js';
 import type { AutoUpdaterResult } from '../utils/autoUpdater.js';
-import { getMaxVersion, getMaxVersionMessage } from '../utils/autoUpdater.js';
+import {
+  getCurrentRealVersion,
+  getMaxVersion,
+  getMaxVersionMessage,
+} from '../utils/autoUpdater.js';
 import { isAutoUpdaterDisabled } from '../utils/config.js';
 import { installLatest } from '../utils/nativeInstaller/index.js';
 import { gt } from '../utils/semver.js';
@@ -89,12 +93,13 @@ export function NativeAutoUpdater({
     try {
       // Check if current version is above the max allowed version
       const maxVersion = await getMaxVersion();
-      if (maxVersion && gt(MACRO.VERSION, maxVersion)) {
+      const realVersion = getCurrentRealVersion();
+      if (maxVersion && gt(realVersion, maxVersion)) {
         const msg = await getMaxVersionMessage();
         setMaxVersionIssue(msg ?? 'affects your version');
       }
       const result = await installLatest(channel);
-      const currentVersion = MACRO.VERSION;
+      const currentVersion = realVersion;
       const latencyMs = Date.now() - startTime;
 
       // Handle lock contention gracefully - just return without treating as error

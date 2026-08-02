@@ -12,6 +12,7 @@ import {
   supportsClassifierAutoModeAuth,
 } from '../../utils/permissions/autoModeAuth.js'
 import {
+  PERMISSION_MODES,
   permissionModeActivateMessage,
   permissionModeFooterLabel,
   permissionModeSymbol,
@@ -43,6 +44,7 @@ function setPermissionMode(
   context: LocalJSXCommandContext,
   fromMode: string,
   toMode: PermissionMode,
+  persist: boolean = true,
 ): void {
   context.setAppState(prev => {
     const base =
@@ -62,6 +64,25 @@ function setPermissionMode(
       }),
     }
   })
+  // Persist the mode so it survives restarts, matching /model and /effort.
+  // initialPermissionModeFromCLI restores settings.permissions.defaultMode at
+  // startup, so /auto (classifier), /auto always-approve, and /auto off all
+  // stay sticky across sessions. The always-approve confirm dialog's
+  // "for this session" option passes persist: false to keep that choice
+  // session-only. Switching back to 'default' clears the persisted key so a
+  // previous auto/always-approve choice doesn't stick. 'bubble' is
+  // internal-only and never passed here; cast to the defaultMode enum
+  // (PERMISSION_MODES includes 'auto').
+  if (persist) {
+    updateSettingsForSource('userSettings', {
+      permissions: {
+        defaultMode:
+          toMode === 'default'
+            ? undefined
+            : (toMode as (typeof PERMISSION_MODES)[number]),
+      },
+    })
+  }
 }
 
 function bypassDisabledBySettings(): boolean {
@@ -298,7 +319,10 @@ function AutoModePickerFlow(props: {
     return (
       <AutoModeOptInDialog
         onAccept={() => {
-          setPermissionMode(context, currentMode, 'auto')
+          // AutoModeOptInDialog persists defaultMode itself for the
+          // "make it my default mode" option; plain "enable auto mode" is
+          // session-only, so don't double-persist here.
+          setPermissionMode(context, currentMode, 'auto', false)
           doneEnabled(onDone, 'auto', USAGE_WARNING)
         }}
         onDecline={() => onDone('Auto mode not enabled.')}
@@ -315,7 +339,12 @@ function AutoModePickerFlow(props: {
               skipDangerousModePermissionPrompt: true,
             })
           }
-          setPermissionMode(context, currentMode, 'bypassPermissions')
+          setPermissionMode(
+            context,
+            currentMode,
+            'bypassPermissions',
+            remember,
+          )
           doneEnabled(onDone, 'bypassPermissions', YOLO_WARNING)
         }}
         onDecline={() => onDone('Always-approve not enabled.')}
@@ -407,7 +436,10 @@ async function applyClassifier(
     return (
       <AutoModeOptInDialog
         onAccept={() => {
-          setPermissionMode(context, currentMode, 'auto')
+          // AutoModeOptInDialog persists defaultMode itself for the
+          // "make it my default mode" option; plain "enable auto mode" is
+          // session-only, so don't double-persist here.
+          setPermissionMode(context, currentMode, 'auto', false)
           doneEnabled(onDone, 'auto', USAGE_WARNING)
         }}
         onDecline={() => onDone('Auto mode not enabled.')}
@@ -443,7 +475,12 @@ async function applyAlwaysApprove(
               skipDangerousModePermissionPrompt: true,
             })
           }
-          setPermissionMode(context, currentMode, 'bypassPermissions')
+          setPermissionMode(
+            context,
+            currentMode,
+            'bypassPermissions',
+            remember,
+          )
           doneEnabled(onDone, 'bypassPermissions', YOLO_WARNING)
         }}
         onDecline={() => onDone('Always-approve not enabled.')}

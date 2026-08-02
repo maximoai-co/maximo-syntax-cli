@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { createOpenAIShimClient } from './openaiShim.ts'
+import { createOpenAIShimClient } from './openaiShim.js'
 
 type FetchType = typeof globalThis.fetch
 
@@ -49,7 +49,12 @@ afterEach(() => {
 
 test('preserves usage from final OpenAI stream chunk with empty choices', async () => {
   globalThis.fetch = (async (_input, init) => {
-    const url = typeof _input === 'string' ? _input : _input.url
+    const url =
+      typeof _input === 'string'
+        ? _input
+        : _input instanceof Request
+          ? _input.url
+          : _input.toString()
     expect(url).toBe('http://example.test/v1/chat/completions')
 
     const body = JSON.parse(String(init?.body))
@@ -184,6 +189,177 @@ test('sends pasted base64 images as OpenAI-compatible data URLs', async () => {
     ],
     max_tokens: 64,
   })
+})
+
+test('forwards Read tool-result images as user vision input', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    expect(body.messages).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_read',
+            type: 'function',
+            function: {
+              name: 'Read',
+              arguments: '{"file_path":"/tmp/maximo-shot.jpg"}',
+            },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'call_read',
+        content: '[Tool returned an image.]',
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'The previous tool returned the following image(s):' },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/jpeg;base64,aW1hZ2U=' },
+          },
+        ],
+      },
+    ])
+
+    return Response.json({
+      id: 'chatcmpl-read-image',
+      model: 'fake-vision-model',
+      choices: [
+        {
+          message: { role: 'assistant', content: 'I can see it.' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 4 },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<unknown>
+      }
+    }
+  }
+
+  await client.beta.messages.create({
+    model: 'fake-vision-model',
+    messages: [
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'call_read',
+            name: 'Read',
+            input: { file_path: '/tmp/maximo-shot.jpg' },
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'call_read',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: 'aW1hZ2U=',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    max_tokens: 64,
+  })
+})
+
+test('aborts a stalled OpenAI-compatible request after the configured timeout', async () => {
+  globalThis.fetch = (async (_input, init) =>
+    await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal
+      if (!signal) {
+        reject(new Error('request signal was not provided'))
+        return
+      }
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    })) as FetchType
+
+  const client = createOpenAIShimClient({ timeout: 20 }) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<unknown>
+      }
+    }
+  }
+
+  await expect(
+    client.beta.messages.create({
+      model: 'fake-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      max_tokens: 64,
+    }),
+  ).rejects.toThrow('timed out')
+})
+
+test('aborts an OpenAI-compatible stream body after the configured timeout', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const signal = init?.signal
+    const body = new ReadableStream({
+      start(controller) {
+        if (!signal) {
+          controller.error(new Error('request signal was not provided'))
+          return
+        }
+        signal.addEventListener('abort', () => controller.error(signal.reason), {
+          once: true,
+        })
+      },
+    })
+    return new Response(body, {
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({ timeout: 20 }) as {
+    beta: {
+      messages: {
+        create: (
+          params: Record<string, unknown>,
+        ) => Promise<unknown> & {
+          withResponse: () => Promise<{ data: AsyncIterable<unknown> }>
+        }
+      }
+    }
+  }
+
+  const result = await client.beta.messages
+    .create({
+      model: 'fake-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      max_tokens: 64,
+      stream: true,
+    })
+    .withResponse()
+
+  await expect(
+    (async () => {
+      for await (const _event of result.data) {
+        // The stream should abort before any provider event arrives.
+      }
+    })(),
+  ).rejects.toThrow('timed out')
 })
 
 test('maps the selected effort to OpenAI-compatible reasoning_effort', async () => {

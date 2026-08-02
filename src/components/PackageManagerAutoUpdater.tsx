@@ -5,6 +5,7 @@ import { useInterval } from "usehooks-ts";
 import { Text } from "../ink.js";
 import {
   type AutoUpdaterResult,
+  getCurrentRealVersion,
   getLatestVersionFromGcs,
   getMaxVersion,
   shouldSkipVersion,
@@ -42,15 +43,16 @@ export function PackageManagerAutoUpdater(t0) {
         getPackageManager(),
       ]);
       setPackageManager(pm);
+      const currentVersion = getCurrentRealVersion();
       let latest = await getLatestVersionFromGcs(channel);
       const maxVersion = await getMaxVersion();
       if (maxVersion && latest && gt(latest, maxVersion)) {
         logForDebugging(
           `PackageManagerAutoUpdater: maxVersion ${maxVersion} is set, capping update from ${latest} to ${maxVersion}`
         );
-        if (gte(MACRO.VERSION, maxVersion)) {
+        if (gte(currentVersion, maxVersion)) {
           logForDebugging(
-            `PackageManagerAutoUpdater: current version ${MACRO.VERSION} is already at or above maxVersion ${maxVersion}, skipping update`
+            `PackageManagerAutoUpdater: current version ${currentVersion} is already at or above maxVersion ${maxVersion}, skipping update`
           );
           setUpdateAvailable(false);
           return;
@@ -58,11 +60,11 @@ export function PackageManagerAutoUpdater(t0) {
         latest = maxVersion;
       }
       const hasUpdate =
-        latest && !gte(MACRO.VERSION, latest) && !shouldSkipVersion(latest);
+        latest && !gte(currentVersion, latest) && !shouldSkipVersion(latest);
       setUpdateAvailable(!!hasUpdate);
       if (hasUpdate) {
         logForDebugging(
-          `PackageManagerAutoUpdater: Update available ${MACRO.VERSION} -> ${latest}`
+          `PackageManagerAutoUpdater: Update available ${currentVersion} -> ${latest}`
         );
       }
     };

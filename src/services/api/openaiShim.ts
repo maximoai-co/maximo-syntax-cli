@@ -21,6 +21,7 @@ import {
   collectCodexCompletedResponse,
   convertCodexResponseToAnthropicMessage,
   performCodexRequest,
+  type AnthropicUsage,
   type AnthropicStreamEvent,
   type ShimCreateParams,
 } from "./codexShim.js";
@@ -41,7 +42,7 @@ interface OpenAIMessage {
   role: "system" | "user" | "assistant" | "tool";
   content?:
     | string
-    | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    | OpenAIContentPart[];
   tool_calls?: Array<{
     id: string;
     type: "function";
@@ -50,6 +51,19 @@ interface OpenAIMessage {
   tool_call_id?: string;
   name?: string;
 }
+
+type OpenAIContentPart = {
+  type: string;
+  text?: string;
+  image_url?: { url: string };
+};
+
+const TOOL_RESULT_IMAGE_PLACEHOLDER = "[Tool returned an image.]";
+
+type ConvertedToolResult = {
+  text: string;
+  images: OpenAIContentPart[];
+};
 
 interface OpenAITool {
   type: "function";
@@ -75,10 +89,8 @@ function convertSystemPrompt(system: unknown): string {
 }
 
 function convertContentBlocks(
-  content: unknown
-):
-  | string
-  | Array<{ type: string; text?: string; image_url?: { url: string } }> {
+  content: unknown,
+): string | OpenAIContentPart[] {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return String(content ?? "");
 
@@ -134,6 +146,69 @@ function convertContentBlocks(
   return parts;
 }
 
+/**
+ * Tool results are represented as `tool` messages by the Chat Completions
+ * API. Most OpenAI-compatible APIs only accept text in that message, while
+ * Anthropic allows an image to be nested inside the tool_result content.
+ * Preserve the textual part in the tool message and return images separately
+ * so the caller can send them in a normal user message immediately afterward.
+ */
+function convertToolResultContent(content: unknown): ConvertedToolResult {
+  if (typeof content === "string") {
+    return { text: content, images: [] };
+  }
+
+  if (!Array.isArray(content)) {
+    return { text: JSON.stringify(content ?? ""), images: [] };
+  }
+
+  const textParts: string[] = [];
+  const images: OpenAIContentPart[] = [];
+
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+
+    const typedBlock = block as {
+      type?: string;
+      text?: unknown;
+      source?: {
+        type?: string;
+        media_type?: string;
+        data?: string;
+        url?: string;
+      };
+    };
+
+    if (typedBlock.type === "text" && typeof typedBlock.text === "string") {
+      textParts.push(typedBlock.text);
+      continue;
+    }
+
+    if (typedBlock.type !== "image") continue;
+
+    const source = typedBlock.source;
+    if (source?.type === "base64" && source.media_type && source.data) {
+      images.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${source.media_type};base64,${source.data}`,
+        },
+      });
+    } else if (source?.type === "url" && source.url) {
+      images.push({
+        type: "image_url",
+        image_url: { url: source.url },
+      });
+    }
+  }
+
+  if (images.length > 0 && textParts.length === 0) {
+    textParts.push(TOOL_RESULT_IMAGE_PLACEHOLDER);
+  }
+
+  return { text: textParts.join("\n"), images };
+}
+
 function convertMessages(
   messages: Array<{
     role: string;
@@ -165,18 +240,33 @@ function convertMessages(
         const otherContent = content.filter(
           (b: { type?: string }) => b.type !== "tool_result"
         );
+        const toolResultImages: OpenAIContentPart[] = [];
 
         // Emit tool results as tool messages
         for (const tr of toolResults) {
-          const trContent = Array.isArray(tr.content)
-            ? tr.content.map((c: { text?: string }) => c.text ?? "").join("\n")
-            : typeof tr.content === "string"
-            ? tr.content
-            : JSON.stringify(tr.content ?? "");
+          const converted = convertToolResultContent(tr.content);
+          const trContent = converted.text;
+          toolResultImages.push(...converted.images);
           result.push({
             role: "tool",
             tool_call_id: tr.tool_use_id ?? "unknown",
             content: tr.is_error ? `Error: ${trContent}` : trContent,
+          });
+        }
+
+        // Images nested in Anthropic tool_result blocks cannot be represented
+        // by an OpenAI `tool` message. Send them as a regular user message
+        // after all tool messages so parallel tool-call pairing remains valid.
+        if (toolResultImages.length > 0) {
+          result.push({
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "The previous tool returned the following image(s):",
+              },
+              ...toolResultImages,
+            ],
           });
         }
 
@@ -532,23 +622,36 @@ async function* openaiStreamToAnthropic(
 
 class OpenAIShimStream {
   private generator: AsyncGenerator<AnthropicStreamEvent>;
+  private cleanup: () => void;
   // The controller property is checked by maximo.ts to distinguish streams from error messages
-  controller = new AbortController();
+  controller: AbortController;
 
-  constructor(generator: AsyncGenerator<AnthropicStreamEvent>) {
+  constructor(
+    generator: AsyncGenerator<AnthropicStreamEvent>,
+    requestController: AbortController,
+    cleanup: () => void,
+  ) {
     this.generator = generator;
+    this.controller = requestController;
+    this.cleanup = cleanup;
   }
 
   async *[Symbol.asyncIterator]() {
-    yield* this.generator;
+    try {
+      yield* this.generator;
+    } finally {
+      this.cleanup();
+    }
   }
 }
 
 class OpenAIShimMessages {
   private defaultHeaders: Record<string, string>;
+  private timeout?: number;
 
-  constructor(defaultHeaders: Record<string, string>) {
+  constructor(defaultHeaders: Record<string, string>, timeout?: number) {
     this.defaultHeaders = defaultHeaders;
+    this.timeout = timeout;
   }
 
   create(
@@ -559,26 +662,44 @@ class OpenAIShimMessages {
 
     const promise = (async () => {
       const request = resolveProviderRequest({ model: params.model });
-      const response = await self._doRequest(request, params, options);
+      const requestControl = createRequestControl(options?.signal, self.timeout);
 
-      if (params.stream) {
-        return new OpenAIShimStream(
-          request.transport === "codex_responses"
-            ? codexStreamToAnthropic(response, request.resolvedModel)
-            : openaiStreamToAnthropic(response, request.resolvedModel)
-        );
+      try {
+        const response = await self._doRequest(request, params, {
+          ...options,
+          signal: requestControl.signal,
+        });
+
+        if (params.stream) {
+          return new OpenAIShimStream(
+            request.transport === "codex_responses"
+              ? codexStreamToAnthropic(response, request.resolvedModel)
+              : openaiStreamToAnthropic(response, request.resolvedModel),
+            requestControl.controller,
+            requestControl.dispose,
+          );
+        }
+
+        let data;
+        if (request.transport === "codex_responses") {
+          data = await collectCodexCompletedResponse(response);
+          return convertCodexResponseToAnthropicMessage(
+            data,
+            request.resolvedModel,
+          );
+        }
+
+        data = await response.json();
+        return self._convertNonStreamingResponse(data, request.resolvedModel);
+      } catch (error) {
+        requestControl.dispose();
+        throw error;
+      } finally {
+        // Streaming requests transfer ownership of cleanup to OpenAIShimStream.
+        // Calling dispose here is harmless and ensures non-streaming requests
+        // never retain their timeout/listener resources.
+        if (!params.stream) requestControl.dispose();
       }
-
-      if (request.transport === "codex_responses") {
-        const data = await collectCodexCompletedResponse(response);
-        return convertCodexResponseToAnthropicMessage(
-          data,
-          request.resolvedModel
-        );
-      }
-
-      const data = await response.json();
-      return self._convertNonStreamingResponse(data, request.resolvedModel);
     })();
 
     (promise as unknown as Record<string, unknown>).withResponse = async () => {
@@ -794,9 +915,68 @@ class OpenAIShimMessages {
 class OpenAIShimBeta {
   messages: OpenAIShimMessages;
 
-  constructor(defaultHeaders: Record<string, string>) {
-    this.messages = new OpenAIShimMessages(defaultHeaders);
+  constructor(defaultHeaders: Record<string, string>, timeout?: number) {
+    this.messages = new OpenAIShimMessages(defaultHeaders, timeout);
   }
+}
+
+type RequestControl = {
+  signal: AbortSignal;
+  controller: AbortController;
+  dispose: () => void;
+};
+
+/**
+ * Gives OpenAI-compatible requests the same bounded lifetime as the native
+ * Anthropic client. The signal remains active while an SSE body is being read,
+ * not just while response headers are being fetched.
+ */
+function createRequestControl(
+  parentSignal: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+): RequestControl {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+
+  let onParentAbort: (() => void) | undefined;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    if (timer !== undefined) clearTimeout(timer);
+    if (parentSignal && onParentAbort) {
+      parentSignal.removeEventListener("abort", onParentAbort);
+    }
+  };
+
+  const abort = (reason?: unknown) => {
+    if (!controller.signal.aborted) controller.abort(reason);
+    dispose();
+  };
+
+  controller.signal.addEventListener("abort", dispose, { once: true });
+
+  if (parentSignal) {
+    onParentAbort = () => abort(parentSignal.reason);
+    if (parentSignal.aborted) {
+      abort(parentSignal.reason);
+    } else {
+      parentSignal.addEventListener("abort", onParentAbort, { once: true });
+    }
+  }
+
+  if (
+    !controller.signal.aborted &&
+    timeoutMs !== undefined &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0
+  ) {
+    timer = setTimeout(() => {
+      abort(new Error(`OpenAI-compatible request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  }
+
+  return { signal: controller.signal, controller, dispose };
 }
 
 export function createOpenAIShimClient(options: {
@@ -820,9 +1000,12 @@ export function createOpenAIShimClient(options: {
     }
   }
 
-  const beta = new OpenAIShimBeta({
-    ...(options.defaultHeaders ?? {}),
-  });
+  const beta = new OpenAIShimBeta(
+    {
+      ...(options.defaultHeaders ?? {}),
+    },
+    options.timeout,
+  );
 
   return {
     beta,

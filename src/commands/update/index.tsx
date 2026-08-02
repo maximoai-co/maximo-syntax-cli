@@ -5,7 +5,11 @@ import { Box, Text } from "../../ink.js";
 import { StatusIcon } from "../../components/design-system/StatusIcon.js";
 import { logEvent } from "../../services/analytics/index.js";
 import { isEnvTruthy } from "../../utils/envUtils.js";
-import { getLatestVersion, installGlobalPackage } from "../../utils/autoUpdater.js";
+import {
+  getCurrentRealVersion,
+  getLatestVersion,
+  installGlobalPackage,
+} from "../../utils/autoUpdater.js";
 import { getCurrentInstallationType } from "../../utils/doctorDiagnostic.js";
 
 type UpdateState =
@@ -53,7 +57,8 @@ function UpdateUI({ onDone }: { onDone: LocalJSXCommandOnDone }) {
         }
 
         const latest = await getLatestVersion("latest");
-        if (latest && latest === MACRO.VERSION) {
+        const currentVersion = getCurrentRealVersion();
+        if (latest && latest === currentVersion) {
           setState({ type: "already-latest", version: latest });
           return;
         }
@@ -65,7 +70,7 @@ function UpdateUI({ onDone }: { onDone: LocalJSXCommandOnDone }) {
         const result = await installGlobalPackage();
 
         if (result === "success") {
-          setState({ type: "success", version: latest ?? MACRO.VERSION });
+          setState({ type: "success", version: latest ?? currentVersion });
         } else if (result === "no_permissions") {
           setState({ type: "no-permissions" });
         } else if (result === "in_progress") {
@@ -163,7 +168,7 @@ function UpdateUI({ onDone }: { onDone: LocalJSXCommandOnDone }) {
               Maximo Syntax updated!
             </Text>
           </Box>
-          {state.version !== MACRO.VERSION && (
+          {state.version !== getCurrentRealVersion() && (
             <Box marginLeft={2}>
               <Text dimColor>New version: </Text>
               <Text color="maximo">{state.version}</Text>

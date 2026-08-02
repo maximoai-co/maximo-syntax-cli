@@ -23,6 +23,7 @@ import {
   type OutputStyle,
 } from "../../utils/config.js";
 import { normalizeApiKeyForConfig } from "../../utils/authPortable.js";
+import { getCurrentRealVersion } from "../../utils/autoUpdater.js";
 import {
   getGlobalConfig,
   getAutoUpdaterDisabledReason,
@@ -804,7 +805,54 @@ export function Config({
           },
         ]
       : []),
-    // autoUpdates setting is hidden - use DISABLE_AUTOUPDATER env var to control
+    {
+      id: "autoUpdatesEnabled",
+      label: "Auto-update",
+      value: !autoUpdaterDisabledReason,
+      type: "boolean" as const,
+      onChange(enabled: boolean) {
+        if (!enabled) {
+          // Turning off auto-updates: persist the flag, unregister the OS
+          // scheduler, and surface via the existing disabled-reason path
+          // (config.autoUpdates === false → getAutoUpdaterDisabledReason).
+          saveGlobalConfig((current_9) => ({
+            ...current_9,
+            autoUpdates: false,
+          }));
+          setGlobalConfig({
+            ...getGlobalConfig(),
+            autoUpdates: false,
+          });
+          logEvent("tengu_autoupdate_disabled", {});
+          void import("../../utils/autoUpdateSchedulerSetup.js").then((m) =>
+            m.reconcileAutoUpdateScheduler()
+          );
+          return;
+        }
+        // Turning on: default to the latest channel (stable already reachable
+        // via the channel item). Clears minimumVersion like the enable dialog.
+        saveGlobalConfig((current_10) => ({
+          ...current_10,
+          autoUpdates: true,
+        }));
+        setGlobalConfig({
+          ...getGlobalConfig(),
+          autoUpdates: true,
+        });
+        updateSettingsForSource("userSettings", {
+          autoUpdatesChannel: settingsData?.autoUpdatesChannel ?? "latest",
+          minimumVersion: undefined,
+        });
+        logEvent("tengu_autoupdate_enabled", {
+          channel: (
+            settingsData?.autoUpdatesChannel ?? "latest"
+          ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        });
+        void import("../../utils/autoUpdateSchedulerSetup.js").then((m) =>
+          m.reconcileAutoUpdateScheduler()
+        );
+      },
+    },
     autoUpdaterDisabledReason
       ? {
           id: "autoUpdatesChannel",
@@ -2202,7 +2250,7 @@ export function Config({
         </Dialog>
       ) : showSubmenu === "ChannelDowngrade" ? (
         <ChannelDowngradeDialog
-          currentVersion={MACRO.VERSION}
+          currentVersion={getCurrentRealVersion()}
           onChoice={(choice: ChannelDowngradeChoice) => {
             setShowSubmenu(null);
             setTabsHidden(false);

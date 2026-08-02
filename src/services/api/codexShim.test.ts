@@ -46,6 +46,19 @@ async function collectStreamEventTypes(responseText: string): Promise<string[]> 
 }
 
 describe('Codex provider config', () => {
+  test('uses Chat Completions for Maximo AI, MyTabulon, and Cencori URLs', () => {
+    for (const baseUrl of [
+      'https://api.maximoai.co/v1',
+      'https://api.mytabulon.com/v1',
+      'https://api.cencori.com/v1',
+    ]) {
+      expect(resolveProviderRequest({ baseUrl, model: 'vision-model' })).toMatchObject({
+        transport: 'chat_completions',
+        baseUrl,
+      })
+    }
+  })
+
   test('resolves codexplan alias to Codex transport with reasoning', () => {
     const resolved = resolveProviderRequest({ model: 'codexplan' })
     expect(resolved.transport).toBe('codex_responses')
@@ -210,6 +223,62 @@ describe('Codex request translation', () => {
         type: 'function_call_output',
         call_id: 'call_123',
         output: 'done',
+      },
+    ])
+  })
+
+  test('forwards Read tool-result images as user vision input', () => {
+    const items = convertAnthropicMessagesToResponsesInput([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'call_read', name: 'Read', input: {} },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'call_read',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: 'aW1hZ2U=',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    expect(items).toEqual([
+      {
+        type: 'function_call',
+        id: 'fc_read',
+        call_id: 'call_read',
+        name: 'Read',
+        arguments: '{}',
+      },
+      {
+        type: 'function_call_output',
+        call_id: 'call_read',
+        output: '[Tool returned an image.]',
+      },
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'The previous tool returned the following image(s):' },
+          {
+            type: 'input_image',
+            image_url: 'data:image/jpeg;base64,aW1hZ2U=',
+          },
+        ],
       },
     ])
   })
