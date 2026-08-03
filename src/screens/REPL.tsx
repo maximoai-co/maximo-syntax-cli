@@ -575,6 +575,7 @@ import {
 } from "../utils/fullscreen.js";
 import { AlternateScreen } from "../ink/components/AlternateScreen.js";
 import { ScrollKeybindingHandler } from "../components/ScrollKeybindingHandler.js";
+import { RawMessageView } from "../components/RawMessageView.js";
 import {
   useMessageActions,
   MessageActionsKeybindings,
@@ -1766,6 +1767,10 @@ export function REPL({
     useAwaySummary(messages, setMessages, isLoading);
   }
   const [cursor, setCursor] = useState<MessageActionsState | null>(null);
+  const [rawMessageView, setRawMessageView] = useState<{
+    title: string;
+    text: string;
+  } | null>(null);
   const cursorNavRef = useRef<MessageActionsNav | null>(null);
   // Memoized so Messages' React.memo holds.
   const unseenDivider = useMemo(
@@ -2105,6 +2110,22 @@ export function REPL({
   const isTerminalFocused = useTerminalFocus();
   const terminalFocusRef = useRef(isTerminalFocused);
   terminalFocusRef.current = isTerminalFocused;
+  const previousLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    const wasLoading = previousLoadingRef.current;
+    previousLoadingRef.current = isLoading;
+    if (!wasLoading || isLoading || submitCount === 0) return;
+    const config = getGlobalConfig();
+    if (config.responseCompleteNotifEnabled === false) return;
+    if ((config.notifyOnlyWhenUnfocused ?? true) && terminalFocusRef.current) return;
+    void sendNotification(
+      {
+        message: "Your response is ready",
+        notificationType: "response_complete",
+      },
+      terminal
+    );
+  }, [isLoading, submitCount, terminal]);
   const [theme] = useTheme();
 
   // resetLoadingState runs twice per turn (onQueryImpl tail + onQuery finally).
@@ -5108,6 +5129,10 @@ export function REPL({
         setIsMessageSelectorVisible(true);
       }
     },
+    raw: (msg, text) => {
+      setRawMessageView({ title: msg.type, text });
+      setCursor(null);
+    },
   };
   const { enter: enterMessageActions, handlers: messageActionHandlers } =
     useMessageActions(cursor, setCursor, cursorNavRef, messageActionCaps);
@@ -5279,6 +5304,7 @@ export function REPL({
         isLoading,
         toolJSX,
         focusedInputDialogRef,
+        terminalFocusRef,
         terminal
       ) => {
         // Check if user has interacted since the response ended
@@ -5295,6 +5321,8 @@ export function REPL({
           !toolJSX &&
           // Use ref to get current dialog state, avoiding stale closure
           focusedInputDialogRef.current === undefined &&
+          (!(getGlobalConfig().notifyOnlyWhenUnfocused ?? true) ||
+            !terminalFocusRef.current) &&
           idleTimeSinceResponse >= getGlobalConfig().messageIdleNotifThresholdMs
         ) {
           void sendNotification(
@@ -5311,6 +5339,7 @@ export function REPL({
       isLoading,
       toolJSX,
       focusedInputDialogRef,
+      terminalFocusRef,
       terminal
     );
     return () => clearTimeout(timer);
@@ -6135,7 +6164,15 @@ export function REPL({
   // /config, /theme, /diff, ...) both go here now.
   const toolJsxCentered =
     isFullscreenEnvEnabled() && toolJSX?.isLocalJSXCommand === true;
-  const centeredModal: React.ReactNode = toolJsxCentered ? toolJSX!.jsx : null;
+  const centeredModal: React.ReactNode = rawMessageView ? (
+    <RawMessageView
+      title={rawMessageView.title}
+      text={rawMessageView.text}
+      onDone={() => setRawMessageView(null)}
+    />
+  ) : toolJsxCentered ? (
+    toolJSX!.jsx
+  ) : null;
 
   // <AlternateScreen> at the root: everything below is inside its
   // <Box height={rows}>. Handlers/contexts are zero-height so ScrollBox's

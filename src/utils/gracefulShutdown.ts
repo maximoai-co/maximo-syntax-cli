@@ -416,6 +416,16 @@ export async function gracefulShutdown(
   // Budget = max(5s, hook budget + 3.5s headroom for cleanup + analytics flush).
   failsafeTimer = setTimeout(
     code => {
+      // The failsafe only fires when async cleanup has hung past its budget
+      // (e.g., a dead TTY, an MCP connection that never settles, or an
+      // analytics flush stuck on a dead network). Record why before the
+      // force-exit so a hard kill is diagnosable rather than a mystery crash.
+      logForDiagnosticsNoPII('error', 'shutdown_failsafe_fired', {
+        exit_code: code,
+        uptime_s: Math.floor(process.uptime()),
+        heap_used: process.memoryUsage().heapUsed,
+        reason: typeof code === 'number' ? 'cleanup_timeout' : 'unknown',
+      })
       cleanupTerminalModes()
       printResumeHint()
       forceExit(code)

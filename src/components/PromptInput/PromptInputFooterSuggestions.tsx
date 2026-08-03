@@ -2,6 +2,7 @@ import { c as _c } from "react-compiler-runtime";
 import * as React from 'react';
 import { memo, type ReactNode } from 'react';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { usePromptMouseTarget } from '../../ink/hooks/use-prompt-mouse-target.js';
 import { stringWidth } from '../../ink/stringWidth.js';
 import { Box, Text } from '../../ink.js';
 import { truncatePathMiddle, truncateToWidth } from '../../utils/format.js';
@@ -14,7 +15,7 @@ export type SuggestionItem = {
   metadata?: unknown;
   color?: keyof Theme;
 };
-export type SuggestionType = 'command' | 'file' | 'directory' | 'agent' | 'shell' | 'custom-title' | 'slack-channel' | 'none';
+export type SuggestionType = 'command' | 'skill' | 'file' | 'directory' | 'agent' | 'shell' | 'custom-title' | 'slack-channel' | 'none';
 export const OVERLAY_MAX_ITEMS = 5;
 
 /**
@@ -210,6 +211,7 @@ type Props = {
    * renderer doesn't push fewer items down into the prompt area.
    */
   overlay?: boolean;
+  onSelectSuggestion?: (index: number) => void;
 };
 export function PromptInputFooterSuggestions(t0) {
   const $ = _c(22);
@@ -217,12 +219,21 @@ export function PromptInputFooterSuggestions(t0) {
     suggestions,
     selectedSuggestion,
     maxColumnWidth: maxColumnWidthProp,
-    overlay
+    overlay,
+    onSelectSuggestion
   } = t0;
   const {
     rows
   } = useTerminalSize();
   const maxVisibleItems = overlay ? OVERLAY_MAX_ITEMS : Math.min(6, Math.max(1, rows - 3));
+  const suggestionStartIndex = Math.max(0, Math.min(selectedSuggestion - Math.floor(maxVisibleItems / 2), suggestions.length - maxVisibleItems));
+  const suggestionMouseRef = usePromptMouseTarget(event => {
+    if (!onSelectSuggestion || event.action !== 'release' || !event.inside) return;
+    const index = suggestionStartIndex + event.localRow;
+    if (index >= 0 && index < suggestions.length) {
+      onSelectSuggestion(index);
+    }
+  }, !!onSelectSuggestion);
   if (suggestions.length === 0) {
     return null;
   }
@@ -236,7 +247,7 @@ export function PromptInputFooterSuggestions(t0) {
     t1 = $[2];
   }
   const maxColumnWidth = t1;
-  const startIndex = Math.max(0, Math.min(selectedSuggestion - Math.floor(maxVisibleItems / 2), suggestions.length - maxVisibleItems));
+  const startIndex = suggestionStartIndex;
   const endIndex = Math.min(startIndex + maxVisibleItems, suggestions.length);
   let T0;
   let t2;
@@ -276,7 +287,7 @@ export function PromptInputFooterSuggestions(t0) {
   }
   let t5;
   if ($[17] !== T0 || $[18] !== t2 || $[19] !== t3 || $[20] !== t4) {
-    t5 = <T0 flexDirection={t2} justifyContent={t3}>{t4}</T0>;
+    t5 = <T0 ref={suggestionMouseRef} flexDirection={t2} justifyContent={t3}>{t4}</T0>;
     $[17] = T0;
     $[18] = t2;
     $[19] = t3;

@@ -396,7 +396,7 @@ const externalTips: Tip[] = [
   {
     id: "custom-commands",
     content: async () =>
-      "Create skills by adding .md files to .maximo/skills/ in your project or ~/.maximo/skills/ for skills that work in any project",
+      "Create skills with /skill-creator, or add SKILL.md files to .agents/skills/ in your project or ~/.agents/skills/ for portable skills",
     cooldownSessions: 15,
     async isRelevant() {
       const config = getGlobalConfig();
@@ -648,13 +648,6 @@ const internalOnlyTips: Tip[] =
           content: async () =>
             '[ANT-ONLY] Use "IMPORTANT:" prefix for must-follow MAXIMO.md rules',
           cooldownSessions: 30,
-          isRelevant: async () => true,
-        },
-        {
-          id: "skillify",
-          content: async () =>
-            "[ANT-ONLY] Use /skillify at the end of a workflow to turn it into a reusable skill",
-          cooldownSessions: 15,
           isRelevant: async () => true,
         },
       ]

@@ -38,6 +38,7 @@ import {
 import type { PastedContent } from "../config.js";
 import type { EffortValue } from "../effort.js";
 import { toArray } from "../generators.js";
+import { COMMAND_MESSAGE_TAG } from "../../constants/xml.js";
 import {
   executeUserPromptSubmitHooks,
   getUserPromptSubmitHookBlockingMessage,
@@ -54,6 +55,7 @@ import {
 } from "../messages.js";
 import { queryCheckpoint } from "../queryProfiler.js";
 import { parseSlashCommand } from "../slashCommandParsing.js";
+import { parseSkillMentions } from "../../skills/skillMentions.js";
 import {
   hasUltraplanKeyword,
   replaceUltraplanKeyword,
@@ -540,6 +542,90 @@ async function processUserInputBase(
       canUseTool
     );
     return addImageMetadataMessage(slashResult, imageMetadataTexts);
+  }
+
+  // Codex-compatible inline skill mentions. This is intentionally limited to
+  // local interactive prompt input: bridge messages and system/meta prompts
+  // must not gain a new command-expansion path, and unknown `$words` remain
+  // ordinary text or shell variables.
+  if (
+    inputString !== null &&
+    mode === "prompt" &&
+    !effectiveSkipSlash &&
+    !bridgeOrigin &&
+    !isMeta &&
+    !inputString.startsWith("/")
+  ) {
+    const mentions = parseSkillMentions(inputString, context.options.commands);
+    const commandMentions = new Map<
+      (typeof mentions)[number]["command"],
+      (typeof mentions)[number]
+    >();
+    for (const mention of mentions) {
+      const previous = commandMentions.get(mention.command);
+      const isQualifiedAlias =
+        mention.command.aliases?.includes(mention.invocationName) === true &&
+        mention.invocationName.includes(":");
+      if (!previous || isQualifiedAlias) {
+        commandMentions.set(mention.command, mention);
+      }
+    }
+    const commandsToExpand = [...commandMentions.values()];
+
+    if (commandsToExpand.length > 0) {
+      const { processPromptSlashCommand } = await import(
+        "./processSlashCommand.js"
+      );
+      const skillResults = await Promise.all(
+        commandsToExpand.map((command) =>
+          processPromptSlashCommand(
+            command.invocationName,
+            "",
+            context.options.commands,
+            context
+          )
+        )
+      );
+      const skillMessages = skillResults.flatMap((result) =>
+        // The normal slash path includes an internal loading breadcrumb. For
+        // an inline mention the user's original prompt is already the visible
+        // message, so remove only that command marker while keeping the
+        // model-visible skill content and any permission/attachment messages.
+        result.messages.filter((message) => {
+          if (message.type !== "user" || message.isMeta === true) return true;
+          const content = message.message.content;
+          return !(
+            typeof content === "string" &&
+            content.startsWith(`<${COMMAND_MESSAGE_TAG}>`)
+          );
+        })
+      );
+      const allowedTools = [
+        ...new Set(
+          skillResults.flatMap((result) => result.allowedTools ?? [])
+        ),
+      ];
+      const regularPrompt = processTextPrompt(
+        normalizedInput,
+        imageContentBlocks,
+        imagePasteIds,
+        attachmentMessages,
+        uuid,
+        permissionMode,
+        isMeta
+      );
+
+      return addImageMetadataMessage(
+        {
+          ...regularPrompt,
+          messages: [...skillMessages, ...regularPrompt.messages],
+          allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
+          model: skillResults.find((result) => result.model)?.model,
+          effort: skillResults.find((result) => result.effort)?.effort,
+        },
+        imageMetadataTexts
+      );
+    }
   }
 
   // Log agent mention queries for analysis

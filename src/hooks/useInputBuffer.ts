@@ -8,6 +8,8 @@ export type BufferEntry = {
   timestamp: number
 }
 
+export type InputSnapshot = Omit<BufferEntry, 'timestamp'>
+
 export type UseInputBufferProps = {
   maxBufferSize: number
   debounceMs: number
@@ -19,19 +21,48 @@ export type UseInputBufferResult = {
     cursorOffset: number,
     pastedContents?: Record<number, PastedContent>,
   ) => void
-  undo: () => BufferEntry | undefined
+  undo: (current: InputSnapshot) => BufferEntry | undefined
+  redo: (current: InputSnapshot) => BufferEntry | undefined
   canUndo: boolean
+  canRedo: boolean
   clearBuffer: () => void
 }
 
+function makeEntry(snapshot: InputSnapshot): BufferEntry {
+  return {
+    ...snapshot,
+    pastedContents: { ...snapshot.pastedContents },
+    timestamp: Date.now(),
+  }
+}
+
+function sameSnapshot(a: InputSnapshot | undefined, b: InputSnapshot): boolean {
+  if (!a || a.text !== b.text || a.cursorOffset !== b.cursorOffset) return false
+  const aKeys = Object.keys(a.pastedContents)
+  const bKeys = Object.keys(b.pastedContents)
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every(key => {
+    const left = a.pastedContents[Number(key)]
+    const right = b.pastedContents[Number(key)]
+    return (
+      left?.id === right?.id &&
+      left?.type === right?.type &&
+      left?.content === right?.content
+    )
+  })
+}
+
+/** Prompt-local edit history with attachment-aware undo and redo. */
 export function useInputBuffer({
   maxBufferSize,
   debounceMs,
 }: UseInputBufferProps): UseInputBufferResult {
-  const [buffer, setBuffer] = useState<BufferEntry[]>([])
-  const [currentIndex, setCurrentIndex] = useState(-1)
-  const lastPushTime = useRef<number>(0)
-  const pendingPush = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const undoStack = useRef<BufferEntry[]>([])
+  const redoStack = useRef<BufferEntry[]>([])
+  const lastPushTime = useRef(0)
+  const [, rerender] = useState(0)
+
+  const updateAvailability = useCallback(() => rerender(value => value + 1), [])
 
   const pushToBuffer = useCallback(
     (
@@ -39,94 +70,63 @@ export function useInputBuffer({
       cursorOffset: number,
       pastedContents: Record<number, PastedContent> = {},
     ) => {
+      const snapshot = { text, cursorOffset, pastedContents }
       const now = Date.now()
-
-      // Clear any pending push
-      if (pendingPush.current) {
-        clearTimeout(pendingPush.current)
-        pendingPush.current = null
-      }
-
-      // Debounce rapid changes
-      if (now - lastPushTime.current < debounceMs) {
-        pendingPush.current = setTimeout(
-          pushToBuffer,
-          debounceMs,
-          text,
-          cursorOffset,
-          pastedContents,
-        )
-        return
-      }
-
+      const last = undoStack.current[undoStack.current.length - 1]
+      if (now - lastPushTime.current < debounceMs && last) return
       lastPushTime.current = now
+      if (sameSnapshot(last, snapshot)) return
 
-      setBuffer(prevBuffer => {
-        // If we're not at the end of the buffer, truncate everything after current position
-        const newBuffer =
-          currentIndex >= 0 ? prevBuffer.slice(0, currentIndex + 1) : prevBuffer
-
-        // Don't add if it's the same as the last entry
-        const lastEntry = newBuffer[newBuffer.length - 1]
-        if (lastEntry && lastEntry.text === text) {
-          return newBuffer
-        }
-
-        // Add new entry
-        const updatedBuffer = [
-          ...newBuffer,
-          { text, cursorOffset, pastedContents, timestamp: now },
-        ]
-
-        // Limit buffer size
-        if (updatedBuffer.length > maxBufferSize) {
-          return updatedBuffer.slice(-maxBufferSize)
-        }
-
-        return updatedBuffer
-      })
-
-      // Update current index to point to the new entry
-      setCurrentIndex(prev => {
-        const newIndex = prev >= 0 ? prev + 1 : buffer.length
-        return Math.min(newIndex, maxBufferSize - 1)
-      })
+      undoStack.current.push(makeEntry(snapshot))
+      if (undoStack.current.length > maxBufferSize) undoStack.current.shift()
+      redoStack.current = []
+      updateAvailability()
     },
-    [debounceMs, maxBufferSize, currentIndex, buffer.length],
+    [debounceMs, maxBufferSize, updateAvailability],
   )
 
-  const undo = useCallback((): BufferEntry | undefined => {
-    if (currentIndex < 0 || buffer.length === 0) {
-      return undefined
-    }
+  const undo = useCallback(
+    (current: InputSnapshot): BufferEntry | undefined => {
+      const previous = undoStack.current.pop()
+      if (!previous) return undefined
+      if (!sameSnapshot(redoStack.current.at(-1), current)) {
+        redoStack.current.push(makeEntry(current))
+      }
+      lastPushTime.current = 0
+      updateAvailability()
+      return previous
+    },
+    [updateAvailability],
+  )
 
-    const targetIndex = Math.max(0, currentIndex - 1)
-    const entry = buffer[targetIndex]
-
-    if (entry) {
-      setCurrentIndex(targetIndex)
-      return entry
-    }
-
-    return undefined
-  }, [buffer, currentIndex])
+  const redo = useCallback(
+    (current: InputSnapshot): BufferEntry | undefined => {
+      const next = redoStack.current.pop()
+      if (!next) return undefined
+      if (!sameSnapshot(undoStack.current.at(-1), current)) {
+        undoStack.current.push(makeEntry(current))
+        if (undoStack.current.length > maxBufferSize) undoStack.current.shift()
+      }
+      lastPushTime.current = 0
+      updateAvailability()
+      return next
+    },
+    [maxBufferSize, updateAvailability],
+  )
 
   const clearBuffer = useCallback(() => {
-    setBuffer([])
-    setCurrentIndex(-1)
+    undoStack.current = []
+    redoStack.current = []
     lastPushTime.current = 0
-    if (pendingPush.current) {
-      clearTimeout(pendingPush.current)
-      pendingPush.current = null
-    }
-  }, [lastPushTime, pendingPush])
-
-  const canUndo = currentIndex > 0 && buffer.length > 1
+    updateAvailability()
+  }, [updateAvailability])
 
   return {
     pushToBuffer,
     undo,
-    canUndo,
+    redo,
+    canUndo: undoStack.current.length > 0,
+    canRedo: redoStack.current.length > 0,
     clearBuffer,
   }
 }

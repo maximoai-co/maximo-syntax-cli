@@ -41,7 +41,11 @@ export function BaseTextInput(t0) {
     t2 = {
       line: cursorLine,
       column: cursorColumn,
-      active: t1
+      active: t1,
+      // Text editors expose the real terminal caret. It is positioned by
+      // Ink after the frame and gives us a native blinking cursor plus
+      // correctly placed IME composition text.
+      visible: true
     };
     $[0] = cursorColumn;
     $[1] = cursorLine;

@@ -30,7 +30,12 @@ import type { FooterItem } from "src/state/AppStateStore.js";
 import { getCwd } from "src/utils/cwd.js";
 import {
   isQueuedCommandEditable,
+  isQueuedCommandVisible,
+  moveQueuedCommand,
   popAllEditable,
+  remove,
+  setQueuedCommandPriority,
+  takeQueuedCommandForEditing,
 } from "src/utils/messageQueueManager.js";
 import stripAnsi from "strip-ansi";
 import { companionReservedColumns } from "../../buddy/CompanionSprite.js";
@@ -41,7 +46,7 @@ import {
 import { FastModePicker } from "../../commands/fast/fast.js";
 import { isUltrareviewEnabled } from "../../commands/review/ultrareviewEnabled.js";
 import { getNativeCSIuTerminalDisplayName } from "../../commands/terminalSetup/terminalSetup.js";
-import { type Command, hasCommand } from "../../commands.js";
+import { type Command, getCommandName, hasCommand } from "../../commands.js";
 import { useIsModalOverlayActive } from "../../context/overlayContext.js";
 import { useSetPromptOverlayDialog } from "../../context/promptOverlayContext.js";
 import {
@@ -66,6 +71,8 @@ import { useTypeahead } from "../../hooks/useTypeahead.js";
 import type { BorderTextOptions } from "../../ink/render-border.js";
 import { stringWidth } from "../../ink/stringWidth.js";
 import { Box, type ClickEvent, type Key, Text, useInput } from "../../ink.js";
+import type { PromptMouseEvent } from "../../ink/prompt-mouse.js";
+import { usePromptMouseTarget } from "../../ink/hooks/use-prompt-mouse-target.js";
 import { useOptionalKeybindingContext } from "../../keybindings/KeybindingContext.js";
 import { getShortcutDisplay } from "../../keybindings/shortcutFormat.js";
 import {
@@ -137,6 +144,7 @@ import {
   isFastModeSupportedByModel,
 } from "../../utils/fastMode.js";
 import { isFullscreenEnvEnabled } from "../../utils/fullscreen.js";
+import { prependAtomicPromptState } from "../../utils/promptAttachments.js";
 import type { PromptInputHelpers } from "../../utils/handlePromptSubmit.js";
 import {
   getImageFromClipboard,
@@ -166,6 +174,12 @@ import { transitionPermissionMode } from "../../utils/permissions/permissionSetu
 import { getPlatform } from "../../utils/platform.js";
 import type { ProcessUserInputContext } from "../../utils/processUserInput/processUserInput.js";
 import { editPromptInEditor } from "../../utils/promptEditor.js";
+import {
+  getLogicalLineSelection,
+  getPromptSelectionRange,
+  getSegmentSelection,
+  type PromptTextSelection,
+} from "../../utils/promptSelection.js";
 import { hasAutoModeOptIn } from "../../utils/settings/settings.js";
 import { findBtwTriggerPositions } from "../../utils/sideQuestion.js";
 import { findSlashCommandPositions } from "../../utils/suggestions/commandSuggestions.js";
@@ -183,6 +197,7 @@ import { isInProcessTeammate } from "../../utils/teammateContext.js";
 import { writeToMailbox } from "../../utils/teammateMailbox.js";
 import type { TextHighlight } from "../../utils/textHighlighting.js";
 import type { Theme } from "../../utils/theme.js";
+import { setClipboard } from "../../ink/termio/osc.js";
 import {
   findThinkingTriggerPositions,
   getRainbowColor,
@@ -195,6 +210,7 @@ import {
 } from "../../utils/ultraplan/keyword.js";
 import { AutoModeOptInDialog } from "../AutoModeOptInDialog.js";
 import { BridgeDialog } from "../BridgeDialog.js";
+import { CommandPalette } from "../CommandPalette.js";
 import { ConfigurableShortcutHint } from "../ConfigurableShortcutHint.js";
 import {
   getVisibleAgentTasks,
@@ -221,6 +237,7 @@ import PromptInputFooter from "./PromptInputFooter.js";
 import type { SuggestionItem } from "./PromptInputFooterSuggestions.js";
 import { PromptInputModeIndicator } from "./PromptInputModeIndicator.js";
 import { PromptInputQueuedCommands } from "./PromptInputQueuedCommands.js";
+import { PromptQueuePane } from "./PromptQueuePane.js";
 import { PromptInputStashNotice } from "./PromptInputStashNotice.js";
 import { useMaybeTruncateInput } from "./useMaybeTruncateInput.js";
 import { usePromptInputPlaceholder } from "./usePromptInputPlaceholder.js";
@@ -450,6 +467,16 @@ function PromptInput({
     show: false,
   });
   const [cursorOffset, setCursorOffset] = useState<number>(input.length);
+  const [promptSelection, setPromptSelection] =
+    useState<PromptTextSelection | null>(null);
+  const promptSelectionRef = useRef<PromptTextSelection | null>(null);
+  const setPromptSelectionState = useCallback(
+    (selection: PromptTextSelection | null) => {
+      promptSelectionRef.current = selection;
+      setPromptSelection(selection);
+    },
+    []
+  );
   const cursorOffsetRef = useRef(cursorOffset);
   cursorOffsetRef.current = cursorOffset;
   // Track the last input value set via internal handlers so we can detect
@@ -537,6 +564,9 @@ function PromptInput({
       ? // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
         useAppState((s) => s.isBriefOnly) && !viewingAgentTaskId
       : false;
+  const compactDensity =
+    getGlobalConfig().displayMode === "compact" ||
+    getGlobalConfig().uiDensity === "compact";
   const mainLoopModel_ = useAppState((s) => s.mainLoopModel);
   const mainLoopModelForSession = useAppState((s) => s.mainLoopModelForSession);
   const thinkingEnabled = useAppState((s) => s.thinkingEnabled);
@@ -657,6 +687,8 @@ function PromptInput({
   const [isExternalEditorActive, setIsExternalEditorActive] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showQueuePane, setShowQueuePane] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showFastModePicker, setShowFastModePicker] = useState(false);
@@ -917,16 +949,19 @@ function PromptInput({
     }
     return highlights;
   }, [displayedValue, teamContext]);
-  const imageRefPositions = useMemo(
+  const atomicRefPositions = useMemo(
     () =>
-      parseReferences(displayedValue)
-        .filter((r) => r.match.startsWith("[Image"))
-        .map((r) => ({
-          id: r.id,
-          start: r.index,
-          end: r.index + r.match.length,
-        })),
+      parseReferences(displayedValue).map((r) => ({
+        id: r.id,
+        start: r.index,
+        end: r.index + r.match.length,
+        isImage: r.match.startsWith("[Image"),
+      })),
     [displayedValue]
+  );
+  const imageRefPositions = useMemo(
+    () => atomicRefPositions.filter((reference) => reference.isImage),
+    [atomicRefPositions]
   );
   const imageAttachmentsInPrompt = useMemo(() => {
     const attachments: PastedContent[] = [];
@@ -950,14 +985,14 @@ function PromptInput({
   }, [
     cursorOffset,
     imageAttachmentsInPrompt,
-    imageRefPositions,
+    atomicRefPositions,
     pastedContents,
   ]);
 
   // chip.start is the "selected" state: the inverted chip IS the cursor.
   // chip.end stays a normal position so you can park the cursor right after
   // `]` like any other character.
-  const cursorAtImageChip = imageRefPositions.some(
+  const cursorAtAtomicChip = atomicRefPositions.some(
     (r) => r.start === cursorOffset
   );
 
@@ -965,20 +1000,20 @@ function PromptInput({
   // inside a chip; snap to the nearer boundary so it's never editable
   // char-by-char.
   useEffect(() => {
-    const inside = imageRefPositions.find(
+    const inside = atomicRefPositions.find(
       (r) => cursorOffset > r.start && cursorOffset < r.end
     );
     if (inside) {
       const mid = (inside.start + inside.end) / 2;
       setCursorOffset(cursorOffset < mid ? inside.start : inside.end);
     }
-  }, [cursorOffset, imageRefPositions, setCursorOffset]);
+  }, [cursorOffset, atomicRefPositions, setCursorOffset]);
   const combinedHighlights = useMemo((): TextHighlight[] => {
     const highlights: TextHighlight[] = [];
 
     // Invert the [Image #N] chip when the cursor is at chip.start (the
     // "selected" state) so backspace-to-delete is visually obvious.
-    for (const ref of imageRefPositions) {
+    for (const ref of atomicRefPositions) {
       if (cursorOffset === ref.start) {
         highlights.push({
           start: ref.start,
@@ -1227,7 +1262,7 @@ function PromptInput({
   }, [input.length, addNotification]);
 
   // Initialize input buffer for undo functionality
-  const { pushToBuffer, undo, canUndo, clearBuffer } = useInputBuffer({
+  const { pushToBuffer, undo, redo, canUndo, canRedo, clearBuffer } = useInputBuffer({
     maxBufferSize: 50,
     debounceMs: 1000,
   });
@@ -1593,6 +1628,7 @@ function PromptInput({
     commandArgumentHint,
     inlineGhostText,
     maxColumnWidth,
+    handleSuggestionClick,
   } = useTypeahead({
     commands,
     onInputChange: trackAndSetInput,
@@ -1847,14 +1883,25 @@ function PromptInput({
   // Handler for chat:undo - undo last edit
   const handleUndo = useCallback(() => {
     if (canUndo) {
-      const previousState = undo();
+      const previousState = undo({ text: input, cursorOffset, pastedContents });
       if (previousState) {
         trackAndSetInput(previousState.text);
         setCursorOffset(previousState.cursorOffset);
         setPastedContents(previousState.pastedContents);
       }
     }
-  }, [canUndo, undo, trackAndSetInput, setPastedContents]);
+  }, [canUndo, undo, input, cursorOffset, pastedContents, trackAndSetInput, setPastedContents]);
+
+  const handleRedo = useCallback(() => {
+    if (canRedo) {
+      const nextState = redo({ text: input, cursorOffset, pastedContents });
+      if (nextState) {
+        trackAndSetInput(nextState.text);
+        setCursorOffset(nextState.cursorOffset);
+        setPastedContents(nextState.pastedContents);
+      }
+    }
+  }, [canRedo, redo, input, cursorOffset, pastedContents, trackAndSetInput, setPastedContents]);
 
   // Handler for chat:newline - insert a newline at the cursor position
   const handleNewline = useCallback(() => {
@@ -2314,6 +2361,7 @@ function PromptInput({
   const chatHandlers = useMemo(
     () => ({
       "chat:undo": handleUndo,
+      "chat:redo": handleRedo,
       "chat:newline": handleNewline,
       "chat:externalEditor": handleExternalEditor,
       "chat:stash": handleStash,
@@ -2324,6 +2372,7 @@ function PromptInput({
     }),
     [
       handleUndo,
+      handleRedo,
       handleNewline,
       handleExternalEditor,
       handleStash,
@@ -2397,6 +2446,31 @@ function PromptInput({
       context: "Global",
       isActive: quickSearchActive,
     }
+  );
+  useKeybinding(
+    "app:commandPalette",
+    () => {
+      setShowCommandPalette(true);
+      setHelpOpen(false);
+    },
+    { context: "Global", isActive: !isModalOverlayActive }
+  );
+  useKeybinding(
+    "app:queue",
+    () => {
+      if (queuedCommands.some(isQueuedCommandVisible)) {
+        setShowQueuePane(true);
+        setHelpOpen(false);
+      } else {
+        addNotification({
+          key: "queue-empty",
+          text: "Prompt queue is empty",
+          priority: "immediate",
+          timeoutMs: 2500,
+        });
+      }
+    },
+    { context: "Global", isActive: !isModalOverlayActive }
   );
   useKeybinding(
     "history:search",
@@ -2582,6 +2656,8 @@ function PromptInput({
     if (
       showTeamsDialog ||
       showQuickOpen ||
+      showCommandPalette ||
+      showQueuePane ||
       showGlobalSearch ||
       showHistoryPicker
     ) {
@@ -2753,6 +2829,145 @@ function PromptInput({
     },
     [input, textInputColumns, isSearchingHistory, cursorOffset, maxVisibleLines]
   );
+
+  const promptSelectionClickRef = useRef<{
+    time: number;
+    col: number;
+    row: number;
+    count: number;
+  }>({ time: 0, col: -1, row: -1, count: 0 });
+  const promptSelectionDragRef = useRef<{
+    anchor: number;
+    selection: PromptTextSelection;
+    moved: boolean;
+  } | null>(null);
+  const getPromptOffset = useCallback(
+    (localCol: number, localRow: number): number => {
+      const cursor = Cursor.fromText(
+        input,
+        textInputColumns,
+        cursorOffsetRef.current,
+      );
+      const viewportStart = cursor.getViewportStartLine(maxVisibleLines);
+      return cursor.measuredText.getOffsetFromPosition({
+        line: localRow + viewportStart,
+        column: Math.max(0, localCol),
+      });
+    },
+    [input, textInputColumns, maxVisibleLines]
+  );
+  const copyPromptSelection = useCallback(
+    (text: string) => {
+      if (!text.trim() || getGlobalConfig().copyOnSelect === false) return;
+      void setClipboard(text).then((raw) => {
+        if (raw) process.stdout.write(raw);
+        addNotification({
+          key: "selection-copied",
+          text: "copied",
+          color: "success",
+          priority: "immediate",
+          timeoutMs: 2000,
+        });
+      });
+    },
+    [addNotification]
+  );
+  const handlePromptMouse = useCallback(
+    (event: PromptMouseEvent) => {
+      if (isSearchingHistory) return;
+      const offset = getPromptOffset(event.localCol, event.localRow);
+      const isMotion = (event.button & 0x20) !== 0;
+
+      if (event.action === "press") {
+        if (isMotion) {
+          const drag = promptSelectionDragRef.current;
+          if (!drag) return;
+          drag.moved = true;
+          setPromptSelectionState({
+            anchor: drag.anchor,
+            focus: offset,
+          });
+          cursorOffsetRef.current = offset;
+          setCursorOffset(offset);
+          return;
+        }
+
+        const now = Date.now();
+        const previousClick = promptSelectionClickRef.current;
+        const isNearby =
+          now - previousClick.time < 500 &&
+          Math.abs(event.col - previousClick.col) <= 1 &&
+          Math.abs(event.row - previousClick.row) <= 1;
+        const count = isNearby ? Math.min(3, previousClick.count + 1) : 1;
+        promptSelectionClickRef.current = {
+          time: now,
+          col: event.col,
+          row: event.row,
+          count,
+        };
+
+        let nextSelection: PromptTextSelection = {
+          anchor: offset,
+          focus: offset,
+        };
+        if (count === 2) {
+          const cursor = Cursor.fromText(input, textInputColumns, offset);
+          nextSelection = getSegmentSelection(
+            input.length,
+            offset,
+            cursor.measuredText.getWordBoundaries()
+          );
+        } else if (count >= 3) {
+          nextSelection = getLogicalLineSelection(input, offset);
+        }
+        setPromptSelectionState(nextSelection);
+        cursorOffsetRef.current = offset;
+        setCursorOffset(offset);
+        promptSelectionDragRef.current = {
+          anchor: offset,
+          selection: nextSelection,
+          moved: false,
+        };
+        return;
+      }
+
+      const drag = promptSelectionDragRef.current;
+      if (!drag) return;
+      const nextSelection = drag.moved
+        ? { anchor: drag.anchor, focus: offset }
+        : drag.selection;
+      setPromptSelectionState(nextSelection);
+      if (drag.moved) {
+        cursorOffsetRef.current = offset;
+        setCursorOffset(offset);
+      }
+      promptSelectionDragRef.current = null;
+
+      const range = getPromptSelectionRange(nextSelection, input.length);
+      if (range) {
+        copyPromptSelection(input.slice(range.start, range.end));
+      }
+    },
+    [
+      copyPromptSelection,
+      getPromptOffset,
+      input,
+      isSearchingHistory,
+      setCursorOffset,
+      setPromptSelectionState,
+      textInputColumns,
+    ]
+  );
+  const promptMouseTargetRef = usePromptMouseTarget(
+    handlePromptMouse,
+    !isSearchingHistory && !isModalOverlayActive && !footerItemSelected
+  );
+  useEffect(() => {
+    if (promptSelectionRef.current) {
+      promptSelectionRef.current = null;
+      setPromptSelection(null);
+    }
+  }, [input]);
   const handleOpenTasksDialog = useCallback(
     (taskId?: string) => setShowBashesDialog(taskId ?? true),
     [setShowBashesDialog]
@@ -2962,6 +3177,54 @@ function PromptInput({
       />
     );
   }
+  if (showCommandPalette) {
+    return (
+      <CommandPalette
+        commands={commands}
+        onDone={() => setShowCommandPalette(false)}
+        onAction={(action) => {
+          setShowCommandPalette(false);
+          setTimeout(() => keybindingContext?.invokeAction(action), 0);
+        }}
+        onCommand={(command) => {
+          setShowCommandPalette(false);
+          const commandText = `/${getCommandName(command)}${
+            command.argumentHint ? " " : ""
+          }`;
+          if (command.argumentHint) {
+            trackAndSetInput(commandText);
+            setCursorOffset(commandText.length);
+          } else {
+            setTimeout(() => void onSubmit(commandText), 0);
+          }
+        }}
+      />
+    );
+  }
+  if (showQueuePane) {
+    return (
+      <PromptQueuePane
+        onDone={() => setShowQueuePane(false)}
+        onEdit={(command) => {
+          const editable = takeQueuedCommandForEditing(command);
+          if (!editable) return;
+          pushToBuffer(input, cursorOffset, pastedContents);
+          const merged = prependAtomicPromptState(editable, {
+            text: input,
+            pastedContents,
+          });
+          trackAndSetInput(merged.text);
+          setCursorOffset(merged.cursorOffset);
+          setPastedContents(merged.pastedContents);
+          onModeChange(editable.mode);
+          setShowQueuePane(false);
+        }}
+        onRemove={(command) => remove([command])}
+        onMove={(command, delta) => moveQueuedCommand(command, delta)}
+        onSendNow={(command) => setQueuedCommandPriority(command, "now")}
+      />
+    );
+  }
   if (feature("QUICK_SEARCH")) {
     const insertWithSpacing = (text: string) => {
       const cursorChar = input[cursorOffset - 1] ?? " ";
@@ -3022,6 +3285,23 @@ function PromptInput({
       />
     );
   }
+  const promptSelectionRange = getPromptSelectionRange(
+    promptSelection,
+    input.length
+  );
+  const promptSelectionHighlight: TextHighlight[] | undefined =
+    promptSelectionRange
+      ? [
+          {
+            start: promptSelectionRange.start,
+            end: promptSelectionRange.end,
+            color: undefined,
+            inverse: true,
+            dimColor: true,
+            priority: 100,
+          },
+        ]
+      : undefined;
   const baseProps: BaseTextInputProps = {
     multiline: true,
     onSubmit,
@@ -3065,11 +3345,11 @@ function PromptInput({
     onIsPastingChange: setIsPasting,
     focus: !isSearchingHistory && !isModalOverlayActive && !footerItemSelected,
     showCursor:
-      !footerItemSelected && !isSearchingHistory && !cursorAtImageChip,
+      !footerItemSelected && !isSearchingHistory && !cursorAtAtomicChip,
     argumentHint: commandArgumentHint,
     onUndo: canUndo
       ? () => {
-          const previousState = undo();
+          const previousState = undo({ text: input, cursorOffset, pastedContents });
           if (previousState) {
             trackAndSetInput(previousState.text);
             setCursorOffset(previousState.cursorOffset);
@@ -3077,7 +3357,12 @@ function PromptInput({
           }
         }
       : undefined,
-    highlights: combinedHighlights,
+    highlights: promptSelectionHighlight
+      ? [...(combinedHighlights ?? []), ...promptSelectionHighlight]
+      : combinedHighlights,
+    selection: promptSelection,
+    onSelectionChange: setPromptSelectionState,
+    onCopySelection: copyPromptSelection,
     inlineGhostText,
     inputFilter: lazySpaceInputFilter,
   };
@@ -3113,7 +3398,7 @@ function PromptInput({
         alignItems="center"
         justifyContent="center"
         borderColor={getBorderColor()}
-        borderStyle="round"
+        borderStyle={getGlobalConfig().promptBorderStyle ?? "round"}
         borderLeft={false}
         borderRight={false}
         borderBottom
@@ -3135,7 +3420,10 @@ function PromptInput({
     <TextInput {...baseProps} />
   );
   return (
-    <Box flexDirection="column" marginTop={briefOwnsGap ? 0 : 1}>
+    <Box
+      flexDirection="column"
+      marginTop={briefOwnsGap || compactDensity ? 0 : 1}
+    >
       {!isFullscreenEnvEnabled() && <PromptInputQueuedCommands />}
       {hasSuppressedDialogs && (
         <Box marginTop={1} marginLeft={2}>
@@ -3174,7 +3462,12 @@ function PromptInput({
               viewingAgentName={viewingAgentName}
               viewingAgentColor={viewingAgentColor}
             />
-            <Box flexGrow={1} flexShrink={1} onClick={handleInputClick}>
+            <Box
+              ref={promptMouseTargetRef}
+              flexGrow={1}
+              flexShrink={1}
+              onClick={handleInputClick}
+            >
               {textInputElement}
             </Box>
           </Box>
@@ -3186,7 +3479,7 @@ function PromptInput({
           alignItems="flex-start"
           justifyContent="flex-start"
           borderColor={getBorderColor()}
-          borderStyle="round"
+          borderStyle={getGlobalConfig().promptBorderStyle ?? "round"}
           borderLeft={false}
           borderRight={false}
           borderBottom
@@ -3203,7 +3496,12 @@ function PromptInput({
             viewingAgentName={viewingAgentName}
             viewingAgentColor={viewingAgentColor}
           />
-          <Box flexGrow={1} flexShrink={1} onClick={handleInputClick}>
+          <Box
+            ref={promptMouseTargetRef}
+            flexGrow={1}
+            flexShrink={1}
+            onClick={handleInputClick}
+          >
             {textInputElement}
           </Box>
         </Box>
@@ -3222,6 +3520,7 @@ function PromptInput({
         suggestions={suggestions}
         selectedSuggestion={selectedSuggestion}
         maxColumnWidth={maxColumnWidth}
+        onSelectSuggestion={handleSuggestionClick}
         toolPermissionContext={effectiveToolPermissionContext}
         helpOpen={helpOpen}
         suppressHint={input.length > 0}

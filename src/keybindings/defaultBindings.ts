@@ -3,6 +3,10 @@ import { satisfies } from "src/utils/semver.js";
 import { isRunningWithBun } from "../utils/bundledMode.js";
 import { getPlatform } from "../utils/platform.js";
 import type { KeybindingBlock } from "./types.js";
+import {
+  getTerminalProfileBindings,
+  type TerminalShortcutProfile,
+} from "./terminalProfiles.js";
 
 /**
  * Default keybindings that match current Maximo Syntax behavior.
@@ -28,6 +32,9 @@ const SUPPORTS_TERMINAL_VT_MODE =
 // - Windows without VT mode: meta+m (shift+tab doesn't work reliably)
 // - Other platforms: shift+tab
 const MODE_CYCLE_KEY = SUPPORTS_TERMINAL_VT_MODE ? "shift+tab" : "meta+m";
+const TERMINAL_PROFILE_BINDINGS = getTerminalProfileBindings(
+  "auto",
+);
 
 export const DEFAULT_BINDINGS: KeybindingBlock[] = [
   {
@@ -47,6 +54,8 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
         : {}),
       "ctrl+shift+o": "app:toggleTeammatePreview",
       "ctrl+r": "history:search",
+      [TERMINAL_PROFILE_BINDINGS.commandPalette]: "app:commandPalette",
+      [TERMINAL_PROFILE_BINDINGS.queue]: "app:queue",
       // File navigation. cmd+ bindings only fire on kitty-protocol terminals;
       // ctrl+shift is the portable fallback.
       ...(feature("QUICK_SEARCH")
@@ -79,6 +88,9 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
       // - ctrl+shift+- for Kitty protocol (sends physical key with modifiers)
       "ctrl+_": "chat:undo",
       "ctrl+shift+-": "chat:undo",
+      ...Object.fromEntries(
+        TERMINAL_PROFILE_BINDINGS.redo.map(key => [key, "chat:redo"] as const),
+      ),
       // ctrl+x ctrl+e is the readline-native edit-and-execute-command binding.
       "ctrl+x ctrl+e": "chat:externalEditor",
       "ctrl+g": "chat:externalEditor",
@@ -292,6 +304,7 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
             enter: "messageActions:enter" as const,
             c: "messageActions:c" as const,
             p: "messageActions:p" as const,
+            r: "messageActions:r" as const,
           },
         },
       ]
@@ -341,3 +354,47 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
     },
   },
 ];
+
+/**
+ * Apply a runtime-selected terminal profile after bootstrap. DEFAULT_BINDINGS
+ * itself must remain config-free because this module is imported before
+ * enableConfigs() by the CLI entrypoint.
+ */
+export function getDefaultBindingsForTerminalProfile(
+  profile: TerminalShortcutProfile | undefined,
+): KeybindingBlock[] {
+  const selected = getTerminalProfileBindings(profile)
+  return DEFAULT_BINDINGS.map(block => {
+    if (block.context === "Global") {
+      const bindings = Object.fromEntries(
+        Object.entries(block.bindings).filter(
+          ([, action]) =>
+            action !== "app:commandPalette" && action !== "app:queue",
+        ),
+      )
+      return {
+        ...block,
+        bindings: {
+          ...bindings,
+          [selected.commandPalette]: "app:commandPalette",
+          [selected.queue]: "app:queue",
+        },
+      } as KeybindingBlock
+    }
+    if (block.context === "Chat") {
+      const bindings = Object.fromEntries(
+        Object.entries(block.bindings).filter(([, action]) => action !== "chat:redo"),
+      )
+      return {
+        ...block,
+        bindings: {
+          ...bindings,
+          ...Object.fromEntries(
+            selected.redo.map(key => [key, "chat:redo"] as const),
+          ),
+        },
+      } as KeybindingBlock
+    }
+    return block
+  })
+}

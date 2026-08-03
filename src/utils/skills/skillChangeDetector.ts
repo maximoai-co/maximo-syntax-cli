@@ -1,6 +1,9 @@
 import chokidar, { type FSWatcher } from "chokidar";
 import * as platformPath from "path";
-import { getAdditionalDirectoriesForMaximoMd } from "../../bootstrap/state.js";
+import {
+  getAdditionalDirectoriesForMaximoMd,
+  getCwdState,
+} from "../../bootstrap/state.js";
 import {
   clearCommandMemoizationCaches,
   clearCommandsCache,
@@ -14,6 +17,10 @@ import {
   getSkillsPath,
   onDynamicSkillsLoaded,
 } from "../../skills/loadSkillsDir.js";
+import {
+  getAdditionalSkillDiscoveryLocations,
+  getSkillDiscoveryLocations,
+} from "../../skills/skillCompatibility.js";
 import { resetSentSkillNames } from "../attachments.js";
 import { registerCleanup } from "../cleanupRegistry.js";
 import { logForDebugging } from "../debug.js";
@@ -170,68 +177,43 @@ export const subscribe = skillsChanged.subscribe;
 
 async function getWatchablePaths(): Promise<string[]> {
   const fs = getFsImplementation();
-  const paths: string[] = [];
+  const paths = new Set<string>();
+  const knownSkillPaths = [
+    ...getSkillDiscoveryLocations(getCwdState()).map((location) => location.path),
+    ...getAdditionalDirectoriesForMaximoMd().flatMap((directory) =>
+      getAdditionalSkillDiscoveryLocations(directory).map((location) => location.path)
+    ),
+  ];
 
-  // User skills directory (~/.maximo/skills)
-  const userSkillsPath = getSkillsPath("userSettings", "skills");
-  if (userSkillsPath) {
+  // Legacy /commands remains watched for existing users.
+  knownSkillPaths.push(
+    getSkillsPath("userSettings", "commands"),
+    platformPath.resolve(getSkillsPath("projectSettings", "commands")),
+  );
+
+  for (const candidate of knownSkillPaths) {
     try {
-      await fs.stat(userSkillsPath);
-      paths.push(userSkillsPath);
+      await fs.stat(candidate);
+      paths.add(platformPath.resolve(candidate));
     } catch {
-      // Path doesn't exist, skip it
+      // Missing roots are discovered immediately by file-operation discovery
+      // once a creator writes SKILL.md, so don't watch a broad parent directory.
     }
   }
 
-  // User commands directory (~/.maximo/commands)
-  const userCommandsPath = getSkillsPath("userSettings", "commands");
-  if (userCommandsPath) {
-    try {
-      await fs.stat(userCommandsPath);
-      paths.push(userCommandsPath);
-    } catch {
-      // Path doesn't exist, skip it
-    }
-  }
+  return [...paths];
+}
 
-  // Project skills directory (.maximo/skills)
-  const projectSkillsPath = getSkillsPath("projectSettings", "skills");
-  if (projectSkillsPath) {
-    try {
-      // For project settings, resolve to absolute path
-      const absolutePath = platformPath.resolve(projectSkillsPath);
-      await fs.stat(absolutePath);
-      paths.push(absolutePath);
-    } catch {
-      // Path doesn't exist, skip it
-    }
-  }
-
-  // Project commands directory (.maximo/commands)
-  const projectCommandsPath = getSkillsPath("projectSettings", "commands");
-  if (projectCommandsPath) {
-    try {
-      // For project settings, resolve to absolute path
-      const absolutePath = platformPath.resolve(projectCommandsPath);
-      await fs.stat(absolutePath);
-      paths.push(absolutePath);
-    } catch {
-      // Path doesn't exist, skip it
-    }
-  }
-
-  // Additional directories (--add-dir) skills
-  for (const dir of getAdditionalDirectoriesForMaximoMd()) {
-    const additionalSkillsPath = platformPath.join(dir, ".maximo", "skills");
-    try {
-      await fs.stat(additionalSkillsPath);
-      paths.push(additionalSkillsPath);
-    } catch {
-      // Path doesn't exist, skip it
-    }
-  }
-
-  return paths;
+/**
+ * Immediately reload skill/command caches and notify the TUI. This is used by
+ * the interactive `/skills reload` command when no filesystem event is
+ * available to trigger chokidar.
+ */
+export function reloadNow(): void {
+  clearSkillCaches();
+  clearCommandsCache();
+  resetSentSkillNames();
+  skillsChanged.emit();
 }
 
 function handleChange(path: string): void {
@@ -271,10 +253,7 @@ function scheduleReload(changedPath: string): void {
       );
       return;
     }
-    clearSkillCaches();
-    clearCommandsCache();
-    resetSentSkillNames();
-    skillsChanged.emit();
+    reloadNow();
   }, testOverrides?.reloadDebounce ?? RELOAD_DEBOUNCE_MS);
 }
 
@@ -308,4 +287,5 @@ export const skillChangeDetector = {
   dispose,
   subscribe,
   resetForTesting,
+  reloadNow,
 };

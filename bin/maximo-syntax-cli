@@ -11,6 +11,18 @@ import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
+// Raise the V8 old-space ceiling for child processes (sub-agents, etc.) so
+// long sessions don't hit the default ~2GB heap. Setting NODE_OPTIONS here
+// affects processes the CLI spawns; the main process heap is governed by the
+// shebang's node invocation, which we can't change at runtime. Never override
+// an explicit user-set value.
+if (!/\b--max-old-space-size=\d+\b/.test(process.env.NODE_OPTIONS || "")) {
+  const existing = process.env.NODE_OPTIONS || "";
+  process.env.NODE_OPTIONS = existing
+    ? `${existing} --max-old-space-size=6144`
+    : "--max-old-space-size=6144";
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const distPath = join(__dirname, "..", "dist", "cli.mjs");
 

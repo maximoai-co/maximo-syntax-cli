@@ -177,6 +177,8 @@ When users ask you to perform tasks, check if any of the available skills match.
 
 When users reference a "slash command" or "/<something>" (e.g., "/commit", "/review-pr"), they are referring to a skill. Use this tool to invoke it.
 
+Users can also explicitly guide the TUI with an inline \\$mention such as \\$review or \\$code-review. Maximo expands known, user-invocable \\$mentions before the model sees the prompt. If the current turn already contains a <${COMMAND_NAME_TAG}> tag for that skill, it has already been loaded and must not be invoked again.
+
 How to invoke:
 - Use this tool with the skill name and optional arguments
 - Examples:
@@ -189,6 +191,7 @@ Important:
 - Available skills are listed in system-reminder messages in the conversation
 - When a skill matches the user's request, this is a BLOCKING REQUIREMENT: invoke the relevant Skill tool BEFORE generating any other response about the task
 - NEVER mention a skill without actually calling this tool
+- Do not treat arbitrary shell variables such as \\$HOME or unknown \\$words as skills
 - Do not invoke a skill that is already running
 - Do not use this tool for built-in CLI commands (like /help, /clear, etc.)
 - If you see a <${COMMAND_NAME_TAG}> tag in the current conversation turn, the skill has ALREADY been loaded - follow the instructions directly instead of calling this tool again

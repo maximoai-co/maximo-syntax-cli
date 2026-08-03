@@ -20,6 +20,7 @@ import {
   saveGlobalConfig,
 } from "./config.js";
 import { logForDebugging } from "./debug.js";
+import { logForDiagnosticsNoPII } from "./diagLogs.js";
 import { env } from "./env.js";
 import { getMaximoConfigHomeDir } from "./envUtils.js";
 import { MaximoError, getErrnoCode, isENOENT } from "./errors.js";
@@ -685,7 +686,10 @@ export async function checkAndInstallUpdate(
   }
 
   // Skip in test/dev environments (same gate as the React updater).
-  if ("production" === "test" || "production" === "development") {
+  if (
+    process.env.NODE_ENV === "test" ||
+    process.env.NODE_ENV === "development"
+  ) {
     logForDebugging(
       "AutoUpdater: Skipping update check in test/dev environment",
     );
@@ -883,6 +887,16 @@ export async function checkAndInstallUpdate(
     }
 
     return { version: latestVersion, status: installStatus };
+  } catch (error) {
+    // Never reject from this fire-and-forget engine: a throw here (network
+    // blip during `npm view`, a lazy import failing, a spawn error) would
+    // surface as an unhandled rejection in the eager-startup or scheduler
+    // paths. Log and degrade to a failed result instead.
+    logError(error as Error);
+    logForDiagnosticsNoPII("error", "auto_update_check_failed", {
+      error_message: (error as Error).message?.slice(0, 2000) ?? String(error),
+    });
+    return { version: null, status: "install_failed" };
   } finally {
     eagerUpdateInFlight = false;
   }

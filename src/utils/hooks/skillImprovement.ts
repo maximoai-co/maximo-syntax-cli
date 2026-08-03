@@ -22,6 +22,7 @@ import {
 import { getSmallFastModel } from '../model/model.js'
 import { jsonParse } from '../slowOperations.js'
 import { asSystemPrompt } from '../systemPromptType.js'
+import { getSkillDiscoveryLocations } from '../../skills/skillCompatibility.js'
 import {
   type ApiQueryHookConfig,
   createApiQueryHook,
@@ -194,15 +195,39 @@ export async function applySkillImprovement(
   const { join } = await import('path')
   const fs = await import('fs/promises')
 
-  // Skills live at .maximo/skills/<name>/SKILL.md relative to CWD
-  const filePath = join(getCwd(), '.maximo', 'skills', skillName, 'SKILL.md')
+  // A command name can contain colon namespaces for nested skill folders.
+  // Resolve it against every supported project/user root without allowing a
+  // skill name to escape those roots.
+  const skillPathParts = skillName.split(':')
+  if (
+    skillPathParts.length === 0 ||
+    skillPathParts.some(part => !/^[A-Za-z0-9_-]+$/.test(part))
+  ) {
+    logError(new Error(`Invalid skill name for improvement: ${skillName}`))
+    return
+  }
 
-  let currentContent: string
-  try {
-    currentContent = await fs.readFile(filePath, 'utf-8')
-  } catch {
+  const candidatePaths = getSkillDiscoveryLocations(getCwd())
+    .filter(location => location.scope === 'user' || location.scope === 'project')
+    .map(location => join(location.path, ...skillPathParts, 'SKILL.md'))
+
+  let filePath: string | undefined
+  let currentContent: string | undefined
+  for (const candidatePath of candidatePaths) {
+    try {
+      currentContent = await fs.readFile(candidatePath, 'utf-8')
+      filePath = candidatePath
+      break
+    } catch {
+      // Try the next supported root in precedence order.
+    }
+  }
+
+  if (!filePath || currentContent === undefined) {
     logError(
-      new Error(`Failed to read skill file for improvement: ${filePath}`),
+      new Error(
+        `Failed to read skill file for improvement: ${skillName} (checked ${candidatePaths.join(', ')})`,
+      ),
     )
     return
   }

@@ -59,6 +59,8 @@ type Props<T> = {
   matchLabel?: string;
   selectAction?: string;
   extraHints?: React.ReactNode;
+  /** Extra item-level shortcuts. Return true when the event was consumed. */
+  onItemKeyDown?: (event: KeyboardEvent, item: T | undefined) => boolean;
 };
 const DEFAULT_VISIBLE = 8;
 // Pane (paddingTop + Divider) + title + 3 gaps + SearchBox (rounded border = 3
@@ -85,7 +87,8 @@ export function FuzzyPicker<T>({
   emptyMessage = 'No results',
   matchLabel,
   selectAction = 'select',
-  extraHints
+  extraHints,
+  onItemKeyDown
 }: Props<T>): React.ReactNode {
   const isTerminalFocused = useTerminalFocus();
   const {
@@ -121,6 +124,11 @@ export function FuzzyPicker<T>({
     backspaceExitsOnEmpty: false
   });
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (onItemKeyDown?.(e, items[focusedIndex])) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
     if (e.key === 'up' || e.ctrl && e.key === 'p') {
       e.preventDefault();
       e.stopImmediatePropagation();

@@ -19,6 +19,7 @@ import {
 } from "../services/analytics/index.js";
 import { roughTokenCountEstimation } from "../services/tokenEstimation.js";
 import type { Command, PromptCommand } from "../types/command.js";
+import type { SkillProvider, SkillScope } from "../types/skill.js";
 import {
   parseArgumentNames,
   substituteArguments,
@@ -49,7 +50,6 @@ import { isPathGitignored } from "../utils/git/gitignore.js";
 import { logError } from "../utils/log.js";
 import {
   extractDescriptionFromMarkdown,
-  getProjectDirsUpToHome,
   loadMarkdownFilesForSubdir,
   type MarkdownFile,
   parseSlashCommandToolsFromFrontmatter,
@@ -63,6 +63,14 @@ import { isRestrictedToPluginOnly } from "../utils/settings/pluginOnlyPolicy.js"
 import { HooksSchema, type HooksSettings } from "../utils/settings/types.js";
 import { createSignal } from "../utils/signal.js";
 import { registerMCPSkillBuilders } from "./mcpSkillBuilders.js";
+import {
+  getAdditionalSkillDiscoveryLocations,
+  getProjectSkillDiscoveryLocations,
+  getSkillDiscoveryLocations,
+  getSkillProviderForDirectory,
+  getSkillScopeForDirectory,
+} from "./skillCompatibility.js";
+import { isSkillDisabled } from "./skillManager.js";
 
 export type LoadedFrom =
   | "commands_DEPRECATED"
@@ -292,6 +300,8 @@ export function createSkillCommand({
   paths,
   effort,
   shell,
+  skillProvider,
+  skillScope,
 }: {
   skillName: string;
   displayName: string | undefined;
@@ -315,7 +325,12 @@ export function createSkillCommand({
   paths: string[] | undefined;
   effort: EffortValue | undefined;
   shell: FrontmatterShell | undefined;
+  skillProvider?: SkillProvider;
+  skillScope?: SkillScope;
 }): Command {
+  const providerAlias = skillProvider && skillProvider !== "maximo"
+    ? `${skillProvider}:${skillName}`
+    : undefined;
   return {
     type: "prompt",
     name: skillName,
@@ -340,9 +355,13 @@ export function createSkillCommand({
       return displayName || skillName;
     },
     source,
+    aliases:
+      providerAlias && providerAlias !== skillName ? [providerAlias] : undefined,
     loadedFrom,
     hooks,
     skillRoot: baseDir,
+    skillProvider,
+    skillScope,
     async getPromptForCommand(args, toolUseContext) {
       let finalContent = baseDir
         ? `Base directory for this skill: ${baseDir}\n\n${markdownContent}`
@@ -513,7 +532,9 @@ async function findSkillMarkdownFiles(basePath: string): Promise<string[]> {
  */
 async function loadSkillsFromSkillsDir(
   basePath: string,
-  source: SettingSource
+  source: SettingSource,
+  skillProvider?: SkillProvider,
+  skillScope?: SkillScope,
 ): Promise<SkillWithPath[]> {
   const fs = getFsImplementation();
   const skillFiles = await findSkillMarkdownFiles(basePath);
@@ -559,6 +580,8 @@ async function loadSkillsFromSkillsDir(
             baseDir: skillDirPath,
             loadedFrom: "skills",
             paths,
+            skillProvider: skillProvider ?? getSkillProviderForDirectory(basePath),
+            skillScope: skillScope ?? getSkillScopeForDirectory(basePath),
           }),
           filePath: skillFilePath,
         };
@@ -702,6 +725,8 @@ async function loadSkillsFromCommandsDir(
             baseDir: skillDirectory,
             loadedFrom: "commands_DEPRECATED",
             paths: undefined,
+            skillProvider: "maximo",
+            skillScope: source === "userSettings" ? "user" : "project",
           }),
           filePath,
         });
@@ -732,21 +757,36 @@ async function loadSkillsFromCommandsDir(
  */
 export const getSkillDirCommands = memoize(
   async (cwd: string): Promise<Command[]> => {
-    const userSkillsDir = join(getMaximoConfigHomeDir(), "skills");
-    const managedSkillsDir = join(getManagedFilePath(), ".maximo", "skills");
-    const projectSkillsDirs = getProjectDirsUpToHome("skills", cwd);
-
-    logForDebugging(
-      `Loading skills from: managed=${managedSkillsDir}, user=${userSkillsDir}, project=[${projectSkillsDirs.join(
-        ", "
-      )}]`
-    );
-
-    // Load from additional directories (--add-dir)
+    const discoveredLocations = getSkillDiscoveryLocations(cwd);
     const additionalDirs = getAdditionalDirectoriesForMaximoMd();
     const skillsLocked = isRestrictedToPluginOnly("skills");
     const projectSettingsEnabled =
       isSettingSourceEnabled("projectSettings") && !skillsLocked;
+
+    const managedLocations = discoveredLocations.filter(
+      (location) => location.scope === "managed"
+    );
+    const userLocations = discoveredLocations.filter(
+      (location) => location.scope === "user"
+    );
+    const projectLocations = discoveredLocations.filter(
+      (location) => location.scope === "project"
+    );
+    const additionalLocations = additionalDirs.flatMap(
+      getAdditionalSkillDiscoveryLocations
+    );
+
+    logForDebugging(
+      `Loading skills from ${discoveredLocations.length} supported roots`
+    );
+
+    const loadLocation = (location: (typeof discoveredLocations)[number]) =>
+      loadSkillsFromSkillsDir(
+        location.path,
+        location.source,
+        location.provider,
+        location.scope
+      );
 
     // --bare: skip auto-discovery (managed/user/project dir walks + legacy
     // commands-dir). Load ONLY explicit --add-dir paths. Bundled skills
@@ -764,12 +804,7 @@ export const getSkillDirCommands = memoize(
         return [];
       }
       const additionalSkillsNested = await Promise.all(
-        additionalDirs.map((dir) =>
-          loadSkillsFromSkillsDir(
-            join(dir, ".maximo", "skills"),
-            "projectSettings"
-          )
-        )
+        additionalLocations.map(loadLocation)
       );
       // No dedup needed — explicit dirs, user controls uniqueness.
       return additionalSkillsNested.flat().map((s) => s.skill);
@@ -786,26 +821,19 @@ export const getSkillDirCommands = memoize(
     ] = await Promise.all([
       isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_POLICY_SKILLS)
         ? Promise.resolve([])
-        : loadSkillsFromSkillsDir(managedSkillsDir, "policySettings"),
+        : Promise.all(managedLocations.map(loadLocation)).then((groups) =>
+            groups.flat()
+          ),
       isSettingSourceEnabled("userSettings") && !skillsLocked
-        ? loadSkillsFromSkillsDir(userSkillsDir, "userSettings")
-        : Promise.resolve([]),
-      projectSettingsEnabled
-        ? Promise.all(
-            projectSkillsDirs.map((dir) =>
-              loadSkillsFromSkillsDir(dir, "projectSettings")
-            )
+        ? Promise.all(userLocations.map(loadLocation)).then((groups) =>
+            groups.flat()
           )
         : Promise.resolve([]),
       projectSettingsEnabled
-        ? Promise.all(
-            additionalDirs.map((dir) =>
-              loadSkillsFromSkillsDir(
-                join(dir, ".maximo", "skills"),
-                "projectSettings"
-              )
-            )
-          )
+        ? Promise.all(projectLocations.map(loadLocation))
+        : Promise.resolve([]),
+      projectSettingsEnabled
+        ? Promise.all(additionalLocations.map(loadLocation))
         : Promise.resolve([]),
       // Legacy commands-as-skills goes through markdownConfigLoader with
       // subdir='commands', which our agents-only guard there skips. Block
@@ -844,6 +872,11 @@ export const getSkillDirCommands = memoize(
       const entry = allSkillsWithPaths[i];
       if (entry === undefined || entry.skill.type !== "prompt") continue;
       const { skill } = entry;
+
+      if (isSkillDisabled(skill)) {
+        logForDebugging(`[skills] Skipping disabled skill '${skill.name}'`);
+        continue;
+      }
 
       const fileId = fileIds[i];
       if (fileId === null || fileId === undefined) {
@@ -979,25 +1012,30 @@ export async function discoverSkillDirsForPaths(
     // Start from the file's parent directory
     let currentDir = dirname(filePath);
 
-    // Walk up to cwd but NOT including cwd itself
-    // CWD-level skills are already loaded at startup, so we only discover nested ones
-    // Use prefix+separator check to avoid matching /project-backup when cwd is /project
-    while (currentDir.startsWith(resolvedCwd + pathSep)) {
-      const skillDir = join(currentDir, ".maximo", "skills");
+    // Walk up to and including cwd. Including cwd matters when a creator makes
+    // a previously absent .agents/.claude/.maximo root during this session.
+    // Use prefix+separator check to avoid matching /project-backup when cwd is
+    // /project.
+    while (
+      currentDir === resolvedCwd ||
+      currentDir.startsWith(resolvedCwd + pathSep)
+    ) {
+      const skillLocations = getProjectSkillDiscoveryLocations(currentDir);
 
-      // Skip if we've already checked this path (hit or miss) — avoids
-      // repeating the same failed stat on every Read/Write/Edit call when
-      // the directory doesn't exist (the common case).
-      if (!dynamicSkillDirs.has(skillDir)) {
+      // Skip paths already checked (hit or miss) — avoids repeating failed
+      // stats on every Read/Write/Edit call when the common case has no skill
+      // directory at this level.
+      for (const location of skillLocations) {
+        const skillDir = location.path;
+        if (dynamicSkillDirs.has(skillDir)) continue;
         dynamicSkillDirs.add(skillDir);
         try {
           await fs.stat(skillDir);
-          // Skills dir exists. Before loading, check if the containing dir
-          // is gitignored — blocks e.g. node_modules/pkg/.maximo/skills from
-          // loading silently. `git check-ignore` handles nested .gitignore,
-          // .git/info/exclude, and global gitignore. Fails open outside a
-          // git repo (exit 128 → false); the invocation-time trust dialog
-          // is the actual security boundary.
+          // Skills dirs exist. Before loading, check if the containing
+          // directory is gitignored — this blocks skill trees hidden in e.g.
+          // node_modules. `git check-ignore` handles nested .gitignore,
+          // .git/info/exclude, and global gitignore. Fails open outside a git
+          // repo; the invocation-time trust dialog remains the boundary.
           if (await isPathGitignored(currentDir, resolvedCwd)) {
             logForDebugging(
               `[skills] Skipped gitignored skills dir: ${skillDir}`
@@ -1006,11 +1044,12 @@ export async function discoverSkillDirsForPaths(
           }
           newDirs.push(skillDir);
         } catch {
-          // Directory doesn't exist — already recorded above, continue
+          // Directory doesn't exist — already recorded above, continue.
         }
       }
 
       // Move to parent
+      if (currentDir === resolvedCwd) break;
       const parent = dirname(currentDir);
       if (parent === currentDir) break; // Reached root
       currentDir = parent;
@@ -1047,13 +1086,20 @@ export async function addSkillDirectories(dirs: string[]): Promise<void> {
 
   // Load skills from all directories
   const loadedSkills = await Promise.all(
-    dirs.map((dir) => loadSkillsFromSkillsDir(dir, "projectSettings"))
+    dirs.map((dir) =>
+      loadSkillsFromSkillsDir(
+        dir,
+        "projectSettings",
+        getSkillProviderForDirectory(dir),
+        "project"
+      )
+    )
   );
 
   // Process in reverse order (shallower first) so deeper paths override
   for (let i = loadedSkills.length - 1; i >= 0; i--) {
     for (const { skill } of loadedSkills[i] ?? []) {
-      if (skill.type === "prompt") {
+      if (skill.type === "prompt" && !isSkillDisabled(skill)) {
         dynamicSkills.set(skill.name, skill);
       }
     }

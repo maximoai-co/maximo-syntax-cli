@@ -36,6 +36,7 @@ import {
   DISABLE_MODIFY_OTHER_KEYS,
   ENABLE_KITTY_KEYBOARD,
   ENABLE_MODIFY_OTHER_KEYS,
+  DEFAULT_CURSOR_STYLE,
   FOCUS_IN,
   FOCUS_OUT,
 } from "../termio/csi.js";
@@ -111,11 +112,21 @@ type Props = {
   // fullscreen) re-enters alt-screen + mouse tracking. Idempotent on the
   // terminal side. Optional so testing.tsx doesn't need to stub it.
   readonly onStdinResume?: () => void;
+  // Prompt-only mouse dispatch. Unlike transcript selection, this is valid
+  // on the normal scrollback screen because Ink resolves the prompt target's
+  // current frame rect directly.
+  readonly onPromptMouse?: (mouse: ParsedMouse) => boolean;
+  // When false, unconsumed mouse events must not enter fullscreen transcript
+  // selection. Optional to preserve the small App fixtures used by tests.
+  readonly isAltScreenActive?: () => boolean;
   // Receives the declared native-cursor position from useDeclaredCursor
   // so ink.tsx can park the terminal cursor there after each frame.
   // Enables IME composition at the input caret and lets screen readers /
   // magnifiers track the input. Optional so testing.tsx doesn't stub it.
   readonly onCursorDeclaration?: CursorDeclarationSetter;
+  // Receives DECXCPR replies used to translate Maximo's frame-relative
+  // prompt rows into the terminal viewport's absolute mouse coordinates.
+  readonly onCursorPosition?: (row: number, col: number) => void;
   // Dispatch a keyboard event through the DOM tree. Called for each
   // parsed key alongside the legacy EventEmitter path.
   readonly dispatchKeyboardEvent: (parsedKey: ParsedKey) => void;
@@ -239,7 +250,7 @@ export default class App extends PureComponent<Props, State> {
   }
   override componentWillUnmount() {
     if (this.props.stdout.isTTY) {
-      this.props.stdout.write(SHOW_CURSOR);
+      this.props.stdout.write(DEFAULT_CURSOR_STYLE + SHOW_CURSOR);
     }
 
     // Clear any pending timers
@@ -515,7 +526,9 @@ export default class App extends PureComponent<Props, State> {
     // it, SGR mouse sequences would appear as garbled text at the
     // shell prompt while suspended.
     if (this.props.stdout.isTTY) {
-      this.props.stdout.write(SHOW_CURSOR + DFE + DISABLE_MOUSE_TRACKING);
+      this.props.stdout.write(
+        DEFAULT_CURSOR_STYLE + SHOW_CURSOR + DFE + DISABLE_MOUSE_TRACKING,
+      );
     }
 
     // Emit suspend event for Maximo Syntax to handle. Mostly just has a notification
@@ -576,6 +589,9 @@ function processKeysInBatch(
     // Terminal responses (DECRPM, DA1, OSC replies, etc.) are not user
     // input — route them to the querier to resolve pending promises.
     if (item.kind === "response") {
+      if (item.response.type === "cursorPosition") {
+        app.props.onCursorPosition?.(item.response.row, item.response.col);
+      }
       app.querier.onResponse(item.response);
       continue;
     }
@@ -584,6 +600,12 @@ function processKeysInBatch(
     // Terminal sends 1-indexed col/row; convert to 0-indexed for the
     // screen buffer. Button bit 0x20 = drag (motion while button held).
     if (item.kind === "mouse") {
+      if (app.props.onPromptMouse?.(item)) {
+        continue;
+      }
+      if (app.props.isAltScreenActive && !app.props.isAltScreenActive()) {
+        continue;
+      }
       handleMouseEvent(app, item);
       continue;
     }
@@ -592,6 +614,11 @@ function processKeysInBatch(
     // Handle terminal focus events (DECSET 1004)
     if (sequence === FOCUS_IN) {
       app.handleTerminalFocus(true);
+      // VS Code/xterm can restore its own viewport state when the integrated
+      // terminal regains focus. Re-assert application mouse/key modes before
+      // the next physical click so prompt editing does not depend on the
+      // terminal preserving DECSET state across focus changes.
+      app.props.onStdinResume?.();
       const event = new TerminalFocusEvent("terminalfocus");
       app.internal_eventEmitter.emit("terminalfocus", event);
       continue;

@@ -9,6 +9,10 @@ import type {
   TextInputState,
 } from '../types/textInputTypes.js'
 import {
+  replacePromptSelection,
+  type PromptTextSelection,
+} from '../utils/promptSelection.js'
+import {
   Cursor,
   getLastKill,
   pushToKillRing,
@@ -68,6 +72,9 @@ export type UseTextInputProps = {
   inputFilter?: (input: string, key: Key) => string
   inlineGhostText?: InlineGhostText
   dim?: (text: string) => string
+  selection?: PromptTextSelection | null
+  onSelectionChange?: (selection: PromptTextSelection | null) => void
+  onCopySelection?: (text: string) => void
 }
 
 export function useTextInput({
@@ -94,6 +101,9 @@ export function useTextInput({
   inputFilter,
   inlineGhostText,
   dim,
+  selection,
+  onSelectionChange,
+  onCopySelection,
 }: UseTextInputProps): TextInputState {
   // Pre-warm the modifiers module for Apple Terminal (has internal guard, safe to call multiple times)
   if (env.terminal === 'Apple_Terminal') {
@@ -428,6 +438,69 @@ export function useTextInput({
     return (key.ctrl || key.meta) && input === 'y'
   }
 
+  /**
+   * Apply the editor-like part of mouse selection semantics before the
+   * regular cursor mapper runs. A printable key replaces the selected text;
+   * arrows collapse to the nearest edge; Backspace/Delete remove it.
+   */
+  function handleSelectionInput(input: string, key: Key): boolean {
+    if (!selection) return false
+    const commandModifier = key.ctrl || key.meta || key.super
+    const range = replacePromptSelection(originalValue, selection, '')
+    if (!range) return false
+    const start = Math.min(selection.anchor, selection.focus)
+    const end = Math.max(selection.anchor, selection.focus)
+    const safeStart = Math.max(0, Math.min(originalValue.length, start))
+    const safeEnd = Math.max(0, Math.min(originalValue.length, end))
+
+    const applyReplacement = (replacement: string): boolean => {
+      const result = replacePromptSelection(originalValue, selection, replacement)
+      if (!result) return false
+      onChange(result.text)
+      setOffset(result.offset)
+      onSelectionChange?.(null)
+      return true
+    }
+
+    if (commandModifier && input.toLowerCase() === 'c') {
+      onCopySelection?.(originalValue.slice(safeStart, safeEnd))
+      return true
+    }
+
+    if (commandModifier && input.toLowerCase() === 'x') {
+      onCopySelection?.(originalValue.slice(safeStart, safeEnd))
+      return applyReplacement('')
+    }
+
+    if (key.leftArrow || key.home || key.upArrow) {
+      setOffset(safeStart)
+      onSelectionChange?.(null)
+      return true
+    }
+    if (key.rightArrow || key.end || key.downArrow) {
+      setOffset(safeEnd)
+      onSelectionChange?.(null)
+      return true
+    }
+
+    if (key.backspace || key.delete || input.includes('\x7f')) {
+      return applyReplacement('')
+    }
+
+    const isReplacement =
+      input.length > 0 &&
+      !key.ctrl &&
+      !key.meta &&
+      !key.super &&
+      !key.escape &&
+      !key.return &&
+      !key.tab
+    if (isReplacement) {
+      return applyReplacement(input)
+    }
+    return false
+  }
+
   function onInput(input: string, key: Key): void {
     // Note: Image paste shortcut (chat:imagePaste) is handled via useKeybindings in PromptInput
 
@@ -436,6 +509,12 @@ export function useTextInput({
 
     // If the input was filtered out, do nothing
     if (filteredInput === '' && input !== '') {
+      return
+    }
+
+    if (handleSelectionInput(filteredInput, key)) {
+      resetKillAccumulation()
+      resetYankState()
       return
     }
 

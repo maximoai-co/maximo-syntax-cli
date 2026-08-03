@@ -1,8 +1,238 @@
-import * as React from 'react';
-import type { LocalJSXCommandContext } from '../../commands.js';
-import { SkillsMenu } from '../../components/skills/SkillsMenu.js';
-import type { LocalJSXCommandOnDone } from '../../types/command.js';
-export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode> {
-  return <SkillsMenu onExit={onDone} commands={context.options.commands} />;
+import { lstat, mkdir, stat, symlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import * as React from "react";
+import { findCommand, getCommandName, type Command } from "../../commands.js";
+import type { LocalJSXCommandContext, LocalJSXCommandOnDone } from "../../types/command.js";
+import { getCwd } from "../../utils/cwd.js";
+import { reloadNow } from "../../utils/skills/skillChangeDetector.js";
+import { SkillsMenu } from "../../components/skills/SkillsMenu.js";
+import {
+  disableSkill,
+  enableSkill,
+  getDisabledSkillNames,
+} from "../../skills/skillManager.js";
+
+function getPromptSkill(
+  name: string,
+  context: LocalJSXCommandContext,
+): Extract<Command, { type: "prompt" }> | undefined {
+  const command = findCommand(name, context.options.commands);
+  return command?.type === "prompt" ? command : undefined;
 }
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJSZWFjdCIsIkxvY2FsSlNYQ29tbWFuZENvbnRleHQiLCJTa2lsbHNNZW51IiwiTG9jYWxKU1hDb21tYW5kT25Eb25lIiwiY2FsbCIsIm9uRG9uZSIsImNvbnRleHQiLCJQcm9taXNlIiwiUmVhY3ROb2RlIiwib3B0aW9ucyIsImNvbW1hbmRzIl0sInNvdXJjZXMiOlsic2tpbGxzLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgKiBhcyBSZWFjdCBmcm9tICdyZWFjdCdcbmltcG9ydCB0eXBlIHsgTG9jYWxKU1hDb21tYW5kQ29udGV4dCB9IGZyb20gJy4uLy4uL2NvbW1hbmRzLmpzJ1xuaW1wb3J0IHsgU2tpbGxzTWVudSB9IGZyb20gJy4uLy4uL2NvbXBvbmVudHMvc2tpbGxzL1NraWxsc01lbnUuanMnXG5pbXBvcnQgdHlwZSB7IExvY2FsSlNYQ29tbWFuZE9uRG9uZSB9IGZyb20gJy4uLy4uL3R5cGVzL2NvbW1hbmQuanMnXG5cbmV4cG9ydCBhc3luYyBmdW5jdGlvbiBjYWxsKFxuICBvbkRvbmU6IExvY2FsSlNYQ29tbWFuZE9uRG9uZSxcbiAgY29udGV4dDogTG9jYWxKU1hDb21tYW5kQ29udGV4dCxcbik6IFByb21pc2U8UmVhY3QuUmVhY3ROb2RlPiB7XG4gIHJldHVybiA8U2tpbGxzTWVudSBvbkV4aXQ9e29uRG9uZX0gY29tbWFuZHM9e2NvbnRleHQub3B0aW9ucy5jb21tYW5kc30gLz5cbn1cbiJdLCJtYXBwaW5ncyI6IkFBQUEsT0FBTyxLQUFLQSxLQUFLLE1BQU0sT0FBTztBQUM5QixjQUFjQyxzQkFBc0IsUUFBUSxtQkFBbUI7QUFDL0QsU0FBU0MsVUFBVSxRQUFRLHVDQUF1QztBQUNsRSxjQUFjQyxxQkFBcUIsUUFBUSx3QkFBd0I7QUFFbkUsT0FBTyxlQUFlQyxJQUFJQSxDQUN4QkMsTUFBTSxFQUFFRixxQkFBcUIsRUFDN0JHLE9BQU8sRUFBRUwsc0JBQXNCLENBQ2hDLEVBQUVNLE9BQU8sQ0FBQ1AsS0FBSyxDQUFDUSxTQUFTLENBQUMsQ0FBQztFQUMxQixPQUFPLENBQUMsVUFBVSxDQUFDLE1BQU0sQ0FBQyxDQUFDSCxNQUFNLENBQUMsQ0FBQyxRQUFRLENBQUMsQ0FBQ0MsT0FBTyxDQUFDRyxPQUFPLENBQUNDLFFBQVEsQ0FBQyxHQUFHO0FBQzNFIiwiaWdub3JlTGlzdCI6W119
+
+function getRequestedSkillName(
+  skill: Extract<Command, { type: "prompt" }>,
+  requestedName: string,
+): string {
+  if (
+    skill.name === requestedName ||
+    getCommandName(skill) === requestedName ||
+    skill.aliases?.includes(requestedName)
+  ) {
+    return requestedName;
+  }
+  return getCommandName(skill);
+}
+
+function finish(onDone: LocalJSXCommandOnDone, message: string): null {
+  onDone(message, { display: "system" });
+  return null;
+}
+
+async function linkSkill(
+  rawArgs: string,
+  onDone: LocalJSXCommandOnDone,
+): Promise<null> {
+  const tokens = rawArgs.trim().split(/\s+/).filter(Boolean);
+  const sourceArg = tokens.shift();
+  if (!sourceArg) {
+    return finish(
+      onDone,
+      "Usage: /skills link <skill-directory-or-SKILL.md> [--scope user|workspace]",
+    );
+  }
+
+  let scope: "user" | "workspace" = "workspace";
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === "--scope") {
+      const value = tokens[index + 1];
+      if (value !== "user" && value !== "workspace") {
+        return finish(onDone, "--scope must be either user or workspace.");
+      }
+      scope = value;
+      index += 1;
+    } else if (token?.startsWith("--scope=")) {
+      const value = token.slice("--scope=".length);
+      if (value !== "user" && value !== "workspace") {
+        return finish(onDone, "--scope must be either user or workspace.");
+      }
+      scope = value;
+    } else {
+      return finish(onDone, `Unexpected argument: ${token}`);
+    }
+  }
+
+  const source = sourceArg.startsWith("~/")
+    ? resolve(join(homedir(), sourceArg.slice(2)))
+    : resolve(getCwd(), sourceArg);
+  let sourceStats;
+  try {
+    sourceStats = await stat(source);
+  } catch {
+    return finish(onDone, `Skill path does not exist: ${source}`);
+  }
+
+  const skillDirectory = sourceStats.isDirectory() ? source : dirname(source);
+  if (!sourceStats.isDirectory() && basename(source) !== "SKILL.md") {
+    return finish(onDone, "When linking a file, the file must be named SKILL.md.");
+  }
+  try {
+    const skillFile = join(skillDirectory, "SKILL.md");
+    const skillFileStats = await stat(skillFile);
+    if (!skillFileStats.isFile()) throw new Error("not a regular file");
+  } catch {
+    return finish(onDone, `No SKILL.md found directly inside ${skillDirectory}`);
+  }
+
+  const skillName = basename(skillDirectory);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skillName)) {
+    return finish(
+      onDone,
+      `Skill directory name '${skillName}' must use lowercase letters, numbers, and hyphens.`,
+    );
+  }
+
+  const destinationRoot =
+    scope === "user"
+      ? join(homedir(), ".agents", "skills")
+      : join(getCwd(), ".agents", "skills");
+  const destination = join(destinationRoot, skillName);
+  try {
+    await mkdir(destinationRoot, { recursive: true, mode: 0o700 });
+    await lstat(destination);
+    return finish(onDone, `A skill already exists at ${destination}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      return finish(onDone, `Cannot use ${destination}: ${String(error)}`);
+    }
+  }
+
+  try {
+    await symlink(
+      skillDirectory,
+      destination,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+  } catch (error) {
+    return finish(onDone, `Unable to link skill: ${String(error)}`);
+  }
+
+  reloadNow();
+  return finish(
+    onDone,
+    `Linked ${skillDirectory} into ${destination}. It is available as /${skillName}.`,
+  );
+}
+
+export async function call(
+  onDone: LocalJSXCommandOnDone,
+  context: LocalJSXCommandContext,
+  args = "",
+): Promise<React.ReactNode> {
+  const trimmed = args.trim();
+  const [action = "list", ...rest] = trimmed.split(/\s+/);
+  const remainder = rest.join(" ").trim();
+
+  if (action === "list") {
+    return <SkillsMenu onExit={onDone} commands={context.options.commands} />;
+  }
+
+  if (action === "reload") {
+    reloadNow();
+    return finish(onDone, "Skill discovery reloaded.");
+  }
+
+  if (action === "create") {
+    onDone("Opening the skill creator", {
+      display: "system",
+      nextInput: "/skill-creator ",
+      submitNextInput: true,
+    });
+    return null;
+  }
+
+  if (action === "use") {
+    const skill = getPromptSkill(remainder, context);
+    if (!skill || skill.userInvocable === false) {
+      return finish(onDone, `Unknown user-invocable skill: ${remainder}`);
+    }
+    onDone("", {
+      display: "skip",
+      nextInput: `/${getRequestedSkillName(skill, remainder)} `,
+    });
+    return null;
+  }
+
+  if (action === "info") {
+    const skill = getPromptSkill(remainder, context);
+    if (!skill) return finish(onDone, `Unknown skill: ${remainder}`);
+    const aliases = skill.aliases?.length
+      ? `Aliases: ${skill.aliases.join(", ")}`
+      : "Aliases: none";
+    return finish(
+      onDone,
+      [
+        `/${getRequestedSkillName(skill, remainder)}`,
+        skill.description,
+        `Provider: ${skill.skillProvider ?? "native"}`,
+        `Scope: ${skill.skillScope ?? "unknown"}`,
+        `Root: ${skill.skillRoot ?? "unknown"}`,
+        aliases,
+      ].join("\n"),
+    );
+  }
+
+  if (action === "disable") {
+    const skill = getPromptSkill(remainder, context);
+    if (!skill || skill.loadedFrom === "bundled") {
+      return finish(onDone, `Unknown local skill: ${remainder}`);
+    }
+    const disabledName = getRequestedSkillName(skill, remainder);
+    disableSkill(disabledName);
+    reloadNow();
+    return finish(
+      onDone,
+      `Disabled /${disabledName} for this session. Use /skills enable ${disabledName} to restore it.`,
+    );
+  }
+
+  if (action === "enable") {
+    enableSkill(remainder);
+    reloadNow();
+    return finish(
+      onDone,
+      `Enabled /${remainder}. If it exists in a supported root, it is available now.`,
+    );
+  }
+
+  if (action === "disabled") {
+    const disabled = getDisabledSkillNames();
+    return finish(
+      onDone,
+      disabled.length > 0
+        ? `Disabled for this session: ${disabled.join(", ")}`
+        : "No skills are disabled for this session.",
+    );
+  }
+
+  if (action === "link") {
+    return linkSkill(remainder, onDone);
+  }
+
+  return finish(
+    onDone,
+    "Usage: /skills [list|reload|create|use <name>|info <name>|enable <name>|disable <name>|disabled|link <path> [--scope user|workspace]]",
+  );
+}

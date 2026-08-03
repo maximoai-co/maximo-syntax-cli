@@ -7,6 +7,7 @@ import {
 } from '../../commands.js'
 import type { SuggestionItem } from '../../components/PromptInput/PromptInputFooterSuggestions.js'
 import { getSkillUsageScore } from './skillUsageTracking.js'
+import { getSkillInvocationName, isUserInvocableSkill } from '../../skills/skillMentions.js'
 
 // Treat these characters as word separators for command search
 const SEPARATORS = /[:_-]/g
@@ -100,6 +101,73 @@ export type MidInputSlashCommand = {
   token: string // e.g., "/com"
   startPos: number // Position of "/"
   partialCommand: string // e.g., "com"
+}
+
+/** Inline `$skill` token being edited in a prompt. */
+export type MidInputSkillMention = {
+  token: string
+  startPos: number
+  partialSkill: string
+}
+
+export function findMidInputSkillMention(
+  input: string,
+  cursorOffset: number,
+): MidInputSkillMention | null {
+  const beforeCursor = input.slice(0, cursorOffset)
+  const match = beforeCursor.match(/(^|\s)\$([a-zA-Z0-9:_-]*)$/)
+  if (!match || match.index === undefined) return null
+
+  const dollarPos = match.index + (match[1]?.length ?? 0)
+  const afterDollar = input.slice(dollarPos + 1)
+  const nameMatch = afterDollar.match(/^[a-zA-Z0-9:_-]*/)
+  const fullName = nameMatch?.[0] ?? ''
+  if (cursorOffset > dollarPos + 1 + fullName.length) return null
+
+  return {
+    token: '$' + fullName,
+    startPos: dollarPos,
+    partialSkill: fullName,
+  }
+}
+
+export function generateSkillMentionSuggestions(
+  partialSkill: string,
+  commands: Command[],
+): SuggestionItem[] {
+  const query = partialSkill.toLowerCase()
+  return commands
+    .filter(
+      (command): command is Extract<Command, { type: 'prompt' }> =>
+        isUserInvocableSkill(command) &&
+        (getCommandName(command).toLowerCase().startsWith(query) ||
+          getSkillInvocationName(command).toLowerCase().startsWith(query) ||
+          command.aliases?.some(alias => alias.toLowerCase().startsWith(query)) === true),
+    )
+    .sort((a, b) => getSkillInvocationName(a).localeCompare(getSkillInvocationName(b)))
+    .slice(0, 50)
+    .map(command => ({
+      id: `skill-mention-${getSkillInvocationName(command)}-${command.source}`,
+      displayText: `$${getSkillInvocationName(command)}`,
+      description: command.description,
+      metadata: command,
+    }))
+}
+
+export function applySkillMentionSuggestion(
+  suggestion: SuggestionItem,
+  input: string,
+  cursorOffset: number,
+  onInputChange: (value: string) => void,
+  setCursorOffset: (offset: number) => void,
+): void {
+  const token = findMidInputSkillMention(input, cursorOffset)
+  if (!token) return
+  const before = input.slice(0, token.startPos)
+  const after = input.slice(token.startPos + token.token.length)
+  const replacement = suggestion.displayText + ' '
+  onInputChange(before + replacement + after)
+  setCursorOffset(before.length + replacement.length)
 }
 
 /**

@@ -17,11 +17,17 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from "../services/analytics/growt
 import { logEvent } from "../services/analytics/index.js";
 import { registerCleanup } from "../utils/cleanupRegistry.js";
 import { logForDebugging } from "../utils/debug.js";
+import {
+  getGlobalConfig,
+  isConfigReadingAllowed,
+} from "../utils/config.js";
 import { getMaximoConfigHomeDir } from "../utils/envUtils.js";
 import { errorMessage, isENOENT } from "../utils/errors.js";
 import { createSignal } from "../utils/signal.js";
 import { jsonParse } from "../utils/slowOperations.js";
-import { DEFAULT_BINDINGS } from "./defaultBindings.js";
+import {
+  getDefaultBindingsForTerminalProfile,
+} from "./defaultBindings.js";
 import { parseBindings } from "./parser.js";
 import type { KeybindingBlock, ParsedBinding } from "./types.js";
 import {
@@ -120,7 +126,10 @@ export function getKeybindingsPath(): string {
  * Parse default bindings (cached for performance).
  */
 function getDefaultParsedBindings(): ParsedBinding[] {
-  return parseBindings(DEFAULT_BINDINGS);
+  const profile = isConfigReadingAllowed()
+    ? getGlobalConfig().terminalShortcutProfile
+    : "auto";
+  return parseBindings(getDefaultBindingsForTerminalProfile(profile));
 }
 
 /**

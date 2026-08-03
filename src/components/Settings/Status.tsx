@@ -42,6 +42,9 @@ function buildPrimarySection(): Property[] {
     label: 'Auto-update',
     value: buildAutoUpdateStatus()
   }, {
+    label: 'Memory',
+    value: buildMemoryStatus()
+  }, {
     label: 'Session name',
     value: nameValue
   }, {
@@ -51,6 +54,24 @@ function buildPrimarySection(): Property[] {
     label: 'cwd',
     value: getCwd()
   }, ...buildAccountProperties(), ...buildAPIProviderProperties()];
+}
+
+function buildMemoryStatus(): string {
+  try {
+    const heapUsed = process.memoryUsage().heapUsed;
+    const mb = Math.round(heapUsed / (1024 * 1024));
+    const status =
+      heapUsed >= 3.5 * 1024 * 1024 * 1024
+        ? 'extreme — run /clear or restart soon'
+        : heapUsed >= 2.5 * 1024 * 1024 * 1024
+          ? 'critical — consider /compact'
+          : heapUsed >= 1.5 * 1024 * 1024 * 1024
+            ? 'high'
+            : 'normal';
+    return `${mb}MB (${status})`;
+  } catch {
+    return 'unavailable';
+  }
 }
 
 function buildAutoUpdateStatus(): string {

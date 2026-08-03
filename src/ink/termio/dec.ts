@@ -58,3 +58,16 @@ export const DISABLE_MOUSE_TRACKING =
   decreset(DEC.MOUSE_ANY) +
   decreset(DEC.MOUSE_BUTTON) +
   decreset(DEC.MOUSE_NORMAL)
+
+// Prompt-only tracking keeps the normal terminal screen usable while still
+// reporting left-button clicks and drags over the prompt. We intentionally do
+// not enable mode 1003 (all-motion/hover), which would capture every pointer
+// movement and make native terminal selection more fragile.
+export const ENABLE_MOUSE_PROMPT_TRACKING =
+  decset(DEC.MOUSE_NORMAL) +
+  decset(DEC.MOUSE_BUTTON) +
+  decset(DEC.MOUSE_SGR)
+export const DISABLE_MOUSE_PROMPT_TRACKING =
+  decreset(DEC.MOUSE_SGR) +
+  decreset(DEC.MOUSE_BUTTON) +
+  decreset(DEC.MOUSE_NORMAL)

@@ -51,7 +51,7 @@ Detect:
 - Project structure (monorepo with workspaces, multi-module, or single project)
 - Code style rules that differ from language defaults
 - Non-obvious gotchas, required env vars, or workflow quirks
-- Existing .maximo/skills/ and .maximo/rules/ directories
+- Existing supported skill roots (.agents/skills/, .maximo/skills/, .claude/skills/, .gemini/skills/, .grok/skills/, .opencode/skills/) and .maximo/rules/
 - Formatter configuration (prettier, biome, ruff, black, gofmt, rustfmt, or a unified format script like \`npm run format\` / \`make fmt\`)
 - Git worktree usage: run \`git worktree list\` to check if this repo has multiple worktrees (only relevant if the user wants a personal MAXIMO.local.md)
 
@@ -166,9 +166,9 @@ Skills add capabilities Maximo can use on demand without bloating every session.
 
 For each suggested skill, provide: name, one-line purpose, and why it fits this repo.
 
-If \`.maximo/skills/\` already exists with skills, review them first. Do not overwrite existing skills — only propose new ones that complement what is already there.
+If any supported skill root already exists (especially \`.agents/skills/\` or \`.maximo/skills/\`), review those skills first. Do not overwrite existing skills — only propose new ones that complement what is already there.
 
-Create each skill at \`.maximo/skills/<skill-name>/SKILL.md\`:
+Create each portable project skill at \`.agents/skills/<skill-name>/SKILL.md\` by default. Use \`.maximo/skills/<skill-name>/SKILL.md\` only when the user explicitly wants a Maximo-only skill:
 
 \`\`\`yaml
 ---
@@ -179,7 +179,7 @@ description: <what the skill does and when to use it>
 <Instructions for Maximo>
 \`\`\`
 
-Both the user (\`/<skill-name>\`) and Maximo can invoke skills by default. For workflows with side effects (e.g., \`/deploy\`, \`/fix-issue 123\`), add \`disable-model-invocation: true\` so only the user can trigger it, and use \`$ARGUMENTS\` to accept input.
+Both the user (\`/<skill-name>\`) and Maximo can invoke skills by default. For workflows with side effects (e.g., \`/deploy\`, \`/fix-issue 123\`), add \`disable-model-invocation: true\` so only the user can trigger it, and use \`$ARGUMENTS\` to accept input. A portable skill in \`.agents/skills/\` is also discoverable by Codex, Claude Code, Gemini CLI/Antigravity, Grok CLI, and OpenCode.
 
 ## Phase 7: Suggest additional optimizations
 
@@ -220,7 +220,7 @@ When building the list, work through these checks and include only what applies:
 - If frontend code was detected (React, Vue, Svelte, etc.): \`/plugin install frontend-design@claude-plugins-official\` gives Maximo design principles and component patterns so it produces polished UI; \`/plugin install playwright@claude-plugins-official\` lets Maximo launch a real browser, screenshot what it built, and fix visual bugs itself.
 - If you found gaps in Phase 7 (missing GitHub CLI, missing linting) and the user said no: list them here with a one-line reason why each helps.
 - If tests are missing or sparse: suggest setting up a test framework so Maximo can verify its own changes.
-- To help you create skills and optimize existing skills using evals, Maximo Syntax has an official skill-creator plugin you can install. Install it with \`/plugin install skill-creator@claude-plugins-official\`, then run \`/skill-creator <skill-name>\` to create new skills or refine any existing skill. (Always include this one.)
+- To help you create skills, run the built-in \`/skill-creator [process description]\` command (also available as \`/create-skill\` or \`/skillify\`). It interviews you, writes a complete \`SKILL.md\`, and explains how to invoke it. (Always include this one.)
 - Browse official plugins with \`/plugin\` — these bundle skills, agents, hooks, and MCP servers that you may find helpful. You can also create your own custom plugins to share them with others. (Always include this one.)`;
 
 const command = {

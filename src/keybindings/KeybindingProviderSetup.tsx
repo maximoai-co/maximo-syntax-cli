@@ -22,6 +22,7 @@ import { initializeKeybindingWatcher, type KeybindingsLoadResult, loadKeybinding
 import { resolveKeyWithChordState } from './resolver.js';
 import type { KeybindingContextName, ParsedBinding, ParsedKeystroke } from './types.js';
 import type { KeybindingWarning } from './validate.js';
+import { EscapePriorityHandler } from '../interaction/EscapePriority.js';
 
 /**
  * Timeout for chord sequences in milliseconds.
@@ -204,6 +205,7 @@ export function KeybindingSetup({
   }, [clearChordTimeout]);
   return <KeybindingProvider bindings={bindings} pendingChordRef={pendingChordRef} pendingChord={pendingChord} setPendingChord={setPendingChord} activeContexts={activeContextsRef.current} registerActiveContext={registerActiveContext} unregisterActiveContext={unregisterActiveContext} handlerRegistryRef={handlerRegistryRef}>
       <ChordInterceptor bindings={bindings} pendingChordRef={pendingChordRef} setPendingChord={setPendingChord} activeContexts={activeContextsRef.current} handlerRegistryRef={handlerRegistryRef} />
+      <EscapePriorityHandler />
       {children}
     </KeybindingProvider>;
 }

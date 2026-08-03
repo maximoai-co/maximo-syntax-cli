@@ -53,6 +53,10 @@ export function AlternateScreen(t0) {
         ink?.setAltScreenActive(false);
         ink?.clearTextSelection();
         writeRaw((mouseTracking ? DISABLE_MOUSE_TRACKING : "") + EXIT_ALT_SCREEN);
+        // A prompt target may remain mounted while this temporary fullscreen
+        // view closes. Re-assert its normal-screen mouse mode after the alt
+        // screen's cleanup has disabled fullscreen tracking.
+        ink?.reassertTerminalModes();
       };
     };
     t3 = [writeRaw, mouseTracking];

@@ -29,6 +29,10 @@ export const KEYBINDING_CONTEXTS = [
   "ModelPicker",
   "Select",
   "Plugin",
+  "CommandPalette",
+  "Queue",
+  "Scroll",
+  "MessageActions",
 ] as const;
 
 /**
@@ -56,6 +60,10 @@ export const KEYBINDING_CONTEXT_DESCRIPTIONS: Record<
   ModelPicker: "When the model picker is open",
   Select: "When a select/list component is focused",
   Plugin: "When the plugin dialog is open",
+  CommandPalette: "When the command palette is open",
+  Queue: "When the interactive prompt queue is open",
+  Scroll: "When scrolling or selecting text in fullscreen mode",
+  MessageActions: "When a transcript message is focused",
 };
 
 /**
@@ -73,6 +81,8 @@ export const KEYBINDING_ACTIONS = [
   "app:redraw",
   "app:globalSearch",
   "app:quickOpen",
+  "app:commandPalette",
+  "app:queue",
   // History navigation
   "history:search",
   "history:previous",
@@ -87,6 +97,7 @@ export const KEYBINDING_ACTIONS = [
   "chat:submit",
   "chat:newline",
   "chat:undo",
+  "chat:redo",
   "chat:externalEditor",
   "chat:stash",
   "chat:imagePaste",
@@ -112,6 +123,25 @@ export const KEYBINDING_ACTIONS = [
   // Transcript viewer actions
   "transcript:toggleShowAll",
   "transcript:exit",
+  "scroll:pageUp",
+  "scroll:pageDown",
+  "scroll:lineUp",
+  "scroll:lineDown",
+  "scroll:top",
+  "scroll:bottom",
+  "selection:copy",
+  "messageActions:prev",
+  "messageActions:next",
+  "messageActions:prevUser",
+  "messageActions:nextUser",
+  "messageActions:top",
+  "messageActions:bottom",
+  "messageActions:escape",
+  "messageActions:ctrlc",
+  "messageActions:enter",
+  "messageActions:c",
+  "messageActions:p",
+  "messageActions:r",
   // History search actions
   "historySearch:next",
   "historySearch:accept",

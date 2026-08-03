@@ -92,6 +92,8 @@ type Props = {
   renderItem: (msg: RenderableMessage, index: number) => React.ReactNode;
   /** Fires when a message Box is clicked (toggle per-message verbose). */
   onItemClick?: (msg: RenderableMessage) => void;
+  /** Fires for every navigable message click, even when it cannot expand. */
+  onItemFocus?: (msg: RenderableMessage) => void;
   /** Per-item filter — suppress hover/click for messages where the verbose
    *  toggle does nothing (text, file edits, etc). Defaults to all-clickable. */
   isItemClickable?: (msg: RenderableMessage) => boolean;
@@ -343,6 +345,7 @@ export function VirtualMessageList({
   itemKey,
   renderItem,
   onItemClick,
+  onItemFocus,
   isItemClickable,
   isItemExpanded,
   extractSearchText = defaultExtractSearchText,
@@ -903,16 +906,27 @@ export function VirtualMessageList({
   // unchanged items, only ~25 fresh items pay createElement cost.
   const handlersRef = useRef({
     onItemClick,
+    onItemFocus,
+    isItemClickable,
     setHoveredKey,
   });
   handlersRef.current = {
     onItemClick,
+    onItemFocus,
+    isItemClickable,
     setHoveredKey,
   };
   const onClickK = useCallback(
     (msg: RenderableMessage, cellIsBlank: boolean) => {
       const h = handlersRef.current;
-      if (!cellIsBlank && h.onItemClick) h.onItemClick(msg);
+      if (!cellIsBlank && h.onItemFocus) h.onItemFocus(msg);
+      if (
+        !cellIsBlank &&
+        h.onItemClick &&
+        (h.isItemClickable?.(msg) ?? true)
+      ) {
+        h.onItemClick(msg);
+      }
     },
     []
   );
@@ -928,7 +942,9 @@ export function VirtualMessageList({
       {messages.slice(start, end).map((msg, i) => {
         const idx = start + i;
         const k = keys[idx]!;
-        const clickable = !!onItemClick && (isItemClickable?.(msg) ?? true);
+        const canExpand = !!onItemClick && (isItemClickable?.(msg) ?? true);
+        const canFocus = !!onItemFocus && isNavigableMessage(msg);
+        const clickable = canExpand || canFocus;
         const hovered = clickable && hoveredKey === k;
         const expanded = isItemExpanded?.(msg);
         return (

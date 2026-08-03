@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import type { InputEvent } from '../ink/events/input-event.js'
 import { type Key, useInput } from '../ink.js'
+import { sortInteractionContexts } from '../interaction/interactionPriority.js'
 import { useOptionalKeybindingContext } from './KeybindingContext.js'
 import type { KeybindingContextName } from './types.js'
 
@@ -57,7 +58,7 @@ export function useKeybinding(
         'Global',
       ]
       // Deduplicate while preserving order (first occurrence wins for priority)
-      const uniqueContexts = [...new Set(contextsToCheck)]
+      const uniqueContexts = sortInteractionContexts(contextsToCheck)
 
       const result = keybindingContext.resolve(input, key, uniqueContexts)
 
@@ -155,7 +156,7 @@ export function useKeybindings(
         'Global',
       ]
       // Deduplicate while preserving order (first occurrence wins for priority)
-      const uniqueContexts = [...new Set(contextsToCheck)]
+      const uniqueContexts = sortInteractionContexts(contextsToCheck)
 
       const result = keybindingContext.resolve(input, key, uniqueContexts)
 

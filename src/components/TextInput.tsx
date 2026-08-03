@@ -115,7 +115,10 @@ export default function TextInput(props: Props): React.ReactNode {
     onOffsetChange: props.onChangeCursorOffset,
     inputFilter: props.inputFilter,
     inlineGhostText: props.inlineGhostText,
-    dim: chalk.dim
+    dim: chalk.dim,
+    selection: props.selection,
+    onSelectionChange: props.onSelectionChange,
+    onCopySelection: props.onCopySelection,
   });
   return <Box ref={animRef}>
       <BaseTextInput inputState={textInputState} terminalFocus={isTerminalFocused} highlights={props.highlights} invert={invert} hidePlaceholderText={isVoiceRecording} {...props} />

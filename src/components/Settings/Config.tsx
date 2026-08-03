@@ -776,35 +776,29 @@ export function Config({
         });
       },
     },
-    // Copy-on-select is only meaningful with in-app selection (fullscreen
-    // alt-screen mode). In inline mode the terminal emulator owns selection.
-    ...(isFullscreenEnvEnabled()
-      ? [
-          {
-            id: "copyOnSelect",
-            label: "Copy on select",
-            value: globalConfig.copyOnSelect ?? true,
-            type: "boolean" as const,
-            onChange(copyOnSelect: boolean) {
-              saveGlobalConfig((current_8) => ({
-                ...current_8,
-                copyOnSelect,
-              }));
-              setGlobalConfig({
-                ...getGlobalConfig(),
-                copyOnSelect,
-              });
-              logEvent("tengu_config_changed", {
-                setting:
-                  "copyOnSelect" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-                value: String(
-                  copyOnSelect
-                ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-              });
-            },
-          },
-        ]
-      : []),
+    {
+      id: "copyOnSelect",
+      label: "Copy on select",
+      value: globalConfig.copyOnSelect ?? true,
+      type: "boolean" as const,
+      onChange(copyOnSelect: boolean) {
+        saveGlobalConfig((current_8) => ({
+          ...current_8,
+          copyOnSelect,
+        }));
+        setGlobalConfig({
+          ...getGlobalConfig(),
+          copyOnSelect,
+        });
+        logEvent("tengu_config_changed", {
+          setting:
+            "copyOnSelect" as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+          value: String(
+            copyOnSelect
+          ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        });
+      },
+    },
     {
       id: "autoUpdatesEnabled",
       label: "Auto-update",
@@ -878,6 +872,74 @@ export function Config({
       onChange: setTheme,
     },
     {
+      id: "displayMode",
+      label: "Display mode",
+      value: String(globalConfig.displayMode ?? "auto"),
+      options: ["auto", "fullscreen", "inline", "compact"],
+      type: "enum",
+      onChange(value: string) {
+        const displayMode = value as NonNullable<GlobalConfig["displayMode"]>;
+        saveGlobalConfig((current) => ({ ...current, displayMode }));
+        setGlobalConfig({ ...getGlobalConfig(), displayMode });
+      },
+    },
+    {
+      id: "uiDensity",
+      label: "UI density",
+      value: String(globalConfig.uiDensity ?? "comfortable"),
+      options: ["comfortable", "compact"],
+      type: "enum",
+      onChange(value: string) {
+        const uiDensity = value as NonNullable<GlobalConfig["uiDensity"]>;
+        saveGlobalConfig((current) => ({ ...current, uiDensity }));
+        setGlobalConfig({ ...getGlobalConfig(), uiDensity });
+      },
+    },
+    {
+      id: "promptBorderStyle",
+      label: "Prompt border",
+      value: String(globalConfig.promptBorderStyle ?? "round"),
+      options: ["round", "single", "double", "classic"],
+      type: "enum",
+      onChange(value: string) {
+        const promptBorderStyle = value as NonNullable<GlobalConfig["promptBorderStyle"]>;
+        saveGlobalConfig((current) => ({ ...current, promptBorderStyle }));
+        setGlobalConfig({ ...getGlobalConfig(), promptBorderStyle });
+      },
+    },
+    {
+      id: "terminalShortcutProfile",
+      label: "Terminal shortcut profile",
+      value: String(globalConfig.terminalShortcutProfile ?? "auto"),
+      options: ["auto", "portable", "modern", "vscode", "apple-terminal"],
+      type: "enum",
+      onChange(value: string) {
+        const terminalShortcutProfile = value as NonNullable<GlobalConfig["terminalShortcutProfile"]>;
+        saveGlobalConfig((current) => ({ ...current, terminalShortcutProfile }));
+        setGlobalConfig({ ...getGlobalConfig(), terminalShortcutProfile });
+      },
+    },
+    {
+      id: "showContextualHints",
+      label: "Contextual shortcut hints",
+      value: Boolean(globalConfig.showContextualHints ?? true),
+      type: "boolean",
+      onChange(showContextualHints: boolean) {
+        saveGlobalConfig((current) => ({ ...current, showContextualHints }));
+        setGlobalConfig({ ...getGlobalConfig(), showContextualHints });
+      },
+    },
+    {
+      id: "reducedMotion",
+      label: "Reduced motion",
+      value: Boolean(globalConfig.reducedMotion ?? false),
+      type: "boolean",
+      onChange(reducedMotion: boolean) {
+        saveGlobalConfig((current) => ({ ...current, reducedMotion }));
+        setGlobalConfig({ ...getGlobalConfig(), reducedMotion });
+      },
+    },
+    {
       id: "notifChannel",
       label:
         feature("KAIROS") || feature("KAIROS_PUSH_NOTIFICATION")
@@ -902,6 +964,38 @@ export function Config({
         setGlobalConfig({
           ...getGlobalConfig(),
           preferredNotifChannel: notifChannel,
+        });
+      },
+    },
+    {
+      id: "responseCompleteNotifEnabled",
+      label: "Notify when response completes",
+      value: Boolean(globalConfig.responseCompleteNotifEnabled ?? true),
+      type: "boolean",
+      onChange(responseCompleteNotifEnabled: boolean) {
+        saveGlobalConfig((current) => ({
+          ...current,
+          responseCompleteNotifEnabled,
+        }));
+        setGlobalConfig({
+          ...getGlobalConfig(),
+          responseCompleteNotifEnabled,
+        });
+      },
+    },
+    {
+      id: "notifyOnlyWhenUnfocused",
+      label: "Notify only when terminal is unfocused",
+      value: Boolean(globalConfig.notifyOnlyWhenUnfocused ?? true),
+      type: "boolean",
+      onChange(notifyOnlyWhenUnfocused: boolean) {
+        saveGlobalConfig((current) => ({
+          ...current,
+          notifyOnlyWhenUnfocused,
+        }));
+        setGlobalConfig({
+          ...getGlobalConfig(),
+          notifyOnlyWhenUnfocused,
         });
       },
     },

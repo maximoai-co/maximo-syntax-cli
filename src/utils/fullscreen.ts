@@ -3,6 +3,7 @@ import { getIsInteractive } from '../bootstrap/state.js'
 import { logForDebugging } from './debug.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from './envUtils.js'
 import { execFileNoThrow } from './execFileNoThrow.js'
+import { getGlobalConfig } from './config.js'
 
 let loggedTmuxCcDisable = false
 let checkedTmuxMouseHint = false
@@ -114,6 +115,8 @@ export function isFullscreenEnvEnabled(): boolean {
   if (isEnvDefinedFalsy(process.env.MAXIMO_SYNTAX_NO_FLICKER)) return false
   // Explicit opt-in overrides auto-detection (escape hatch).
   if (isEnvTruthy(process.env.MAXIMO_SYNTAX_NO_FLICKER)) return true
+  const displayMode = getGlobalConfig().displayMode ?? 'auto'
+  if (displayMode === 'inline') return false
   // Auto-disable under tmux -CC: alt-screen + mouse tracking corrupts
   // terminal state on double-click and mouse wheel is dead.
   if (isTmuxControlMode()) {
@@ -125,6 +128,7 @@ export function isFullscreenEnvEnabled(): boolean {
     }
     return false
   }
+  if (displayMode === 'fullscreen' || displayMode === 'compact') return true
   return process.env.USER_TYPE === 'ant'
 }
 
@@ -146,7 +150,9 @@ export function isMouseTrackingEnabled(): boolean {
  * works). Set MAXIMO_SYNTAX_DISABLE_MOUSE_CLICKS=1 to prevent accidental clicks
  * from triggering cursor positioning, text selection, or message expansion.
  *
- * Fullscreen-specific — only reachable when MAXIMO_SYNTAX_NO_FLICKER is active.
+ * Applies to both fullscreen transcript clicks and normal-screen prompt
+ * clicks. When fullscreen is active, wheel events continue to reach the
+ * transcript scroll handler even though click/drag actions are ignored.
  */
 export function isMouseClicksDisabled(): boolean {
   return isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_MOUSE_CLICKS)

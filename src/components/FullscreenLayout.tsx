@@ -767,7 +767,7 @@ function StickyPromptHeader(t0) {
 // flex-end here: they would create empty padding rows that shift visible
 // items down into the prompt area when the list has fewer items than max.
 function SuggestionsOverlay() {
-  const $ = _c(4);
+  const $ = _c(5);
   const data = usePromptOverlay();
   if (!data || data.suggestions.length === 0) {
     return null;
@@ -776,7 +776,8 @@ function SuggestionsOverlay() {
   if (
     $[0] !== data.maxColumnWidth ||
     $[1] !== data.selectedSuggestion ||
-    $[2] !== data.suggestions
+    $[2] !== data.suggestions ||
+    $[3] !== data.onSelectSuggestion
   ) {
     t0 = (
       <Box
@@ -793,6 +794,7 @@ function SuggestionsOverlay() {
           suggestions={data.suggestions}
           selectedSuggestion={data.selectedSuggestion}
           maxColumnWidth={data.maxColumnWidth}
+          onSelectSuggestion={data.onSelectSuggestion}
           overlay={true}
         />
       </Box>
@@ -800,9 +802,10 @@ function SuggestionsOverlay() {
     $[0] = data.maxColumnWidth;
     $[1] = data.selectedSuggestion;
     $[2] = data.suggestions;
-    $[3] = t0;
+    $[3] = data.onSelectSuggestion;
+    $[4] = t0;
   } else {
-    t0 = $[3];
+    t0 = $[4];
   }
   return t0;
 }

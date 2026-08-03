@@ -44,6 +44,11 @@ bun run build
 npm link
 ```
 
+`bun run build` creates a production bundle suitable for packaging and keeps
+auto-updates available by default. Use `bun run dev` for local development;
+that command deliberately creates a development bundle and disables self-update
+checks for the source checkout.
+
 ---
 
 ## Usage
@@ -57,6 +62,127 @@ After installation, you can invoke the CLI using any of the following commands:
 - `maximo`
 
 All five commands are equivalent and natively supported.
+
+## Prompt mouse controls
+
+The prompt supports terminal-native mouse editing in both inline and
+fullscreen layouts:
+
+- Click anywhere in the prompt to place the caret, including wrapped and
+  multiline input.
+- Drag to select text. Double-click selects a word; triple-click selects the
+  logical line.
+- Selected text is copied on mouse-up by default and stays highlighted. The
+  selection can also be replaced by typing, deleted with Backspace/Delete, or
+  copied/cut with the usual `Ctrl/Cmd-C` and `Ctrl/Cmd-X` shortcuts.
+- Click a visible slash-command or file suggestion to accept that row
+  immediately. Keyboard navigation remains available.
+
+Application-level dispatch is limited to the prompt and suggestion boxes. The
+terminal’s mouse-reporting mode is global while it is enabled, so users who
+need native terminal scrollback selection should use this switch before
+starting Maximo Syntax:
+
+```bash
+# Keep the prompt from enabling mouse reporting.
+export MAXIMO_SYNTAX_DISABLE_MOUSE=1
+
+# In fullscreen, keep wheel scrolling but disable prompt click/drag actions.
+export MAXIMO_SYNTAX_DISABLE_MOUSE_CLICKS=1
+
+# Keep the terminal's native caret visible for screen readers and magnifiers.
+export MAXIMO_SYNTAX_ACCESSIBILITY=1
+```
+
+The `copyOnSelect` setting can be changed from the configuration screen. OSC
+52 and the local clipboard utility are used where available, with terminal
+mouse tracking restored automatically after fullscreen overlays, resize, or
+terminal suspend/resume.
+
+## Interactive TUI controls
+
+The command palette searches live actions, slash commands, and skills. Open it
+with `Ctrl+P` in most terminals. In VS Code's integrated terminal, where
+`Ctrl+P` belongs to the editor, use the chord `Ctrl+X`, then `P`. The active
+shortcut is shown contextually in the prompt footer and can be changed under
+`/config` with the terminal shortcut profile.
+
+Prompt editing includes attachment-aware undo and redo. Use `Ctrl+_` to undo
+and `Ctrl+Y` to redo. Images and large pasted-text references behave as atomic
+chips: navigation snaps to chip boundaries, deleting a selected chip removes
+the matching content, and undo/redo restores the text, caret, and attachment
+state together.
+
+While prompts are queued, open the interactive queue with `Ctrl+Q` (`Ctrl+X`,
+then `Q` in VS Code). The pane supports:
+
+- `Enter` to move an editable queued prompt back into the editor.
+- `N` to prioritize it for immediate sending.
+- `D` or Delete to remove it.
+- `Ctrl+Up` / `Ctrl+Down` to reorder it.
+- Typing to filter the queue.
+
+Open the detailed transcript with `Ctrl+O`. Fullscreen scrollback supports
+mouse-wheel and keyboard scrolling, `/` incremental search, `N`/`Shift+N`
+match navigation, text selection and copy, and automatic follow while pinned
+to the bottom. Manual scrolling pauses follow; returning to the bottom resumes
+it. Press `Shift+Up` or click a message to focus it, then use Up/Down or `J`/`K`
+to move between turns, Enter to fold or expand supported rows, `C` to copy,
+`R` for raw view, and Escape to return. Press `[` to dump the complete expanded
+transcript into native terminal scrollback, or `V` to open it in `$VISUAL` or
+`$EDITOR`.
+
+`/config` also exposes display mode (auto, fullscreen, inline, compact), UI
+density, prompt border style, reduced motion, contextual shortcut hints, and
+response-completion notifications. Notifications can be limited to times when
+the terminal is unfocused.
+
+## Skills and cross-CLI compatibility
+
+Maximo Syntax reads the shared `SKILL.md` format and normalizes skills from
+Maximo, Agent Skills, Codex, Claude Code, Gemini CLI/Antigravity, Grok CLI, and
+OpenCode layouts. Existing native Maximo roots keep their normal precedence;
+provider-qualified aliases (for example `claude:review`) keep same-named skills
+addressable.
+
+Supported project roots are:
+
+- `.maximo/skills/`
+- `.agents/skills/`
+- `.claude/skills/`
+- `.gemini/skills/`
+- `.grok/skills/`
+- `.opencode/skills/`
+
+The same provider roots are checked in their documented user locations, such
+as `~/.agents/skills/`, Codex's `~/.codex/skills/` (or `$CODEX_HOME/skills/`),
+`~/.claude/skills/`, `~/.gemini/skills/`, `~/.grok/skills/`,
+`~/.config/opencode/skills/`, and the Antigravity Gemini skill roots.
+
+In the TUI:
+
+- Type `/skill-name` or `/skill-name arguments` to invoke a skill directly.
+- Type `$skill-name` inside a normal prompt to explicitly guide Maximo to load
+  that known skill before handling the rest of the prompt. Unknown `$words` and
+  shell variables such as `$HOME` remain ordinary text.
+- Run `/skills` to open the picker. Select a skill to insert its `/command`, or
+  select the creator.
+- Run `/skills create` or `/skill-creator` to create a reusable skill.
+  `/create-skill` and the legacy `/skillify` names remain aliases.
+- Run `/skills reload` after external changes. `/skills info <name>`,
+  `/skills use <name>`, `/skills link <path> [--scope user|workspace]`, and the
+  session-only `enable`/`disable` helpers are also available.
+
+Skills use a directory containing `SKILL.md`, for example:
+
+```text
+.agents/skills/release-notes/SKILL.md
+```
+
+The recommended portable frontmatter includes `name` and `description`; Maximo
+also supports compatible fields such as `allowed-tools`, `when_to_use`,
+`argument-hint`, `arguments`, `context`, `user-invocable`, and
+`disable-model-invocation`.
 
 ---
 

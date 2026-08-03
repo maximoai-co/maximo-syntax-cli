@@ -8,6 +8,8 @@ export type CursorDeclaration = {
   readonly relativeY: number
   /** The ink-box DOMElement whose yoga layout provides the absolute origin */
   readonly node: DOMElement
+  /** Whether the native terminal cursor should be visible at this position */
+  readonly visible: boolean
 }
 
 /**

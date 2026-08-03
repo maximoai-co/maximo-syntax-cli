@@ -65,8 +65,11 @@ You will use the AskUserQuestion to understand what the user wants to automate. 
 - If you think the skill will require arguments, suggest arguments based on what you observed. Make sure you understand what someone would need to provide.
 - If it's not clear, ask if this skill should run inline (in the current conversation) or forked (as a sub-agent with its own context). Forked is better for self-contained tasks that don't need mid-process user input; inline is better when the user wants to steer mid-process.
 - Ask where the skill should be saved. Suggest a default based on context (repo-specific workflows → repo, cross-repo personal workflows → user). Options:
-  - **This repo** (\`.maximo/skills/<name>/SKILL.md\`) — for workflows specific to this project
-  - **Personal** (\`~/.maximo/skills/<name>/SKILL.md\`) — follows you across all repos
+  - **This repo** (\`.agents/skills/<name>/SKILL.md\`) — portable across Maximo, Codex, Claude Code, Gemini CLI, Grok CLI, and OpenCode
+  - **Personal** (\`~/.agents/skills/<name>/SKILL.md\`) — follows you across all repos and compatible CLIs
+  - **Maximo-only** (\`.maximo/skills/<name>/SKILL.md\` or \`~/.maximo/skills/<name>/SKILL.md\`) — use when the workflow should stay private to Maximo
+
+Use a lowercase name containing only letters, numbers, and single hyphens (for example, \`release-notes\`). Never write outside the selected skill root, and never add executable scripts or hooks unless the user explicitly asks for them.
 
 **Round 3: Breaking down each step**
 For each major step, if it's not glaringly obvious, ask:
@@ -156,14 +159,11 @@ After writing, tell the user:
 `;
 
 export function registerSkillifySkill(): void {
-  if (process.env.USER_TYPE !== "ant") {
-    return;
-  }
-
   registerBundledSkill({
-    name: "skillify",
+    name: "skill-creator",
+    aliases: ["create-skill", "skillify"],
     description:
-      "Capture this session's repeatable process into a skill. Call at end of the process you want to capture with an optional description.",
+      "Create a portable SKILL.md from this session or from a process the user describes.",
     allowedTools: [
       "Read",
       "Write",

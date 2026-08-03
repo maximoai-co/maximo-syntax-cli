@@ -55,6 +55,10 @@ import { FILE_READ_TOOL_NAME } from "src/tools/FileReadTool/prompt.js";
 import { WEB_FETCH_TOOL_NAME } from "src/tools/WebFetchTool/prompt.js";
 import { errorMessage } from "../errors.js";
 import { getMaximoTempDir } from "../permissions/filesystem.js";
+import {
+  getAdditionalSkillDiscoveryLocations,
+  getSkillDiscoveryLocations,
+} from "../../skills/skillCompatibility.js";
 import type { PermissionRuleValue } from "../permissions/PermissionRule.js";
 import { ripgrepCommand } from "../ripgrep.js";
 
@@ -252,6 +256,28 @@ export function convertToSandboxRuntimeConfig(
   denyWrite.push(resolve(originalCwd, ".maximo", "skills"));
   if (cwd !== originalCwd) {
     denyWrite.push(resolve(cwd, ".maximo", "skills"));
+  }
+
+  // Compatibility skill roots are equally privileged because their SKILL.md
+  // files are auto-discovered and can grant tool permissions when invoked.
+  // Only add roots that already exist: denying a missing path can cause some
+  // sandbox backends to materialize a placeholder, while a newly created root
+  // is still protected by the normal permission checks above.
+  const compatibilitySkillLocations = [
+    ...getSkillDiscoveryLocations(cwd),
+    ...getAdditionalDirectoriesForMaximoMd().flatMap((directory) =>
+      getAdditionalSkillDiscoveryLocations(directory)
+    ),
+  ];
+  for (const location of compatibilitySkillLocations) {
+    if (location.provider === "maximo") continue;
+    try {
+      statSync(location.path);
+      denyWrite.push(resolve(location.path));
+    } catch {
+      // Missing compatibility root; FileWrite/FileEdit permission checks still
+      // classify the eventual path as a skill configuration path.
+    }
   }
 
   // SECURITY: Git's is_git_directory() treats cwd as a bare repo if it has

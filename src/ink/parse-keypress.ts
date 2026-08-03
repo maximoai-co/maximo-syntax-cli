@@ -248,7 +248,8 @@ export function parseMultipleKeypresses(
         if (response) {
           keys.push({ kind: 'response', sequence: token.value, response })
         } else {
-          const mouse = parseMouseEvent(token.value)
+          const mouse =
+            parseMouseEvent(token.value) ?? parseX10MouseEvent(token.value)
           if (mouse) {
             keys.push(mouse)
           } else {
@@ -275,7 +276,8 @@ export function parseMultipleKeypresses(
         // and silently drop it as a phantom click. Click/drag orphans leak
         // as visible garbage instead; deletable garbage beats silent loss.
         const resynthesized = '\x1b' + token.value
-        const mouse = parseMouseEvent(resynthesized)
+        const mouse =
+          parseMouseEvent(resynthesized) ?? parseX10MouseEvent(resynthesized)
         keys.push(mouse ?? parseKeypress(resynthesized))
       } else {
         keys.push(parseKeypress(token.value))
@@ -604,6 +606,33 @@ function parseMouseEvent(s: string): ParsedMouse | null {
     action: match[4] === 'M' ? 'press' : 'release',
     col: parseInt(match[2]!, 10),
     row: parseInt(match[3]!, 10),
+    sequence: s,
+  }
+}
+
+/**
+ * Parse the legacy X10 mouse format emitted by terminals that honor the
+ * 1000/1002 modes but ignore 1006. X10 has no explicit release terminator;
+ * button code 3 represents release, while bit 0x20 represents motion with a
+ * button held. Coordinates are encoded as 1-indexed cell positions + 32.
+ */
+function parseX10MouseEvent(s: string): ParsedMouse | null {
+  if (s.length !== 6 || !s.startsWith('\x1b[M')) return null
+
+  const button = s.charCodeAt(3) - 32
+  const col = s.charCodeAt(4) - 32
+  const row = s.charCodeAt(5) - 32
+  if (button < 0 || col < 1 || row < 1) return null
+  // Keep wheel events as ParsedKey so the existing scroll keybindings handle
+  // them exactly as they do for SGR mouse reports.
+  if ((button & 0x40) !== 0) return null
+
+  return {
+    kind: 'mouse',
+    button,
+    action: (button & 0x03) === 3 ? 'release' : 'press',
+    col,
+    row,
     sequence: s,
   }
 }

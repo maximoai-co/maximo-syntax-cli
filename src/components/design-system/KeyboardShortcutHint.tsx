@@ -1,6 +1,7 @@
 import { c as _c } from "react-compiler-runtime";
 import React from 'react';
 import Text from '../../ink/components/Text.js';
+import { getGlobalConfig } from '../../utils/config.js';
 type Props = {
   /** The key or chord to display (e.g., "ctrl+o", "Enter", "↑/↓") */
   shortcut: string;
@@ -45,6 +46,7 @@ export function KeyboardShortcutHint(t0) {
   } = t0;
   const parens = t1 === undefined ? false : t1;
   const bold = t2 === undefined ? false : t2;
+  if (getGlobalConfig().showContextualHints === false) return null;
   let t3;
   if ($[0] !== bold || $[1] !== shortcut) {
     t3 = bold ? <Text bold={true}>{shortcut}</Text> : shortcut;

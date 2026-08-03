@@ -25,7 +25,7 @@ import { LogUpdate } from './log-update.js';
 import { nodeCache } from './node-cache.js';
 import { optimize } from './optimizer.js';
 import Output from './output.js';
-import type { ParsedKey } from './parse-keypress.js';
+import type { ParsedKey, ParsedMouse } from './parse-keypress.js';
 import reconciler, { dispatcher, getLastCommitMs, getLastYogaMs, isDebugRepaintsEnabled, recordYogaMs, resetProfileCounters } from './reconciler.js';
 import renderNodeToOutput, { consumeFollowScroll, didLayoutShift } from './render-node-to-output.js';
 import { applyPositionedHighlight, type MatchPosition, scanPositions } from './render-to-screen.js';
@@ -34,10 +34,13 @@ import { CellWidth, CharPool, cellAt, createScreen, HyperlinkPool, isEmptyCellAt
 import { applySearchHighlight } from './searchHighlight.js';
 import { applySelectionOverlay, captureScrolledRows, clearSelection, createSelectionState, extendSelection, type FocusMove, findPlainTextUrlAt, getSelectedText, hasSelection, moveFocus, type SelectionState, selectLineAt, selectWordAt, shiftAnchor, shiftSelection, shiftSelectionForFollow, startSelection, updateSelection } from './selection.js';
 import { SYNC_OUTPUT_SUPPORTED, supportsExtendedKeys, type Terminal, writeDiffToTerminal } from './terminal.js';
-import { CURSOR_HOME, cursorMove, cursorPosition, DISABLE_KITTY_KEYBOARD, DISABLE_MODIFY_OTHER_KEYS, ENABLE_KITTY_KEYBOARD, ENABLE_MODIFY_OTHER_KEYS, ERASE_SCREEN } from './termio/csi.js';
-import { DBP, DFE, DISABLE_MOUSE_TRACKING, ENABLE_MOUSE_TRACKING, ENTER_ALT_SCREEN, EXIT_ALT_SCREEN, SHOW_CURSOR } from './termio/dec.js';
+import { BLINKING_BAR_CURSOR, CURSOR_HOME, cursorMove, cursorPosition, DEFAULT_CURSOR_STYLE, DISABLE_KITTY_KEYBOARD, DISABLE_MODIFY_OTHER_KEYS, ENABLE_KITTY_KEYBOARD, ENABLE_MODIFY_OTHER_KEYS, ERASE_SCREEN, REQUEST_CURSOR_POSITION } from './termio/csi.js';
+import { DBP, DFE, DISABLE_MOUSE_PROMPT_TRACKING, DISABLE_MOUSE_TRACKING, ENABLE_MOUSE_PROMPT_TRACKING, ENABLE_MOUSE_TRACKING, ENTER_ALT_SCREEN, EXIT_ALT_SCREEN, HIDE_CURSOR, SHOW_CURSOR } from './termio/dec.js';
 import { CLEAR_ITERM2_PROGRESS, CLEAR_TAB_STATUS, setClipboard, supportsTabStatus, wrapForMultiplexer } from './termio/osc.js';
 import { TerminalWriteProvider } from './useTerminalNotification.js';
+import { toPromptFrameRow, type PromptMouseEvent, type PromptMouseHandler } from './prompt-mouse.js';
+import { isMouseClicksDisabled, isMouseTrackingEnabled } from '../utils/fullscreen.js';
+import { isEnvTruthy } from '../utils/envUtils.js';
 
 // Alt-screen: renderer.ts sets cursor.visible = !isTTY || screen.height===0,
 // which is always false in alt-screen (TTY + content fills screen).
@@ -151,6 +154,12 @@ export default class Ink {
   // Set alongside altScreenActive so SIGCONT resume knows whether to
   // re-enable mouse tracking (not all <AlternateScreen> uses want it).
   private altScreenMouseTracking = false;
+  // Prompt mouse targets are deliberately separate from the general DOM
+  // click dispatcher. Main-screen node rects are valid for the prompt, but
+  // not for transcript hit-testing because scrollback changes their origin.
+  private readonly promptMouseTargets = new Map<dom.DOMElement, PromptMouseHandler>();
+  private promptMouseTarget: dom.DOMElement | null = null;
+  private promptMouseTracking = false;
   // True when the previous frame's screen buffer cannot be trusted for
   // blit — selection overlay mutated it, resetFramesForAltScreen()
   // replaced it with blanks, or forceRedraw() reset it to 0×0. Forces
@@ -177,6 +186,26 @@ export default class Ink {
     x: number;
     y: number;
   } | null = null;
+  // App hides the hardware cursor on mount. Focused text inputs opt back in
+  // through CursorDeclaration.visible; tracking this avoids redundant style
+  // changes while still restoring the user's cursor when the input blurs.
+  private nativeCursorVisible = false;
+  // Main-screen layout rows are relative to Maximo's first rendered line,
+  // while SGR mouse rows are absolute within the terminal viewport. A
+  // DECXCPR reply at the parked input caret gives the exact translation.
+  private promptMouseRowOffset: number | null = null;
+  private pendingCursorCalibrationY: number | null = null;
+  private pendingCalibrationFrameCursorY: number | null = null;
+  private lastCalibratedCursorY: number | null = null;
+  private lastCalibratedFrameCursorY: number | null = null;
+
+  private invalidatePromptMouseCalibration(): void {
+    this.promptMouseRowOffset = null;
+    this.pendingCursorCalibrationY = null;
+    this.pendingCalibrationFrameCursorY = null;
+    this.lastCalibratedCursorY = null;
+    this.lastCalibratedFrameCursorY = null;
+  }
   private reportRenderError = (label: string, error: unknown): void => {
     const message =
       error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -324,6 +353,10 @@ export default class Ink {
     // suspend. Clear displayCursor so the next frame's cursor preamble
     // doesn't emit a relative move from a stale park position.
     this.displayCursor = null;
+    this.invalidatePromptMouseCalibration();
+    if (this.promptMouseTracking) {
+      this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
+    }
   };
 
   // NOT debounced. A debounce opens a window where stdout.columns is NEW
@@ -341,6 +374,7 @@ export default class Ink {
     if (cols === this.terminalColumns && rows === this.terminalRows) return;
     this.terminalColumns = cols;
     this.terminalRows = rows;
+    this.invalidatePromptMouseCalibration();
     this.altScreenParkPatch = makeAltScreenParkPatch(this.terminalRows);
 
     // Alt screen: reset frame buffers so the next render repaints from
@@ -359,6 +393,9 @@ export default class Ink {
       }
       this.resetFramesForAltScreen();
       this.needsEraseBeforePaint = true;
+    }
+    if (!this.altScreenActive && !this.isPaused && this.options.stdout.isTTY && this.promptMouseTracking) {
+      this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
     }
 
     // Re-render the React tree with updated props so the context value changes.
@@ -758,8 +795,60 @@ export default class Ink {
         this.displayCursor = null;
       }
     }
+    const managesNativeCursor = !isEnvTruthy(
+      process.env.MAXIMO_SYNTAX_ACCESSIBILITY,
+    );
+    const shouldShowNativeCursor =
+      managesNativeCursor && target !== null && decl?.visible === true;
+    if (shouldShowNativeCursor) {
+      // DECSCUSR 5 is a blinking bar in xterm-compatible terminals, including
+      // VS Code's integrated terminal. Keep the old rendered inverse cell as
+      // a fallback for terminals that ignore DECSCUSR.
+      optimized.push({
+        type: 'stdout',
+        content: BLINKING_BAR_CURSOR + SHOW_CURSOR,
+      });
+      this.nativeCursorVisible = true;
+    } else if (managesNativeCursor && this.nativeCursorVisible) {
+      optimized.push({
+        type: 'stdout',
+        content: HIDE_CURSOR + DEFAULT_CURSOR_STYLE,
+      });
+      this.nativeCursorVisible = false;
+    }
+
     const tWrite = performance.now();
     writeDiffToTerminal(this.terminal, optimized, this.altScreenActive && !SYNC_OUTPUT_SUPPORTED);
+    // Keep prompt mouse reporting as the final terminal mode after every
+    // normal-screen frame. VS Code/xterm may recreate or reset terminal modes
+    // during focus/viewport transitions; a startup-only DECSET can therefore
+    // leave physical clicks handled by VS Code instead of delivered to Maximo.
+    if (
+      this.promptMouseTracking &&
+      !this.altScreenActive &&
+      !this.isPaused &&
+      this.options.stdout.isTTY
+    ) {
+      this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
+    }
+    if (
+      target !== null &&
+      this.promptMouseTracking &&
+      !this.altScreenActive &&
+      !this.isPaused &&
+      this.options.stdout.isTTY &&
+      this.pendingCursorCalibrationY === null &&
+      (this.promptMouseRowOffset === null ||
+        this.lastCalibratedCursorY !== target.y ||
+        this.lastCalibratedFrameCursorY !== frame.cursor.y)
+    ) {
+      // This query is emitted after the caret park, so the response row maps
+      // directly to target.y. DECXCPR's private '?' form is unambiguous with
+      // function-key input and is supported by VS Code/xterm.js.
+      this.pendingCursorCalibrationY = target.y;
+      this.pendingCalibrationFrameCursorY = frame.cursor.y;
+      this.options.stdout.write(REQUEST_CURSOR_POSITION);
+    }
     const writeMs = performance.now() - tWrite;
 
     // Update blit safety for the NEXT frame. The frame just rendered
@@ -838,6 +927,7 @@ export default class Ink {
     // Clear displayCursor so the cursor preamble doesn't emit a stale
     // relative move from where we last parked it.
     this.displayCursor = null;
+    this.invalidatePromptMouseCalibration();
   }
 
   /**
@@ -932,7 +1022,12 @@ export default class Ink {
     if (supportsExtendedKeys()) {
       this.options.stdout.write(DISABLE_KITTY_KEYBOARD + ENABLE_KITTY_KEYBOARD + ENABLE_MODIFY_OTHER_KEYS);
     }
-    if (!this.altScreenActive) return;
+    if (!this.altScreenActive) {
+      if (this.promptMouseTracking) {
+        this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
+      }
+      return;
+    }
     // Mouse tracking — idempotent, safe to re-assert on every stdin gap.
     if (this.altScreenMouseTracking) {
       this.options.stdout.write(ENABLE_MOUSE_TRACKING);
@@ -993,6 +1088,166 @@ export default class Ink {
   }
 
   /**
+   * Register a prompt or prompt-overlay node for click/drag dispatch.
+   *
+   * This intentionally does not use the general DOM click dispatcher: the
+   * main screen has scrollback between the rendered tree and terminal rows,
+   * while prompt target rects remain anchored to the current frame.
+   */
+  registerPromptMouseTarget(
+    node: dom.DOMElement,
+    handler: PromptMouseHandler,
+  ): () => void {
+    this.promptMouseTargets.set(node, handler);
+    this.updatePromptMouseTracking();
+
+    return () => {
+      if (this.promptMouseTargets.get(node) === handler) {
+        this.promptMouseTargets.delete(node);
+      }
+      if (this.promptMouseTarget === node) {
+        this.promptMouseTarget = null;
+      }
+      this.updatePromptMouseTracking();
+    };
+  }
+
+  private updatePromptMouseTracking(): void {
+    const enabled =
+      this.promptMouseTargets.size > 0 &&
+      isMouseTrackingEnabled() &&
+      !isMouseClicksDisabled();
+    this.setPromptMouseTracking(enabled);
+  }
+
+  private setPromptMouseTracking(enabled: boolean): void {
+    if (this.promptMouseTracking === enabled) return;
+    this.promptMouseTracking = enabled;
+    if (!this.options.stdout.isTTY || this.isPaused || this.altScreenActive) {
+      return;
+    }
+    this.options.stdout.write(
+      enabled ? ENABLE_MOUSE_PROMPT_TRACKING : DISABLE_MOUSE_PROMPT_TRACKING,
+    );
+  }
+
+  /** Dispatch a parsed SGR mouse event to the prompt target under the cursor. */
+  dispatchPromptMouse(m: ParsedMouse): boolean {
+    if (!this.promptMouseTracking || isMouseClicksDisabled()) return false;
+
+    const col = m.col - 1;
+    const row = toPromptFrameRow(
+      m.row,
+      this.promptMouseRowOffset,
+      this.altScreenActive,
+    );
+    const baseButton = m.button & 0x03;
+    const isMotion = (m.button & 0x20) !== 0;
+    const activeTarget = this.promptMouseTarget;
+    logForDebugging(
+      `[prompt-mouse] ${m.action} terminal=(${m.col},${m.row}) frame=(${col},${row}) rowOffset=${this.promptMouseRowOffset ?? 'uncalibrated'} targets=${this.promptMouseTargets.size}`,
+    );
+
+    // A no-button motion after a lost release is the last reliable signal on
+    // terminals that do not capture the pointer outside their window. Finish
+    // the prompt drag rather than leaving the editor in a pressed state.
+    if (m.action === 'press' && isMotion && baseButton === 3 && activeTarget) {
+      const rect = nodeCache.get(activeTarget);
+      const handler = this.promptMouseTargets.get(activeTarget);
+      if (rect && handler) {
+        handler(this.makePromptMouseEvent(m, rect, col, row, 'release'));
+        this.promptMouseTarget = null;
+        return true;
+      }
+      this.promptMouseTarget = null;
+      return false;
+    }
+
+    let target = activeTarget;
+    if (!target && m.action === 'press' && !isMotion && baseButton === 0) {
+      // Later targets paint over earlier targets, so walk in reverse insertion
+      // order when an overlay overlaps the prompt.
+      const targets = [...this.promptMouseTargets.keys()].reverse();
+      target = targets.find(node => {
+        const rect = nodeCache.get(node);
+        if (rect) {
+          logForDebugging(
+            `[prompt-mouse] candidate rect=(${rect.x},${rect.y},${rect.width},${rect.height})`,
+          );
+        }
+        return (
+          !!rect &&
+          col >= rect.x &&
+          col < rect.x + rect.width &&
+          row >= rect.y &&
+          row < rect.y + rect.height
+        );
+      }) ?? null;
+    }
+
+    // Only left-button presses start prompt interactions. Releases are routed
+    // to the target that received the press, even if the pointer left its box.
+    if (!target || (m.action === 'press' && baseButton !== 0)) return false;
+    const rect = nodeCache.get(target);
+    const handler = this.promptMouseTargets.get(target);
+    if (!rect || !handler) {
+      if (this.promptMouseTarget === target) this.promptMouseTarget = null;
+      return false;
+    }
+
+    if (m.action === 'press' && !isMotion) {
+      this.promptMouseTarget = target;
+    }
+    handler(this.makePromptMouseEvent(m, rect, col, row));
+    if (m.action === 'release') {
+      this.promptMouseTarget = null;
+    }
+    return true;
+  }
+
+  private handleCursorPosition = (row: number, _col: number): void => {
+    const requestedY = this.pendingCursorCalibrationY;
+    if (requestedY === null || this.altScreenActive) return;
+    this.promptMouseRowOffset = row - 1 - requestedY;
+    logForDebugging(
+      `[prompt-mouse] calibrated terminalRow=${row} frameY=${requestedY} rowOffset=${this.promptMouseRowOffset}`,
+    );
+    this.lastCalibratedCursorY = requestedY;
+    this.lastCalibratedFrameCursorY = this.pendingCalibrationFrameCursorY;
+    this.pendingCursorCalibrationY = null;
+    this.pendingCalibrationFrameCursorY = null;
+  };
+
+  private makePromptMouseEvent(
+    m: ParsedMouse,
+    rect: { x: number; y: number; width: number; height: number },
+    col: number,
+    row: number,
+    actionOverride?: 'press' | 'release',
+  ): PromptMouseEvent {
+    const inside =
+      col >= rect.x &&
+      col < rect.x + rect.width &&
+      row >= rect.y &&
+      row < rect.y + rect.height;
+    return {
+      action: actionOverride ?? m.action,
+      button: m.button,
+      col,
+      row,
+      localCol:
+        rect.width > 0
+          ? Math.max(0, Math.min(rect.width - 1, col - rect.x))
+          : 0,
+      localRow:
+        rect.height > 0
+          ? Math.max(0, Math.min(rect.height - 1, row - rect.y))
+          : 0,
+      inside,
+    };
+  }
+
+  /**
    * Seed prev/back frames with full-size BLANK screens (rows×cols of empty
    * cells, not 0×0). In alt-screen mode, next.screen.height is always
    * terminalRows; if prev.screen.height is 0 (emptyFrame's default),
@@ -1029,6 +1284,7 @@ export default class Ink {
     // resets), but a stale displayCursor would be misleading if we later
     // exit to main-screen without an intervening render.
     this.displayCursor = null;
+    this.invalidatePromptMouseCalibration();
     // Fresh frontFrame is blank rows×cols — blitting from it would copy
     // blanks over content. Next alt-screen frame must full-render.
     this.prevFrameContaminated = true;
@@ -1468,7 +1724,7 @@ export default class Ink {
   render(node: ReactNode): void {
     logForDebugging('[Ink:render] start');
     this.currentNode = node;
-    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onCursorDeclaration={this.setCursorDeclaration} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
+    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onPromptMouse={this.dispatchPromptMouse} isAltScreenActive={() => this.altScreenActive} onCursorDeclaration={this.setCursorDeclaration} onCursorPosition={this.handleCursorPosition} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
         <TerminalWriteProvider value={this.writeRaw}>
           {node}
         </TerminalWriteProvider>
@@ -1522,7 +1778,7 @@ export default class Ink {
       // Disable bracketed paste mode
       writeSync(1, DBP);
       // Show cursor
-      writeSync(1, SHOW_CURSOR);
+      writeSync(1, DEFAULT_CURSOR_STYLE + SHOW_CURSOR);
       // Clear iTerm2 progress bar
       writeSync(1, CLEAR_ITERM2_PROGRESS);
       // Clear tab status (OSC 21337) so a stale dot doesn't linger
@@ -1572,6 +1828,7 @@ export default class Ink {
       // frontFrame is reset, so frame.cursor on the next render is (0,0).
       // Clear displayCursor so the preamble doesn't compute a stale delta.
       this.displayCursor = null;
+      this.invalidatePromptMouseCalibration();
     }
   }
 

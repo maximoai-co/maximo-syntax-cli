@@ -12,6 +12,13 @@ import { readFileSync } from "fs";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 const version = pkg.version;
+const isDevelopmentBuild = process.argv.includes("--dev");
+const buildNodeEnv = isDevelopmentBuild ? "development" : "production";
+
+// Bun can otherwise infer NODE_ENV=development while bundling from a
+// checkout. Make the build mode explicit so release artifacts never inherit
+// the environment of the machine that produced them.
+process.env.NODE_ENV = buildNodeEnv;
 
 // Feature flags for the open build.
 // Most Anthropic-internal features stay off. TRANSCRIPT_CLASSIFIER is enabled
@@ -38,7 +45,9 @@ const featureFlags: Record<string, boolean> = {
   AWAY_SUMMARY: false,
   TRANSCRIPT_CLASSIFIER: true,
   WEB_BROWSER_TOOL: false,
-  MESSAGE_ACTIONS: false,
+  // Fullscreen transcript focus/navigation/copy/raw-view UX is supported by
+  // the open tree and is part of Maximo Syntax's public interaction model.
+  MESSAGE_ACTIONS: true,
   BUDDY: false,
   CHICAGO_MCP: false,
   COWORKER_TYPE_TELEMETRY: false,
@@ -70,6 +79,7 @@ const result = await Bun.build({
     "MACRO.VERSION": JSON.stringify("99.0.0"),
     "MACRO.DISPLAY_VERSION": JSON.stringify(version),
     "MACRO.BUILD_TIME": JSON.stringify(new Date().toISOString()),
+    "process.env.NODE_ENV": JSON.stringify(buildNodeEnv),
     // Distribution package identifiers. These MUST be defined so the updater,
     // installer, and doctor diagnostics reference Maximo's own packages instead
     // of falling back to @anthropic-ai/claude-code (which would make the two

@@ -3,6 +3,7 @@ import React, { createContext, type RefObject, useContext, useLayoutEffect, useM
 import type { Key } from '../ink.js';
 import { type ChordResolveResult, getBindingDisplayText, resolveKeyWithChordState } from './resolver.js';
 import type { KeybindingContextName, ParsedBinding, ParsedKeystroke } from './types.js';
+import { sortInteractionContexts } from '../interaction/interactionPriority.js';
 
 /** Handler registration for action callbacks */
 type HandlerRegistration = {
@@ -40,6 +41,9 @@ type KeybindingContextValue = {
 
   /** Invoke all handlers for an action (used by ChordInterceptor) */
   invokeAction: (action: string) => boolean;
+
+  /** Whether an action currently has a callable handler. */
+  hasActionHandler: (action: string) => boolean;
 };
 const KeybindingContext = createContext<KeybindingContextValue | null>(null);
 type ProviderProps = {
@@ -116,10 +120,13 @@ export function KeybindingProvider(t0) {
       if (!handlers_0 || handlers_0.size === 0) {
         return false;
       }
-      for (const registration_0 of handlers_0) {
-        if (activeContexts.has(registration_0.context)) {
-          registration_0.handler();
-          return true;
+      const contexts = sortInteractionContexts([...activeContexts, "Global"]);
+      for (const context of contexts) {
+        for (const registration_0 of handlers_0) {
+          if (registration_0.context === context) {
+            registration_0.handler();
+            return true;
+          }
         }
       }
       return false;
@@ -152,7 +159,8 @@ export function KeybindingProvider(t0) {
       registerActiveContext,
       unregisterActiveContext,
       registerHandler,
-      invokeAction
+      invokeAction,
+      hasActionHandler: action => (handlerRegistryRef.current?.get(action)?.size ?? 0) > 0
     };
     $[10] = activeContexts;
     $[11] = bindings;

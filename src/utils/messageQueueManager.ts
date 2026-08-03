@@ -291,6 +291,53 @@ export function remove(commandsToRemove: QueuedCommand[]): void {
   }
 }
 
+/** Move a queued command while preserving object identity and queue metadata. */
+export function moveQueuedCommand(command: QueuedCommand, delta: number): boolean {
+  const index = commandQueue.indexOf(command)
+  if (index < 0 || delta === 0) return false
+  const target = Math.max(0, Math.min(commandQueue.length - 1, index + delta))
+  if (target === index) return false
+  commandQueue.splice(index, 1)
+  commandQueue.splice(target, 0, command)
+  notifySubscribers()
+  return true
+}
+
+/** Change queue priority without dropping attachments or origin metadata. */
+export function setQueuedCommandPriority(
+  command: QueuedCommand,
+  priority: QueuePriority,
+): boolean {
+  const index = commandQueue.indexOf(command)
+  if (index < 0) return false
+  commandQueue[index] = { ...command, priority }
+  notifySubscribers()
+  return true
+}
+
+export type EditableQueuedCommand = {
+  text: string
+  mode: EditablePromptInputMode
+  pastedContents: Record<number, PastedContent>
+}
+
+/** Convert one safe user-authored queue item back into an atomic editor state. */
+export function takeQueuedCommandForEditing(
+  command: QueuedCommand,
+): EditableQueuedCommand | undefined {
+  if (!isQueuedCommandEditable(command)) return undefined
+  const index = commandQueue.indexOf(command)
+  if (index < 0) return undefined
+  commandQueue.splice(index, 1)
+  notifySubscribers()
+  logOperation('remove')
+  return {
+    text: extractTextFromValue(command.value),
+    mode: command.mode as EditablePromptInputMode,
+    pastedContents: { ...(command.pastedContents ?? {}) },
+  }
+}
+
 /**
  * Remove commands matching a predicate.
  * Returns the removed commands.

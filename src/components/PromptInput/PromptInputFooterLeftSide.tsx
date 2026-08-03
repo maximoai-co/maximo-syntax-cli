@@ -280,6 +280,7 @@ function ModeIndicator({
   const escShortcut = useShortcutDisplay('chat:cancel', 'Chat', 'esc').toLowerCase();
   const todosShortcut = useShortcutDisplay('app:toggleTodos', 'Global', 'ctrl+t');
   const killAgentsShortcut = useShortcutDisplay('chat:killAgents', 'Chat', 'ctrl+x ctrl+k');
+  const paletteShortcut = useShortcutDisplay('app:commandPalette', 'Global', 'ctrl+p');
   const voiceKeyShortcut = feature('VOICE_MODE') ?
   // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
   useShortcutDisplay('voice:pushToTalk', 'Chat', 'Space') : '';
@@ -408,9 +409,12 @@ function ModeIndicator({
   // reconciler throws on Box-in-Text. Computed here so the empty-checks
   // below still treat "pill present" as non-empty.
   const tasksPart = hasBackgroundTasks && !hasTeammatePills && !shouldHideTasksFooter(tasks, showSpinnerTree) ? <BackgroundTaskStatus tasksSelected={tasksSelected} isViewingTeammate={isViewingTeammate} teammateFooterIndex={teammateFooterIndex} isLeaderIdle={!isLoading} onOpenDialog={onOpenTasksDialog} /> : null;
-  if (parts.length === 0 && !tasksPart && !modePart && showHint) {
+  if (parts.length === 0 && !tasksPart && !modePart && showHint && (getGlobalConfig().showContextualHints ?? true)) {
     parts.push(<Text dimColor key="shortcuts-hint">
-        ? for shortcuts
+        <Byline>
+          <KeyboardShortcutHint shortcut={paletteShortcut} action="open palette" />
+          <Text>? for shortcuts</Text>
+        </Byline>
       </Text>);
   }
 

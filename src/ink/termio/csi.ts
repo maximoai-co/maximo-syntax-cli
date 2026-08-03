@@ -161,6 +161,15 @@ export function cursorPosition(row: number, col: number): string {
 /** Move cursor to home position (CSI H) */
 export const CURSOR_HOME = csi('H')
 
+/** Ask the terminal for its current 1-indexed row and column (DECXCPR). */
+export const REQUEST_CURSOR_POSITION = csi('?6n')
+
+/** Native terminal caret used while a text input is focused. */
+export const BLINKING_BAR_CURSOR = csi('5 q')
+
+/** Restore the terminal emulator's configured cursor style. */
+export const DEFAULT_CURSOR_STYLE = csi('0 q')
+
 /**
  * Move cursor relative to current position
  * Positive x = right, negative x = left

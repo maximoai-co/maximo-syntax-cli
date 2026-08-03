@@ -12,6 +12,7 @@ import type { ThemeName } from '../utils/theme.js'
 import type { LogOption } from './logs.js'
 import type { Message } from './message.js'
 import type { PluginManifest } from './plugin.js'
+import type { SkillProvider, SkillScope } from './skill.js'
 
 export type LocalCommandResult =
   | { type: 'text'; value: string }
@@ -39,6 +40,10 @@ export type PromptCommand = {
   hooks?: HooksSettings
   // Base directory for skill resources (used to set MAXIMO_SYNTAX_PLUGIN_ROOT environment variable for skill hooks)
   skillRoot?: string
+  // Provider and scope for file-based skills. These are optional so bundled,
+  // plugin, MCP, and legacy commands remain source-compatible.
+  skillProvider?: SkillProvider
+  skillScope?: SkillScope
   // Execution context: 'inline' (default) or 'fork' (run as sub-agent)
   // 'inline' = skill content expands into the current conversation
   // 'fork' = skill runs in a sub-agent with separate context and token budget

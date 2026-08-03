@@ -8,6 +8,7 @@ import { getOriginalCwd, getSessionTrustAccepted } from "../bootstrap/state.js";
 import { getAutoMemEntrypoint } from "../memdir/paths.js";
 import { logEvent } from "../services/analytics/index.js";
 import type { McpServerConfig } from "../services/mcp/types.js";
+import type { TerminalShortcutProfile } from "../keybindings/terminalProfiles.js";
 import type {
   BillingType,
   ReferralEligibilityResponse,
@@ -232,6 +233,15 @@ export type GlobalConfig = {
   // something the user has demonstrably ignored and shouldn't nag about.
   claudeAiMcpEverConnected?: string[];
   preferredNotifChannel: NotificationChannel;
+  /** Notify on response completion; focus gating prevents foreground noise. */
+  responseCompleteNotifEnabled?: boolean;
+  notifyOnlyWhenUnfocused?: boolean;
+  terminalShortcutProfile?: TerminalShortcutProfile;
+  displayMode?: "auto" | "fullscreen" | "inline" | "compact";
+  uiDensity?: "comfortable" | "compact";
+  promptBorderStyle?: "round" | "single" | "double" | "classic";
+  showContextualHints?: boolean;
+  reducedMotion?: boolean;
   /**
    * @deprecated. Use the Notification hook instead (docs/hooks.md).
    */
@@ -614,6 +624,14 @@ function createDefaultGlobalConfig(): GlobalConfig {
     autoUpdates: undefined,
     theme: "dark",
     preferredNotifChannel: "auto",
+    responseCompleteNotifEnabled: true,
+    notifyOnlyWhenUnfocused: true,
+    terminalShortcutProfile: "auto",
+    displayMode: "auto",
+    uiDensity: "comfortable",
+    promptBorderStyle: "round",
+    showContextualHints: true,
+    reducedMotion: false,
     verbose: false,
     editorMode: "normal",
     autoCompactEnabled: true,
@@ -657,6 +675,14 @@ export const GLOBAL_CONFIG_KEYS = [
   "theme",
   "verbose",
   "preferredNotifChannel",
+  "responseCompleteNotifEnabled",
+  "notifyOnlyWhenUnfocused",
+  "terminalShortcutProfile",
+  "displayMode",
+  "uiDensity",
+  "promptBorderStyle",
+  "showContextualHints",
+  "reducedMotion",
   "shiftEnterKeyBindingInstalled",
   "editorMode",
   "hasUsedBackslashReturn",
@@ -1367,6 +1393,11 @@ function saveConfigWithLock<A extends object>(
 
 // Flag to track if config reading is allowed
 let configReadingAllowed = false;
+
+/** Safe bootstrap probe for modules that can also run before init(). */
+export function isConfigReadingAllowed(): boolean {
+  return configReadingAllowed;
+}
 
 export function enableConfigs(): void {
   if (configReadingAllowed) {

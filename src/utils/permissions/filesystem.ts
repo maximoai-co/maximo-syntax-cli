@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import ignore from "ignore";
 import memoize from "lodash-es/memoize.js";
 import { homedir, tmpdir } from "os";
-import { join, normalize, posix, sep } from "path";
+import { join, normalize, posix, relative, sep } from "path";
 import { hasAutoMemPathOverride, isAutoMemPath } from "src/memdir/paths.js";
 import { isAgentMemoryPath } from "src/tools/AgentTool/agentMemory.js";
 import {
@@ -12,7 +12,11 @@ import {
   GLOBAL_CLAUDE_FOLDER_PERMISSION_PATTERN,
 } from "src/tools/FileEditTool/constants.js";
 import type { z } from "zod/v4";
-import { getOriginalCwd, getSessionId } from "../../bootstrap/state.js";
+import {
+  getAdditionalDirectoriesForMaximoMd,
+  getOriginalCwd,
+  getSessionId,
+} from "../../bootstrap/state.js";
 import { checkStatsigFeatureGate_CACHED_MAY_BE_STALE } from "../../services/analytics/growthbook.js";
 import type { AnyObject, Tool, ToolPermissionContext } from "../../Tool.js";
 import { FILE_READ_TOOL_NAME } from "../../tools/FileReadTool/prompt.js";
@@ -47,6 +51,10 @@ import type { PermissionRule, PermissionRuleSource } from "./PermissionRule.js";
 import { createReadRuleSuggestion } from "./PermissionUpdate.js";
 import type { PermissionUpdate } from "./PermissionUpdateSchema.js";
 import { getRuleByContentsForToolName } from "./permissions.js";
+import {
+  getAdditionalSkillDiscoveryLocations,
+  getSkillDiscoveryLocations,
+} from "../../skills/skillCompatibility.js";
 
 declare const MACRO: { VERSION: string };
 
@@ -92,30 +100,24 @@ export function normalizeCaseForComparison(path: string): string {
 }
 
 /**
- * If filePath is inside a .maximo/skills/{name}/ directory (project or global),
+ * If filePath is inside a supported skills/{name}/ directory (project or global),
  * return the skill name and a session-allow pattern scoped to just that skill.
  * Used to offer a narrower "allow edits to this skill only" option in the
  * permission dialog and SDK suggestions, so iterating on one skill doesn't
  * require granting session access to all of .maximo/ (settings.json, hooks/, etc.).
  */
-export function getMaximoSkillScope(
+export function getSkillScope(
   filePath: string
 ): { skillName: string; pattern: string } | null {
   const absolutePath = expandPath(filePath);
   const absolutePathLower = normalizeCaseForComparison(absolutePath);
 
-  const bases = [
-    {
-      dir: expandPath(join(getOriginalCwd(), ".maximo", "skills")),
-      prefix: "/.maximo/skills/",
-    },
-    {
-      dir: expandPath(join(homedir(), ".maximo", "skills")),
-      prefix: "~/.maximo/skills/",
-    },
-  ];
+  const locations = getSkillDiscoveryLocations(getOriginalCwd()).filter(
+    (location) => location.scope === "user" || location.scope === "project"
+  );
 
-  for (const { dir, prefix } of bases) {
+  for (const location of locations) {
+    const dir = expandPath(location.path);
     const dirLower = normalizeCaseForComparison(dir);
     // Try both path separators (Windows paths may not be normalized to /)
     for (const s of [sep, "/"]) {
@@ -148,6 +150,28 @@ export function getMaximoSkillScope(
         // produce '/.maximo/skills/*/**' which matches ALL skills. Return null
         // to fall through to generateSuggestions() instead.
         if (/[*?[\]]/.test(skillName)) return null;
+        const home = normalizeCaseForComparison(homedir());
+        const relativeToHome = relative(homedir(), dir).split(sep).join("/");
+        const relativeToCwd = relative(getOriginalCwd(), dir)
+          .split(sep)
+          .join("/");
+        let prefix: string | undefined;
+        if (
+          location.scope === "user" &&
+          !relativeToHome.startsWith("..") &&
+          !relativeToHome.startsWith("/") &&
+          normalizeCaseForComparison(dir).startsWith(`${home}/`)
+        ) {
+          prefix = `~/${relativeToHome}/`;
+        } else if (
+          location.scope === "project" &&
+          relativeToCwd !== "" &&
+          !relativeToCwd.startsWith("..") &&
+          !relativeToCwd.startsWith("/")
+        ) {
+          prefix = `/${relativeToCwd}/`;
+        }
+        if (!prefix) return null;
         return { skillName, pattern: prefix + skillName + "/**" };
       }
     }
@@ -155,6 +179,9 @@ export function getMaximoSkillScope(
 
   return null;
 }
+
+/** Backwards-compatible name used by existing permission consumers. */
+export const getMaximoSkillScope = getSkillScope;
 
 // Always use / as the path separator per gitignore spec
 // https://git-scm.com/docs/gitignore
@@ -228,17 +255,27 @@ function isMaximoConfigFilePath(filePath: string): boolean {
     return true;
   }
 
-  // Check if file is within .maximo/commands or .maximo/agents directories
+  // Check if file is within native Maximo config directories
   // using proper path segment validation (not string matching with includes())
   // pathInWorkingPath now handles case-insensitive comparison to prevent bypasses
   const commandsDir = join(getOriginalCwd(), ".maximo", "commands");
   const agentsDir = join(getOriginalCwd(), ".maximo", "agents");
   const skillsDir = join(getOriginalCwd(), ".maximo", "skills");
+  const additionalSkillRoots = getAdditionalDirectoriesForMaximoMd().flatMap(
+    (directory) =>
+      getAdditionalSkillDiscoveryLocations(directory).map(
+        (location) => location.path
+      )
+  );
 
   return (
     pathInWorkingPath(filePath, commandsDir) ||
     pathInWorkingPath(filePath, agentsDir) ||
-    pathInWorkingPath(filePath, skillsDir)
+    pathInWorkingPath(filePath, skillsDir) ||
+    getSkillDiscoveryLocations(getOriginalCwd()).some((location) =>
+      pathInWorkingPath(filePath, location.path)
+    ) ||
+    additionalSkillRoots.some((root) => pathInWorkingPath(filePath, root))
   );
 }
 

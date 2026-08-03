@@ -6,6 +6,7 @@ import type { Key } from '../ink.js'
 import type { PastedContent } from '../utils/config.js'
 import type { ImageDimensions } from '../utils/imageResizer.js'
 import type { TextHighlight } from '../utils/textHighlighting.js'
+import type { PromptTextSelection } from '../utils/promptSelection.js'
 import type { AgentId } from './ids.js'
 import type { AssistantMessage, MessageOrigin } from './message.js'
 
@@ -203,6 +204,15 @@ export type BaseTextInputProps = {
    * input drops the event.
    */
   readonly inputFilter?: (input: string, key: Key) => string
+
+  /** Current mouse/text selection in the input, when one is active. */
+  readonly selection?: PromptTextSelection | null
+
+  /** Called when keyboard editing collapses or replaces the selection. */
+  readonly onSelectionChange?: (selection: PromptTextSelection | null) => void
+
+  /** Called by copy/cut keybindings for the current selected text. */
+  readonly onCopySelection?: (text: string) => void
 }
 
 /**

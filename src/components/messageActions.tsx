@@ -142,6 +142,7 @@ export function toolCallOf(msg: NavigableMessage): {
 export type MessageActionCaps = {
   copy: (text: string) => void;
   edit: (msg: NormalizedUserMessage) => Promise<void>;
+  raw: (msg: NavigableMessage, text: string) => void;
 };
 
 // Identity builder — preserves tuple type so `run`'s param narrows (array literal widens without this).
@@ -172,6 +173,11 @@ export const MESSAGE_ACTIONS = [action({
   label: 'copy',
   types: NAVIGABLE_TYPES,
   run: (m, c) => c.copy(copyTextOf(m))
+}), action({
+  key: 'r',
+  label: 'raw view',
+  types: NAVIGABLE_TYPES,
+  run: (m, c) => c.raw(m, copyTextOf(m))
 }), action({
   key: 'p',
   // `!` safe: applies() guarantees toolName ∈ PRIMARY_INPUT.
