@@ -3,7 +3,7 @@ import { getCurrentInstallationType } from "src/utils/doctorDiagnostic.js";
 import { isEnvTruthy } from "src/utils/envUtils.js";
 import { useStartupNotification } from "./useStartupNotification.js";
 const NPM_DEPRECATION_MESSAGE =
-  "Maximo Syntax has switched from npm to native installer. Run `maximo install` or see https://docs.anthropic.com/en/docs/claude-code/getting-started for more options.";
+  "Maximo Syntax has switched from npm to native installer. Run `maximo install` or see https://maximoai.co/syntax for more options.";
 export function useNpmDeprecationNotification() {
   useStartupNotification(_temp);
 }

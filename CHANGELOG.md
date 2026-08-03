@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.21] - 2026-08-03
+
+### Fixed
+
+- **npm deprecation notice points at Maximo's own docs**: the startup notification shown to npm-installed users ("Maximo Syntax has switched from npm to native installer") now links to `https://maximoai.co/syntax` instead of Anthropic's Claude Code getting-started docs.
+
 ## [0.1.20] - 2026-08-02
 
 ### Added
