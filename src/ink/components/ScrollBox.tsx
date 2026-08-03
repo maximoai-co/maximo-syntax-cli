@@ -11,6 +11,14 @@ export type ScrollBoxHandle = {
   scrollTo: (y: number) => void;
   scrollBy: (dy: number) => void;
   /**
+   * Adjust scrollTop by delta without breaking sticky, without clearing
+   * pendingScrollDelta, and without treating this as a user gesture.
+   * Used by virtual-scroll height anchoring: when items above the viewport
+   * remeasure (estimate → real Yoga height), topSpacer shifts — without
+   * this compensation the conversation jumps under the user mid-scroll.
+   */
+  nudgeScrollTop: (dy: number) => void;
+  /**
    * Scroll so `el`'s top is at the viewport top (plus `offset`). Unlike
    * scrollTo which bakes a number that's stale by the time the throttled
    * render fires, this defers the position read to render time —
@@ -36,11 +44,10 @@ export type ScrollBoxHandle = {
    */
   getViewportTop: () => number;
   /**
-   * True when scroll is pinned to the bottom. Set by scrollToBottom, the
-   * initial stickyScroll attribute, and by the renderer when positional
-   * follow fires (scrollTop at prevMax, content grows). Cleared by
-   * scrollTo/scrollBy. Stable signal for "at bottom" that doesn't depend on
-   * layout values (unlike scrollTop+viewportH >= scrollHeight).
+   * True when scroll is pinned to the bottom. Set by scrollToBottom and the
+   * initial stickyScroll attribute. Cleared by scrollTo/scrollBy. Re-engaged
+   * only by explicit bottom gestures (wheel past end, End, jump pill) —
+   * content growth alone never re-pins. Stable signal for "at bottom".
    */
   isSticky: () => boolean;
   /**
@@ -148,6 +155,15 @@ function ScrollBox({
       // rate so fast flicks show intermediate frames. Pure accumulator:
       // scroll-up followed by scroll-down naturally cancels.
       el.pendingScrollDelta = (el.pendingScrollDelta ?? 0) + Math.floor(dy);
+      scrollMutated(el);
+    },
+    nudgeScrollTop(dy: number) {
+      const el = domRef.current;
+      if (!el || dy === 0) return;
+      // Keep sticky + pending intact — this is layout correction, not a
+      // user scroll. Clamped to ≥0; max is enforced on the next render
+      // pass (scrollHeight may be about to change with the same measure).
+      el.scrollTop = Math.max(0, Math.floor((el.scrollTop ?? 0) + dy));
       scrollMutated(el);
     },
     scrollToBottom() {

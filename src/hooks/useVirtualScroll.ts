@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
 } from 'react'
 import type { ScrollBoxHandle } from '../ink/components/ScrollBox.js'
@@ -15,8 +16,9 @@ import type { DOMElement } from '../ink/dom.js'
  * overestimating causes blank space (we stop mounting too early and the
  * viewport bottom shows empty spacer), while underestimating just mounts
  * a few extra items into overscan. The asymmetry means we'd rather err low.
+ * Kept modest so remeasure deltas stay small when scroll-anchoring applies.
  */
-const DEFAULT_ESTIMATE = 3
+const DEFAULT_ESTIMATE = 4
 /**
  * Extra rows rendered above and below the viewport. Generous because real
  * heights can be 10x the estimate for long tool results.
@@ -130,9 +132,9 @@ export type VirtualScrollResult = {
  * scroll height constant for the rest at O(1) fiber cost each.
  *
  * Height estimation: fixed DEFAULT_ESTIMATE for unmeasured items, replaced
- * by real Yoga heights after first layout. No scroll anchoring — overscan
- * absorbs estimate errors. If drift is noticeable in practice, anchoring
- * (scrollBy(delta) when topSpacer changes) is a straightforward followup.
+ * by real Yoga heights after first layout. When a remeasure changes height
+ * for an item above the viewport top, scrollTop is nudged by the same delta
+ * so the conversation does not jump under the user mid-scroll.
  *
  * stickyScroll caveat: render-node-to-output.ts:450 sets scrollTop=maxScroll
  * during Ink's render phase, which does NOT fire ScrollBox.subscribe. The
@@ -164,6 +166,10 @@ export function useVirtualScroll(
   // Bump whenever heightCache mutates so offsets rebuild on next read. Ref
   // (not state) — checked during render phase, zero extra commits.
   const offsetVersionRef = useRef(0)
+  // Layout-effect height remeasures schedule one React re-render so spacers
+  // rebuild with real heights in the same frame flush (before Ink paints).
+  // Paired with nudgeScrollTop anchoring so the view does not jump.
+  const [, setMeasureEpoch] = useState(0)
   // scrollTop at last commit, for detecting fast-scroll mode (slide cap gate).
   const lastScrollTopRef = useRef(0)
   const offsetsRef = useRef<{ arr: Float64Array; version: number; n: number }>({
@@ -611,11 +617,12 @@ export function useVirtualScroll(
   // at the start boundary freezes the range (seen as blank viewport when
   // scrolling down after scrolling up).
   //
-  // NO setState. A setState here would schedule a second commit with
-  // shifted offsets, and since Ink writes stdout on every commit
-  // (reconciler.resetAfterCommit → onRender), that's two writes with
-  // different spacer heights → visible flicker. Heights propagate to
-  // offsets on the next natural render. One-frame lag, absorbed by overscan.
+  // Measure → anchor → re-render before paint. When an item above the
+  // viewport remeasures (estimate→real), topSpacer would shift and the
+  // conversation would jump; nudgeScrollTop keeps the visual stable.
+  // setMeasureEpoch flushes a second layout pass in the same commit cycle
+  // (React 18 useLayoutEffect → setState) so Ink paints once with correct
+  // spacers — not two stdout frames with different heights.
   useLayoutEffect(() => {
     const spacerYoga = spacerRef.current?.yogaNode
     if (spacerYoga && spacerYoga.getComputedWidth() > 0) {
@@ -625,7 +632,10 @@ export function useVirtualScroll(
       skipMeasurementRef.current = false
       return
     }
+    const scrollTopNow = scrollRef.current?.getScrollTop() ?? -1
+    const stickyNow = scrollRef.current?.isSticky() ?? true
     let anyChanged = false
+    let anchorDelta = 0
     for (const [key, el] of itemRefs.current) {
       const yoga = el.yogaNode
       if (!yoga) continue
@@ -633,15 +643,44 @@ export function useVirtualScroll(
       const prev = heightCache.current.get(key)
       if (h > 0) {
         if (prev !== h) {
+          const oldH = prev ?? DEFAULT_ESTIMATE
+          // Yoga still reflects pre-remeasure layout this effect; itemTop
+          // is the position used for the frame that just committed.
+          const itemTop = yoga.getComputedTop()
+          if (
+            !stickyNow &&
+            scrollTopNow >= 0 &&
+            itemTop < scrollTopNow
+          ) {
+            // Item intersects or sits above the viewport top — growth/shrink
+            // above the fold must move scrollTop or content teleports.
+            anchorDelta += h - oldH
+          }
           heightCache.current.set(key, h)
           anyChanged = true
         }
       } else if (yoga.getComputedWidth() > 0 && prev !== 0) {
+        if (prev !== undefined && prev > 0) {
+          const itemTop = yoga.getComputedTop()
+          if (!stickyNow && scrollTopNow >= 0 && itemTop < scrollTopNow) {
+            anchorDelta += 0 - prev
+          }
+        }
         heightCache.current.set(key, 0)
         anyChanged = true
       }
     }
-    if (anyChanged) offsetVersionRef.current++
+    if (!anyChanged) return
+    offsetVersionRef.current++
+    if (anchorDelta !== 0) {
+      scrollRef.current?.nudgeScrollTop(anchorDelta)
+    }
+    // Force a same-cycle re-render only when the user is scrolled up.
+    // While sticky, the parent already re-renders on every stream token;
+    // setState here would double-commit and thrash the follow path.
+    if (!stickyNow) {
+      setMeasureEpoch(e => e + 1)
+    }
   })
 
   // Stable per-key callback refs. React's ref-swap dance (old(null) then

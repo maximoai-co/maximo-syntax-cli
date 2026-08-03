@@ -103,24 +103,21 @@ export function consumeFollowScroll(): FollowScroll | null {
   return f
 }
 
-// ── Native terminal drain (iTerm2/Ghostty/etc. — proportional events) ──
-// Minimum rows applied per frame. Above this, drain is proportional (~3/4
-// of remaining) so big bursts catch up in log₄ frames while the tail
-// decelerates smoothly. Hard cap is innerHeight-1 so DECSTBM hint fires.
-const SCROLL_MIN_PER_FRAME = 4
+// ── Smooth scroll drain (all hosts) ──
+// Slow clicks (≤INSTANT rows pending) drain fully in one frame so a single
+// wheel notch feels immediate. Larger pending drains in small fixed steps
+// across frames — the old native "drain ¾ of remaining" path jumped 15–75
+// rows per frame and felt like the view was teleporting.
+const SCROLL_INSTANT_THRESHOLD = 3 // ≤ this: drain all at once
+const SCROLL_STEP_MED = 2 // moderate backlog
+const SCROLL_STEP_HIGH = 4 // large backlog / fast flick
+const SCROLL_HIGH_PENDING = 16
+const SCROLL_MAX_PENDING = 48 // snap excess beyond animation window
+// Hard cap per frame so DECSTBM blit+shift still fires (shift < viewport).
+// Also keeps one frame of motion visually continuous (~¼ screen max).
+const SCROLL_MAX_STEP_FRACTION = 4 // innerHeight / 4
 
-// ── xterm.js (VS Code) smooth drain ──
-// Low pending (≤5) drains ALL in one frame — slow wheel clicks should be
-// instant (click → visible jump → done), not micro-stutter 1-row frames.
-// Higher pending drains at a small fixed step so fast-scroll animation
-// stays smooth (no big jumps). Pending >MAX snaps excess.
-const SCROLL_INSTANT_THRESHOLD = 5 // ≤ this: drain all at once
-const SCROLL_HIGH_PENDING = 12 // threshold for HIGH step
-const SCROLL_STEP_MED = 2 // pending (INSTANT, HIGH): catch-up
-const SCROLL_STEP_HIGH = 3 // pending ≥ HIGH: fast flick
-const SCROLL_MAX_PENDING = 30 // snap excess beyond this
-
-// xterm.js adaptive drain. Returns rows applied; mutates pendingScrollDelta.
+// Adaptive drain. Returns rows applied; mutates pendingScrollDelta.
 function drainAdaptive(
   node: DOMElement,
   pending: number,
@@ -129,12 +126,11 @@ function drainAdaptive(
   const sign = pending > 0 ? 1 : -1
   let abs = Math.abs(pending)
   let applied = 0
-  // Snap excess beyond animation window so big flicks don't coast.
+  // Snap excess beyond animation window so big flicks don't coast forever.
   if (abs > SCROLL_MAX_PENDING) {
     applied += sign * (abs - SCROLL_MAX_PENDING)
     abs = SCROLL_MAX_PENDING
   }
-  // ≤5: drain all (slow click = instant). Above: small fixed step.
   const step =
     abs <= SCROLL_INSTANT_THRESHOLD
       ? abs
@@ -143,36 +139,29 @@ function drainAdaptive(
         : SCROLL_STEP_HIGH
   applied += sign * step
   const rem = abs - step
-  // Cap total at innerHeight-1 so DECSTBM blit+shift fast path fires
-  // (matches drainProportional). Excess stays in pendingScrollDelta.
-  const cap = Math.max(1, innerHeight - 1)
+  // Cap motion per frame: ≤¼ viewport (and ≤ viewport-1 for DECSTBM).
+  const frameCap = Math.max(
+    1,
+    Math.min(innerHeight - 1, Math.floor(innerHeight / SCROLL_MAX_STEP_FRACTION)),
+  )
   const totalAbs = Math.abs(applied)
-  if (totalAbs > cap) {
-    const excess = totalAbs - cap
+  if (totalAbs > frameCap) {
+    const excess = totalAbs - frameCap
     node.pendingScrollDelta = sign * (rem + excess)
-    return sign * cap
+    return sign * frameCap
   }
   node.pendingScrollDelta = rem > 0 ? sign * rem : undefined
   return applied
 }
 
-// Native proportional drain. step = max(MIN, floor(abs*3/4)), capped at
-// innerHeight-1 so DECSTBM + blit+shift fast path fire.
+// Native drain — same small-step curve as adaptive. Previously drained
+// ~¾ of pending each frame (huge jumps). Smooth catch-up over a few frames.
 function drainProportional(
   node: DOMElement,
   pending: number,
   innerHeight: number,
 ): number {
-  const abs = Math.abs(pending)
-  const cap = Math.max(1, innerHeight - 1)
-  const step = Math.min(cap, Math.max(SCROLL_MIN_PER_FRAME, (abs * 3) >> 2))
-  if (abs <= step) {
-    node.pendingScrollDelta = undefined
-    return pending
-  }
-  const applied = pending > 0 ? step : -step
-  node.pendingScrollDelta = pending - applied
-  return applied
+  return drainAdaptive(node, pending, innerHeight)
 }
 
 // OSC 8 hyperlink escape sequences. Empty params (;;) — ansi-tokenize only
@@ -804,13 +793,17 @@ function renderNodeToOutput(
           // commit). But THROTTLE the drain when already past the clamp so
           // scrollTop doesn't race 5000 rows ahead of the mounted range
           // (slide-cap would then take 200 commits to catch up = long
-          // perceived stall at the edge). Past-clamp drain caps at ~4 rows/
-          // frame, roughly matching React's slide rate so the gap stays
-          // bounded and catch-up is quick once input stops.
+          // perceived stall at the edge). Past-clamp drain uses the same
+          // small-step curve so catch-up stays smooth (not stop-start).
           const pastClamp =
             haveClamp &&
             ((pending < 0 && cur < cMin) || (pending > 0 && cur > cMax))
-          const eff = pastClamp ? Math.min(4, innerHeight >> 3) : innerHeight
+          // When past clamp, still drain with the smooth curve but against a
+          // small synthetic viewport so we don't race thousands of rows ahead
+          // of the mounted range in one frame.
+          const eff = pastClamp
+            ? Math.max(8, Math.min(16, innerHeight >> 2))
+            : innerHeight
           cur += isXtermJsHost()
             ? drainAdaptive(node, pending, eff)
             : drainProportional(node, pending, eff)

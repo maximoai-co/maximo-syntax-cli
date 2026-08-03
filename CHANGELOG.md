@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Smooth scroll while the agent is working (once-and-for-all)**: the "cursor keeps getting pushed down" jank is fixed. Sticky follow is flag-only — manual scroll breaks follow and content growth will not re-pin until you return to the bottom (wheel past the end, End, or the jump-to-bottom pill).
 - **Main-screen fallback**: if you force inline mode, wheel still suspends prompt mouse tracking and **suppresses caret park/calibration** while you scroll so streaming re-renders cannot yank the viewport back to the prompt.
 
+## [0.1.23] - 2026-08-03
+
+### Fixed
+
+- **Scroll no longer jumps mid-gesture**: virtualized rows remeasure estimate→real heights; that used to shift content under the viewport. Height changes above the fold now **anchor** via `nudgeScrollTop` (adjusts scrollTop without breaking sticky or treating it as a user gesture). Wheel drain uses small per-frame steps (not “¾ of remaining”), wheel acceleration caps are lower so trackpad/mouse motion stays continuous, and past-clamp catch-up uses the same smooth curve instead of racing ahead.
+
 ## [0.1.21] - 2026-08-03
 
 ### Fixed

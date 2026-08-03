@@ -44,9 +44,11 @@ type Props = {
 // iTerm2 "faster scroll" similar) — base=1 is correct there. Others send 1
 // event/notch — users on those can set MAXIMO_SYNTAX_SCROLL_SPEED=3 to match
 // vim/nvim/opencode app-side defaults. We can't detect which, so knob it.
+// Caps kept modest so trackpad bursts stay smooth (large mult + big drain
+// steps used to make the transcript feel like it was jumping).
 const WHEEL_ACCEL_WINDOW_MS = 40;
-const WHEEL_ACCEL_STEP = 0.3;
-const WHEEL_ACCEL_MAX = 6;
+const WHEEL_ACCEL_STEP = 0.25;
+const WHEEL_ACCEL_MAX = 4;
 
 // Encoder bounce debounce + wheel-mode decay curve. Worn/cheap optical
 // encoders emit spurious reverse-direction ticks during fast spins — measured
@@ -63,17 +65,12 @@ const WHEEL_ACCEL_MAX = 6;
 // once a bounce confirms it's a mouse, the decay curve applies until an idle
 // gap or trackpad-flick-burst signals a possible device switch.
 const WHEEL_BOUNCE_GAP_MAX_MS = 200; // flip-back must arrive within this
-// Mouse is ~9 events/sec vs VS Code's ~30 — STEP is 3× xterm.js's 5 to
-// compensate. At gap=100ms (m≈0.63): one click gives 1+15*0.63≈10.5.
-const WHEEL_MODE_STEP = 15;
-const WHEEL_MODE_CAP = 15;
-// Max mult growth per event. Without this, the +STEP*m term jumps mult
-// from 1→10 in one event when wheelMode engages mid-scroll (bounce
-// detected after N events in trackpad mode at mult=1). User sees scroll
-// suddenly go 10× faster. Cap=3 gives 1→4→7→10→13→15 over ~0.5s at
-// 9 events/sec — smooth ramp instead of a jump. Decay is unaffected
-// (target<mult wins the min).
-const WHEEL_MODE_RAMP = 3;
+// Mouse is ~9 events/sec vs VS Code's ~30. Kept lower than the original
+// STEP=15/CAP=15 so sustained wheel doesn't leap a full viewport per notch.
+const WHEEL_MODE_STEP = 6;
+const WHEEL_MODE_CAP = 8;
+// Max mult growth per event — smooth ramp into wheel mode.
+const WHEEL_MODE_RAMP = 2;
 // Device-switch disengage: mouse finger-repositions max at ~830ms (measured);
 // trackpad between-gesture pauses are 2000ms+. An idle gap above this means
 // the user stopped — might have switched devices. Disengage; the next mouse
@@ -90,15 +87,15 @@ const WHEEL_MODE_IDLE_DISENGAGE_MS = 1500;
 // adaptive drain at ~200fps (measured) handles. Higher cap → pending explosion.
 // Tuned empirically (boris 2026-03). See docs/research/terminal-scroll-*.
 const WHEEL_DECAY_HALFLIFE_MS = 150;
-const WHEEL_DECAY_STEP = 5;
+const WHEEL_DECAY_STEP = 3;
 // Same-batch events (<BURST_MS) arrive in one stdin batch — the terminal
 // is doing proportional reporting. Treat as 1 row/event like native.
 const WHEEL_BURST_MS = 5;
 // Cap boundary: slow events (≥GAP_MS) cap low for short smooth drains;
 // fast events cap higher for throughput (adaptive drain handles backlog).
 const WHEEL_DECAY_GAP_MS = 80;
-const WHEEL_DECAY_CAP_SLOW = 3; // gap ≥ GAP_MS: precision
-const WHEEL_DECAY_CAP_FAST = 6; // gap < GAP_MS: throughput
+const WHEEL_DECAY_CAP_SLOW = 2; // gap ≥ GAP_MS: precision
+const WHEEL_DECAY_CAP_FAST = 4; // gap < GAP_MS: throughput
 // Idle threshold: gaps beyond this reset to the kick value (2) so the
 // first click after a pause feels responsive regardless of direction.
 const WHEEL_DECAY_IDLE_MS = 500;
