@@ -63,6 +63,21 @@ After installation, you can invoke the CLI using any of the following commands:
 
 All five commands are equivalent and natively supported.
 
+## Scrolling (app-managed by default)
+
+Interactive sessions use **fullscreen alt-screen scroll** by default (`displayMode:
+auto`), the same approach as Grok Build: an in-app ScrollBox owns the wheel and
+keyboard scroll, sticky follow only while you are pinned to the bottom, and
+streaming output cannot yank the viewport while you read earlier turns.
+
+- **Wheel / trackpad** — scroll the conversation; follow pauses automatically.
+- **PgUp / PgDn** — page through the transcript from the prompt.
+- **End / jump-to-bottom pill** — resume follow of new output.
+- **Wheel past the bottom** — also re-enables follow.
+
+Prefer native terminal scrollback instead? Set Display mode to `inline` in
+`/config`, or `export MAXIMO_SYNTAX_NO_FLICKER=0`.
+
 ## Prompt mouse controls
 
 The prompt supports terminal-native mouse editing in both inline and
@@ -77,11 +92,6 @@ fullscreen layouts:
   copied/cut with the usual `Ctrl/Cmd-C` and `Ctrl/Cmd-X` shortcuts.
 - Click a visible slash-command or file suggestion to accept that row
   immediately. Keyboard navigation remains available.
-
-Application-level dispatch is limited to the prompt and suggestion boxes. The
-terminal’s mouse-reporting mode is global while it is enabled, so users who
-need native terminal scrollback selection should use this switch before
-starting Maximo Syntax:
 
 ```bash
 # Keep the prompt from enabling mouse reporting.
@@ -122,20 +132,21 @@ then `Q` in VS Code). The pane supports:
 - `Ctrl+Up` / `Ctrl+Down` to reorder it.
 - Typing to filter the queue.
 
-Open the detailed transcript with `Ctrl+O`. Fullscreen scrollback supports
-mouse-wheel and keyboard scrolling, `/` incremental search, `N`/`Shift+N`
-match navigation, text selection and copy, and automatic follow while pinned
-to the bottom. Manual scrolling pauses follow; returning to the bottom resumes
-it. Press `Shift+Up` or click a message to focus it, then use Up/Down or `J`/`K`
-to move between turns, Enter to fold or expand supported rows, `C` to copy,
-`R` for raw view, and Escape to return. Press `[` to dump the complete expanded
+Open the detailed transcript with `Ctrl+O`. Scrollback supports mouse-wheel
+and keyboard scrolling, `/` incremental search, `N`/`Shift+N` match navigation,
+text selection and copy, and automatic follow while pinned to the bottom.
+Manual scrolling pauses follow; returning to the bottom resumes it. Press
+`Shift+Up` or click a message to focus it, then use Up/Down or `J`/`K` to move
+between turns, Enter to fold or expand supported rows, `C` to copy, `R` for
+raw view, and Escape to return. Press `[` to dump the complete expanded
 transcript into native terminal scrollback, or `V` to open it in `$VISUAL` or
 `$EDITOR`.
 
-`/config` also exposes display mode (auto, fullscreen, inline, compact), UI
-density, prompt border style, reduced motion, contextual shortcut hints, and
-response-completion notifications. Notifications can be limited to times when
-the terminal is unfocused.
+`/config` also exposes display mode (`auto` = fullscreen scroll by default;
+`inline` = native terminal scrollback; `fullscreen` / `compact` force the
+alt-screen layout), UI density, prompt border style, reduced motion, contextual
+shortcut hints, and response-completion notifications. Notifications can be
+limited to times when the terminal is unfocused.
 
 ## Skills and cross-CLI compatibility
 

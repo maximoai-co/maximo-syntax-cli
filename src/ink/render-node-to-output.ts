@@ -728,10 +728,6 @@ function renderNodeToOutput(
         // paddingTop), and innerHeight already subtracts padding, so
         // including it double-counts padding and inflates maxScroll.
         const scrollHeight = contentYoga?.getComputedHeight() ?? 0
-        // Capture previous scroll bounds BEFORE overwriting — the at-bottom
-        // follow check compares against last frame's max.
-        const prevScrollHeight = node.scrollHeight ?? scrollHeight
-        const prevInnerHeight = node.scrollViewportHeight ?? innerHeight
         node.scrollHeight = scrollHeight
         node.scrollViewportHeight = innerHeight
         // Absolute screen-buffer row where the scrollable area (inside
@@ -759,47 +755,23 @@ function renderNodeToOutput(
           }
           node.scrollAnchor = undefined
         }
-        // At-bottom follow. Positional: if scrollTop was at (or past) the
-        // previous max, pin to the new max. Scroll away → stop following;
-        // scroll back (or scrollToBottom/sticky attr) → resume. The sticky
-        // flag is OR'd in for cold start (scrollTop=0 before first layout)
-        // and scrollToBottom-from-far-away (flag set before scrollTop moves)
-        // — the imperative field takes precedence over the attribute so
-        // scrollTo/scrollBy can break stickiness. pendingDelta<0 guard:
-        // don't cancel an in-flight scroll-up when content races in.
+        // At-bottom follow — flag-only, same contract as Grok Build's
+        // follow_mode: only pin when sticky is true. User scroll sets
+        // stickyScroll=false (scrollTo/scrollBy); content growth must NOT
+        // re-engage follow just because scrollTop was near max (that was
+        // yanking the viewport back down while users tried to read earlier
+        // output during streaming). Re-engage only via scrollToBottom /
+        // wheel-down past max (scrollDown → scrollToBottom). pendingDelta<0
+        // guard: don't cancel an in-flight scroll-up when content races in.
         // Capture scrollTop before follow so ink.tsx can translate any
         // active text selection by the same delta (native terminal behavior:
         // view keeps scrolling, highlight walks up with the text).
         const scrollTopBeforeFollow = node.scrollTop ?? 0
         const sticky =
           node.stickyScroll ?? Boolean(node.attributes['stickyScroll'])
-        const prevMaxScroll = Math.max(0, prevScrollHeight - prevInnerHeight)
-        // Positional check only valid when content grew — virtualization can
-        // transiently SHRINK scrollHeight (tail unmount + stale heightCache
-        // spacer) making scrollTop >= prevMaxScroll true by artifact, not
-        // because the user was at bottom.
-        const grew = scrollHeight >= prevScrollHeight
-        const atBottom =
-          sticky || (grew && scrollTopBeforeFollow >= prevMaxScroll)
-        if (atBottom && (node.pendingScrollDelta ?? 0) >= 0) {
+        if (sticky && (node.pendingScrollDelta ?? 0) >= 0) {
           node.scrollTop = maxScroll
           node.pendingScrollDelta = undefined
-          // Sync flag so useVirtualScroll's isSticky() agrees with positional
-          // state — sticky-broken-but-at-bottom (wheel tremor, click-select
-          // at max) otherwise leaves useVirtualScroll's clamp holding the
-          // viewport short of new streaming content. scrollTo/scrollBy set
-          // false; this restores true, same as scrollToBottom() would.
-          // Only restore when (a) positionally at bottom and (b) the flag
-          // was explicitly broken (===false) by scrollTo/scrollBy. When
-          // undefined (never set by user action) leave it alone — setting it
-          // would make the sticky flag sticky-by-default and lock out
-          // direct scrollTop writes (e.g. the alt-screen-perf test).
-          if (
-            node.stickyScroll === false &&
-            scrollTopBeforeFollow >= prevMaxScroll
-          ) {
-            node.stickyScroll = true
-          }
         }
         const followDelta = (node.scrollTop ?? 0) - scrollTopBeforeFollow
         if (followDelta > 0) {

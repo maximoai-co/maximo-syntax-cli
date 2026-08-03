@@ -37,6 +37,7 @@ import {
 } from '../../Tool.js'
 import type { BashToolInput } from '../../tools/BashTool/BashTool.js'
 import { startSpeculativeClassifierCheck } from '../../tools/BashTool/bashPermissions.js'
+import { emitClassifierDecision } from '../../utils/classifierDecisionEvents.js'
 import { BASH_TOOL_NAME } from '../../tools/BashTool/toolName.js'
 import { FILE_EDIT_TOOL_NAME } from '../../tools/FileEditTool/constants.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
@@ -943,6 +944,24 @@ async function checkPermissionsAndCallTool(
         `(mode=${permissionMode}, behavior=${permissionDecision.behavior})`,
       { level: 'info' },
     )
+  }
+
+  // Stream-json hosts (desktop) need per-tool classifier outcomes. Interactive
+  // TUI still uses classifierApprovals; this side-channel is host-agnostic.
+  if (
+    (feature('TRANSCRIPT_CLASSIFIER') || feature('BASH_CLASSIFIER')) &&
+    permissionDecision.decisionReason?.type === 'classifier' &&
+    (permissionDecision.behavior === 'allow' ||
+      permissionDecision.behavior === 'deny')
+  ) {
+    emitClassifierDecision({
+      toolUseId: toolUseID,
+      toolName: tool.name,
+      decision:
+        permissionDecision.behavior === 'allow' ? 'allowed' : 'denied',
+      classifier: permissionDecision.decisionReason.classifier,
+      reason: permissionDecision.decisionReason.reason,
+    })
   }
 
   // Emit tool_decision OTel event and code-edit counter if the interactive

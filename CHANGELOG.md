@@ -4,6 +4,21 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.22] - 2026-08-03
+
+### Added
+
+- **Classifier decisions on stream-json**: auto-mode and bash classifier outcomes (allowed/denied) are now emitted as `system`/`classifier_decision` messages on `stream-json` output, so desktop and SDK hosts can show "allowed/denied by classifier" next to each tool use — matching the TUI's in-memory labels.
+
+### Changed
+
+- **App-managed fullscreen scroll is now the default** (`displayMode: auto`): interactive sessions render through an alt-screen ScrollBox like Grok Build's pager, so wheel/PgUp/PgDn scroll an in-app viewport with sticky follow instead of fighting native terminal scrollback. Opt out with `/config` → Display mode → `inline`, or `MAXIMO_SYNTAX_NO_FLICKER=0`.
+
+### Fixed
+
+- **Smooth scroll while the agent is working (once-and-for-all)**: the "cursor keeps getting pushed down" jank is fixed. Sticky follow is flag-only — manual scroll breaks follow and content growth will not re-pin until you return to the bottom (wheel past the end, End, or the jump-to-bottom pill).
+- **Main-screen fallback**: if you force inline mode, wheel still suspends prompt mouse tracking and **suppresses caret park/calibration** while you scroll so streaming re-renders cannot yank the viewport back to the prompt.
+
 ## [0.1.21] - 2026-08-03
 
 ### Fixed

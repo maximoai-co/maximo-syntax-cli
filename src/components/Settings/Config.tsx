@@ -874,6 +874,8 @@ export function Config({
     {
       id: "displayMode",
       label: "Display mode",
+      // auto = app-managed fullscreen scroll (default). inline = native
+      // terminal scrollback. Restart the session after changing.
       value: String(globalConfig.displayMode ?? "auto"),
       options: ["auto", "fullscreen", "inline", "compact"],
       type: "enum",

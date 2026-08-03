@@ -26,3 +26,21 @@ export function toPromptFrameRow(
 ): number {
   return terminalRow - 1 - (altScreen ? 0 : (mainScreenRowOffset ?? 0))
 }
+
+/**
+ * Whether a key should suspend main-screen prompt mouse tracking so the
+ * terminal's native scrollback can receive subsequent wheel events.
+ *
+ * DEC 1000 (used for click-to-place on the normal screen) captures the
+ * wheel; without suspension, native scroll is dead while the CLI runs —
+ * especially painful while a response is streaming and the user tries to
+ * read earlier output. Fullscreen leaves tracking alone (ScrollBox handles
+ * the wheel via keybindings).
+ */
+export function shouldSuspendPromptMouseForNativeScroll(
+  keyName: string | undefined,
+  altScreenActive: boolean,
+): boolean {
+  if (altScreenActive) return false
+  return keyName === 'wheelup' || keyName === 'wheeldown'
+}

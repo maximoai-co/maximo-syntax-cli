@@ -14,6 +14,7 @@ import {
   type ParsedMouse,
   parseMultipleKeypresses,
 } from "../parse-keypress.js";
+import { shouldSuspendPromptMouseForNativeScroll } from "../prompt-mouse.js";
 import reconciler from "../reconciler.js";
 import {
   finishSelection,
@@ -119,6 +120,9 @@ type Props = {
   // When false, unconsumed mouse events must not enter fullscreen transcript
   // selection. Optional to preserve the small App fixtures used by tests.
   readonly isAltScreenActive?: () => boolean;
+  // Main-screen wheel: suspend prompt DEC mouse modes so native scrollback
+  // can receive subsequent wheel notches. Optional for test fixtures.
+  readonly onSuspendPromptMouseForScroll?: () => void;
   // Receives the declared native-cursor position from useDeclaredCursor
   // so ink.tsx can park the terminal cursor there after each frame.
   // Enables IME composition at the input caret and lets screen readers /
@@ -609,6 +613,22 @@ function processKeysInBatch(
       handleMouseEvent(app, item);
       continue;
     }
+
+    // Main-screen wheel: prompt mouse tracking (DEC 1000) captures the
+    // wheel so the emulator never scrolls its own scrollback. Suspend
+    // tracking so subsequent notches reach native scroll. Fullscreen is
+    // handled by ScrollKeybindingHandler — leave mouse modes alone there.
+    // Wheel stays kind:'key' (parse-keypress); this runs before handlers.
+    if (
+      app.props.isAltScreenActive &&
+      shouldSuspendPromptMouseForNativeScroll(
+        item.name,
+        app.props.isAltScreenActive(),
+      )
+    ) {
+      app.props.onSuspendPromptMouseForScroll?.();
+    }
+
     const sequence = item.sequence;
 
     // Handle terminal focus events (DECSET 1004)

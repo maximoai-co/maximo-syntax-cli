@@ -160,6 +160,17 @@ export default class Ink {
   private readonly promptMouseTargets = new Map<dom.DOMElement, PromptMouseHandler>();
   private promptMouseTarget: dom.DOMElement | null = null;
   private promptMouseTracking = false;
+  // Main-screen only: DEC 1000 captures the wheel, so native terminal
+  // scrollback dies while tracking is on. When the user wheels on the
+  // normal screen (no ScrollBox), we suspend tracking so subsequent
+  // notches reach the emulator. Resume after a short idle so click-to-
+  // place still works between scroll sessions. Fullscreen (alt-screen)
+  // never suspends — ScrollKeybindingHandler owns the wheel there.
+  private promptMouseTrackingSuspendedForScroll = false;
+  private promptMouseScrollResumeTimer: ReturnType<typeof setTimeout> | null =
+    null;
+  /** Idle after last main-screen wheel before re-enabling prompt mouse. */
+  private static readonly PROMPT_MOUSE_SCROLL_RESUME_MS = 1500;
   // True when the previous frame's screen buffer cannot be trusted for
   // blit — selection overlay mutated it, resetFramesForAltScreen()
   // replaced it with blanks, or forceRedraw() reset it to 0×0. Forces
@@ -354,7 +365,7 @@ export default class Ink {
     // doesn't emit a relative move from a stale park position.
     this.displayCursor = null;
     this.invalidatePromptMouseCalibration();
-    if (this.promptMouseTracking) {
+    if (this.promptMouseTracking && !this.promptMouseTrackingSuspendedForScroll) {
       this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
     }
   };
@@ -394,7 +405,13 @@ export default class Ink {
       this.resetFramesForAltScreen();
       this.needsEraseBeforePaint = true;
     }
-    if (!this.altScreenActive && !this.isPaused && this.options.stdout.isTTY && this.promptMouseTracking) {
+    if (
+      !this.altScreenActive &&
+      !this.isPaused &&
+      this.options.stdout.isTTY &&
+      this.promptMouseTracking &&
+      !this.promptMouseTrackingSuspendedForScroll
+    ) {
       this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
     }
 
@@ -720,7 +737,14 @@ export default class Ink {
     // translation) — if the declared node didn't render (stale declaration
     // after remount, or scrolled out of view), it won't be in the cache
     // and no move is emitted.
-    const decl = this.cursorDeclaration;
+    //
+    // Main-screen scroll suspension: never park/calibrate while the user is
+    // viewing native scrollback. Cursor CUP/move sequences force many
+    // terminals (VS Code, iTerm2) to scroll the viewport so the cursor stays
+    // visible — that was the "keeps pushing my cursor down" jank.
+    const suppressMainScreenCursorPark =
+      !this.altScreenActive && this.promptMouseTrackingSuspendedForScroll;
+    const decl = suppressMainScreenCursorPark ? null : this.cursorDeclaration;
     const rect = decl !== null ? nodeCache.get(decl.node) : undefined;
     const target = decl !== null && rect !== undefined ? {
       x: rect.x + decl.relativeX,
@@ -823,8 +847,11 @@ export default class Ink {
     // normal-screen frame. VS Code/xterm may recreate or reset terminal modes
     // during focus/viewport transitions; a startup-only DECSET can therefore
     // leave physical clicks handled by VS Code instead of delivered to Maximo.
+    // Skip while suspended for native scroll — otherwise streaming re-renders
+    // would re-enable DEC 1000 mid-scroll and steal the wheel again.
     if (
       this.promptMouseTracking &&
+      !this.promptMouseTrackingSuspendedForScroll &&
       !this.altScreenActive &&
       !this.isPaused &&
       this.options.stdout.isTTY
@@ -834,6 +861,7 @@ export default class Ink {
     if (
       target !== null &&
       this.promptMouseTracking &&
+      !this.promptMouseTrackingSuspendedForScroll &&
       !this.altScreenActive &&
       !this.isPaused &&
       this.options.stdout.isTTY &&
@@ -979,6 +1007,13 @@ export default class Ink {
     this.altScreenActive = active;
     this.altScreenMouseTracking = active && mouseTracking;
     if (active) {
+      // Fullscreen owns the wheel via ScrollBox — clear any main-screen
+      // suspension so it doesn't leak if the user later returns to inline.
+      if (this.promptMouseScrollResumeTimer) {
+        clearTimeout(this.promptMouseScrollResumeTimer);
+        this.promptMouseScrollResumeTimer = null;
+      }
+      this.promptMouseTrackingSuspendedForScroll = false;
       this.resetFramesForAltScreen();
     } else {
       this.repaint();
@@ -1023,7 +1058,10 @@ export default class Ink {
       this.options.stdout.write(DISABLE_KITTY_KEYBOARD + ENABLE_KITTY_KEYBOARD + ENABLE_MODIFY_OTHER_KEYS);
     }
     if (!this.altScreenActive) {
-      if (this.promptMouseTracking) {
+      if (
+        this.promptMouseTracking &&
+        !this.promptMouseTrackingSuspendedForScroll
+      ) {
         this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
       }
       return;
@@ -1126,14 +1164,69 @@ export default class Ink {
     if (!this.options.stdout.isTTY || this.isPaused || this.altScreenActive) {
       return;
     }
+    // Logical enable while scroll-suspended: remember the intent but do not
+    // write DECSET — that would steal the wheel from native scrollback.
+    if (enabled && this.promptMouseTrackingSuspendedForScroll) {
+      return;
+    }
     this.options.stdout.write(
       enabled ? ENABLE_MOUSE_PROMPT_TRACKING : DISABLE_MOUSE_PROMPT_TRACKING,
     );
   }
 
+  /**
+   * Main-screen wheel: drop DEC mouse modes so later wheel events reach the
+   * terminal's native scrollback, and suppress caret park so re-renders
+   * don't yank the viewport back to the prompt. Fullscreen is a no-op —
+   * ScrollBox owns the wheel there. Prefer fullscreen (default) over this
+   * path; this is the inline-mode escape hatch only.
+   */
+  suspendPromptMouseForNativeScroll = (): void => {
+    if (this.altScreenActive) return;
+    this.promptMouseTrackingSuspendedForScroll = true;
+    if (this.promptMouseScrollResumeTimer) {
+      clearTimeout(this.promptMouseScrollResumeTimer);
+    }
+    // Longer idle than a single flick: trackpad gestures + reading time
+    // between notches. Reset on every wheel so continuous scroll stays free.
+    this.promptMouseScrollResumeTimer = setTimeout(() => {
+      this.promptMouseScrollResumeTimer = null;
+      this.resumePromptMouseAfterScroll();
+    }, Ink.PROMPT_MOUSE_SCROLL_RESUME_MS);
+    if (
+      this.promptMouseTracking &&
+      this.options.stdout.isTTY &&
+      !this.isPaused
+    ) {
+      this.options.stdout.write(DISABLE_MOUSE_PROMPT_TRACKING);
+    }
+  };
+
+  private resumePromptMouseAfterScroll(): void {
+    if (!this.promptMouseTrackingSuspendedForScroll) return;
+    this.promptMouseTrackingSuspendedForScroll = false;
+    if (
+      this.promptMouseTracking &&
+      this.options.stdout.isTTY &&
+      !this.isPaused &&
+      !this.altScreenActive
+    ) {
+      this.options.stdout.write(ENABLE_MOUSE_PROMPT_TRACKING);
+    }
+  }
+
   /** Dispatch a parsed SGR mouse event to the prompt target under the cursor. */
   dispatchPromptMouse(m: ParsedMouse): boolean {
-    if (!this.promptMouseTracking || isMouseClicksDisabled()) return false;
+    // While suspended for native scroll, DEC modes are off so click reports
+    // should not arrive; guard anyway so a stale buffered event can't land
+    // mid-scroll.
+    if (
+      !this.promptMouseTracking ||
+      this.promptMouseTrackingSuspendedForScroll ||
+      isMouseClicksDisabled()
+    ) {
+      return false;
+    }
 
     const col = m.col - 1;
     const row = toPromptFrameRow(
@@ -1724,7 +1817,7 @@ export default class Ink {
   render(node: ReactNode): void {
     logForDebugging('[Ink:render] start');
     this.currentNode = node;
-    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onPromptMouse={this.dispatchPromptMouse} isAltScreenActive={() => this.altScreenActive} onCursorDeclaration={this.setCursorDeclaration} onCursorPosition={this.handleCursorPosition} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
+    const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onPromptMouse={this.dispatchPromptMouse} isAltScreenActive={() => this.altScreenActive} onSuspendPromptMouseForScroll={this.suspendPromptMouseForNativeScroll} onCursorDeclaration={this.setCursorDeclaration} onCursorPosition={this.handleCursorPosition} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
         <TerminalWriteProvider value={this.writeRaw}>
           {node}
         </TerminalWriteProvider>
@@ -1793,6 +1886,10 @@ export default class Ink {
     if (this.drainTimer !== null) {
       clearTimeout(this.drainTimer);
       this.drainTimer = null;
+    }
+    if (this.promptMouseScrollResumeTimer !== null) {
+      clearTimeout(this.promptMouseScrollResumeTimer);
+      this.promptMouseScrollResumeTimer = null;
     }
 
     // @ts-expect-error updateContainerSync exists in react-reconciler but not in @types/react-reconciler

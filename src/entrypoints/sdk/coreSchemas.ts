@@ -1623,6 +1623,29 @@ export const SDKLocalCommandOutputMessageSchema = lazySchema(() =>
     )
 );
 
+export const SDKClassifierDecisionMessageSchema = lazySchema(() =>
+  z
+    .object({
+      type: z.literal("system"),
+      subtype: z.literal("classifier_decision"),
+      tool_use_id: z.string(),
+      tool_name: z.string(),
+      decision: z.enum(["allowed", "denied"]),
+      classifier: z
+        .string()
+        .describe('Classifier id, e.g. "auto-mode" or "bash".'),
+      reason: z
+        .string()
+        .optional()
+        .describe("Human-readable reason from the classifier, when available."),
+      uuid: UUIDPlaceholder(),
+      session_id: z.string(),
+    })
+    .describe(
+      "Emitted when auto-mode or bash classifier allows or denies a tool use. Hosts should show this next to the matching tool activity.",
+    ),
+);
+
 export const SDKHookStartedMessageSchema = lazySchema(() =>
   z.object({
     type: z.literal("system"),
@@ -1884,6 +1907,7 @@ export const SDKMessageSchema = lazySchema(() =>
     SDKStatusMessageSchema(),
     SDKAPIRetryMessageSchema(),
     SDKLocalCommandOutputMessageSchema(),
+    SDKClassifierDecisionMessageSchema(),
     SDKHookStartedMessageSchema(),
     SDKHookProgressMessageSchema(),
     SDKHookResponseMessageSchema(),

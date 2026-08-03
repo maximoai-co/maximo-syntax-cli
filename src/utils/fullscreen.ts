@@ -106,9 +106,15 @@ export function _resetTmuxControlModeProbeForTesting(): void {
 }
 
 /**
- * Runtime env-var check only. Ants default to on (MAXIMO_SYNTAX_NO_FLICKER=0
- * to opt out); external users default to off (MAXIMO_SYNTAX_NO_FLICKER=1 to
- * opt in).
+ * Whether the interactive REPL uses alt-screen + app-managed ScrollBox.
+ *
+ * Default is ON for `displayMode: auto` — same model as Grok Build's pager:
+ * wheel/PgUp/PgDn scroll an in-app viewport, sticky follow only while the
+ * user is pinned to the bottom, and streaming re-renders cannot yank the
+ * terminal's native scrollback or park the cursor out from under the user.
+ *
+ * Opt out: `displayMode: inline` in config, or `MAXIMO_SYNTAX_NO_FLICKER=0`.
+ * Force on: `displayMode: fullscreen|compact`, or `MAXIMO_SYNTAX_NO_FLICKER=1`.
  */
 export function isFullscreenEnvEnabled(): boolean {
   // Explicit user opt-out always wins.
@@ -123,13 +129,15 @@ export function isFullscreenEnvEnabled(): boolean {
     if (!loggedTmuxCcDisable) {
       loggedTmuxCcDisable = true
       logForDebugging(
-        'fullscreen disabled: tmux -CC (iTerm2 integration mode) detected · set MAXIMO_SYNTAX_NO_FLICKER=1 to override',
+        'fullscreen disabled: tmux -CC (iTerm2 integration mode) detected · set displayMode=fullscreen or MAXIMO_SYNTAX_NO_FLICKER=1 to override',
       )
     }
     return false
   }
   if (displayMode === 'fullscreen' || displayMode === 'compact') return true
-  return process.env.USER_TYPE === 'ant'
+  // auto → app-managed scroll (fullscreen). Native main-screen scrollback
+  // cannot coexist with continuous TUI re-renders + caret parking.
+  return true
 }
 
 /**

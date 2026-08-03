@@ -98,6 +98,7 @@ import {
 import { expandPath } from "src/utils/path.js";
 import { extractReadFilesFromMessages } from "src/utils/queryHelpers.js";
 import { registerHookEventHandler } from "src/utils/hooks/hookEvents.js";
+import { registerClassifierDecisionHandler } from "src/utils/classifierDecisionEvents.js";
 import { executeFilePersistence } from "src/utils/filePersistence/filePersistence.js";
 import { finalizePendingAsyncHooks } from "src/utils/hooks/AsyncHookRegistry.js";
 import {
@@ -669,6 +670,24 @@ export async function runHeadless(
         }
       })();
       void structuredIO.write(message);
+    });
+  }
+
+  // Always emit classifier decisions on stream-json so desktop / SDK hosts can
+  // show "allowed/denied by classifier" next to each tool (matches TUI labels).
+  if (options.outputFormat === "stream-json") {
+    registerClassifierDecisionHandler((event) => {
+      void structuredIO.write({
+        type: "system" as StdoutMessage["type"],
+        subtype: "classifier_decision",
+        tool_use_id: event.toolUseId,
+        tool_name: event.toolName,
+        decision: event.decision,
+        classifier: event.classifier,
+        reason: event.reason,
+        uuid: randomUUID(),
+        session_id: getSessionId(),
+      } as StdoutMessage);
     });
   }
 

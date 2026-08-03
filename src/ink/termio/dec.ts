@@ -59,10 +59,15 @@ export const DISABLE_MOUSE_TRACKING =
   decreset(DEC.MOUSE_BUTTON) +
   decreset(DEC.MOUSE_NORMAL)
 
-// Prompt-only tracking keeps the normal terminal screen usable while still
-// reporting left-button clicks and drags over the prompt. We intentionally do
-// not enable mode 1003 (all-motion/hover), which would capture every pointer
+// Prompt-only tracking reports left-button clicks and drags over the prompt
+// without mode 1003 (all-motion/hover), which would capture every pointer
 // movement and make native terminal selection more fragile.
+//
+// Note: mode 1000 still captures the mouse wheel (button 64/65). On the
+// normal (non-alt) screen that steals native scrollback unless Ink suspends
+// these modes on wheel — see Ink.suspendPromptMouseForNativeScroll. Do not
+// re-assert ENABLE while that suspension is active (streaming frames used
+// to re-enable mid-scroll and break scroll while the CLI was working).
 export const ENABLE_MOUSE_PROMPT_TRACKING =
   decset(DEC.MOUSE_NORMAL) +
   decset(DEC.MOUSE_BUTTON) +
