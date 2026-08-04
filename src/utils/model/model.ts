@@ -83,6 +83,12 @@ function getOpenAIProviderDefaultModel(fallback: string): string {
   if (baseUrl.includes("maximoai.co")) {
     return "maximo-pandora-3.8-nano";
   }
+  if (baseUrl.includes("openrouter.ai/api/v1")) {
+    return globalConfig.openAIModel || "openai/gpt-5.4";
+  }
+  if (baseUrl.includes("opencode.ai/zen/")) {
+    return globalConfig.openAIModel || "deepseek-v4-flash";
+  }
   return fallback;
 }
 

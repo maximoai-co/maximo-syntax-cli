@@ -187,6 +187,15 @@ export type MyTabulonAccountInfo = {
   updatedAt: string;
 };
 
+export type OpenAICompatibleProvider =
+  | "maximoai"
+  | "mytabulon"
+  | "cencori"
+  | "openrouter"
+  | "opencode";
+
+export type OpenCodePlan = "zen" | "go";
+
 // TODO: 'emacs' is kept for backward compatibility - remove after a few releases
 export type EditorMode = "emacs" | (typeof EDITOR_MODES)[number];
 
@@ -254,8 +263,10 @@ export type GlobalConfig = {
   primaryApiKey?: string; // Primary API key for the user when no environment variable is set, set via oauth (TODO: rename)
   maximoApiKey?: string; // Maximo AI API key for OpenAI-compatible API access
   openAIBaseUrl?: string; // Base URL for OpenAI-compatible API (e.g., https://api.maximoai.co/v1)
+  openAIProvider?: OpenAICompatibleProvider;
   cencoriApiKey?: string; // Cencori API key for OpenAI-compatible API access
   openAIModel?: string; // Default model for an OpenAI-compatible provider
+  openCodePlan?: OpenCodePlan;
   mytabulonDefaultModel?: string;
   mytabulonAccount?: MyTabulonAccountInfo;
   hasAcknowledgedCostThreshold?: boolean;
@@ -716,8 +727,10 @@ export const GLOBAL_CONFIG_KEYS = [
   "remoteDialogSeen",
   "maximoApiKey",
   "openAIBaseUrl",
+  "openAIProvider",
   "cencoriApiKey",
   "openAIModel",
+  "openCodePlan",
 ] as const;
 
 export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number];

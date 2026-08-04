@@ -419,7 +419,10 @@ export const FileReadTool = buildTool({
   renderToolUseErrorMessage,
   async validateInput({ file_path, pages }, toolUseContext: ToolUseContext) {
     // Validate pages parameter (pure string parsing, no I/O)
-    if (pages !== undefined) {
+    // Models sometimes serialize an omitted optional field as an empty string.
+    // Treat that the same as an omitted pages filter instead of rejecting an
+    // otherwise valid image or file read.
+    if (pages !== undefined && pages.trim() !== "") {
       const parsed = parsePDFPageRange(pages);
       if (!parsed) {
         return {

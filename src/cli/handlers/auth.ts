@@ -11,6 +11,10 @@ import {
 import { getSSLErrorHint } from "../../services/api/errorUtils.js";
 import { fetchAndStoreMaximoCodeFirstTokenDate } from "../../services/api/firstTokenDate.js";
 import {
+  configureOpenCodeProvider,
+  configureOpenRouterProvider,
+} from "../../services/api/maximoModels.js";
+import {
   createAndStoreApiKey,
   fetchAndStoreUserRoles,
   refreshOAuthToken,
@@ -31,6 +35,7 @@ import {
   validateForceLoginOrg,
 } from "../../utils/auth.js";
 import { saveGlobalConfig } from "../../utils/config.js";
+import type { OpenCodePlan } from "../../utils/config.js";
 import { logForDebugging } from "../../utils/debug.js";
 import { isRunningOnHomespace } from "../../utils/envUtils.js";
 import { errorMessage } from "../../utils/errors.js";
@@ -103,8 +108,10 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
       ...current,
       maximoApiKey: tokens.accessToken,
       openAIBaseUrl: "https://api.maximoai.co/v1",
+      openAIProvider: "maximoai",
       mytabulonDefaultModel: undefined,
       mytabulonAccount: undefined,
+      openCodePlan: undefined,
     }));
 
     // Set environment variables for immediate use in this session
@@ -130,12 +137,58 @@ export async function authLogin({
   sso,
   console: useConsole,
   maximoai,
+  openrouter,
+  opencode,
+  opencodePlan,
+  apiKey,
 }: {
   email?: string;
   sso?: boolean;
   console?: boolean;
   maximoai?: boolean;
+  openrouter?: boolean;
+  opencode?: boolean;
+  opencodePlan?: string;
+  apiKey?: string;
 }): Promise<void> {
+  if (openrouter || opencode) {
+    if (useConsole || maximoai || sso || (openrouter && opencode)) {
+      process.stderr.write(
+        "Error: choose exactly one OpenAI-compatible provider for this login.\n",
+      );
+      process.exit(1);
+    }
+    if (!apiKey?.trim()) {
+      process.stderr.write(
+        "Error: an API key is required. Use --api-key or the interactive /login flow.\n",
+      );
+      process.exit(1);
+    }
+    if (opencodePlan && opencodePlan !== "zen" && opencodePlan !== "go") {
+      process.stderr.write("Error: --opencode-plan must be zen or go.\n");
+      process.exit(1);
+    }
+
+    try {
+      const result = openrouter
+        ? await configureOpenRouterProvider(apiKey)
+        : await configureOpenCodeProvider(
+            apiKey,
+            (opencodePlan ?? "zen") as OpenCodePlan,
+          );
+      if (result.warning) process.stderr.write(`${result.warning}\n`);
+      saveGlobalConfig((current) => ({
+        ...current,
+        hasCompletedOnboarding: true,
+      }));
+      process.stdout.write("Login successful.\n");
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`Login failed: ${errorMessage(err)}\n`);
+      process.exit(1);
+    }
+  }
+
   if (useConsole && maximoai) {
     process.stderr.write(
       "Error: --console and --maximoai cannot be used together.\n"

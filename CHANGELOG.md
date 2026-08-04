@@ -4,6 +4,27 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.24] - 2026-08-04
+
+### Added
+
+- **OpenRouter provider**: `maximo login --openrouter --api-key <key>` (or the `login` TUI picker) configures OpenRouter as an OpenAI-compatible provider. Chat requests go through the documented `https://openrouter.ai/api/v1/chat/completions` endpoint with `HTTP-Referer`/`X-OpenRouter-Title` headers, and the model list is loaded from `https://openrouter.ai/api/v1/models`. Default model `openai/gpt-5.4`.
+- **OpenCode provider**: `maximo login --opencode --opencode-plan zen|go --api-key <key>` (or the TUI picker, which first asks Zen or Go) connects OpenCode Zen or Go through its OpenAI-compatible Chat Completions endpoint (`https://opencode.ai/zen/v1` or `https://opencode.ai/zen/go/v1`). Only models documented for those endpoints are offered. Default model `deepseek-v4-flash`.
+- **Tests**: OpenRouter/OpenCode endpoint routing, OpenCode model filtering, buffered vision turns, PDF document-block forwarding, large-image forwarding without a native processor, and FileRead empty-`pages` tolerance.
+
+### Changed
+
+- **Vision turns are buffered for OpenAI-compatible providers**: some OpenAI-compatible vision gateways open an image stream and never close it, which previously hung the turn. When a streamed request contains image content, the shim now sends it as a single buffered request and re-emits the response as the Anthropic-style stream events the agent loop already consumes. Text-only turns still stream.
+- **PDF document blocks now reach Chat Completions**: `Read`-produced PDFs previously vanished for OpenAI-compatible providers; they're now forwarded as standard `file` parts with a data URL (or URL) payload.
+- **Provider identity is tracked in global config**: new `openAIProvider` and `openCodePlan` keys record the active OpenAI-compatible provider and OpenCode plan, are cleared on logout, and `openAIBaseUrl` no longer implies a Maximo default model. The cached model catalog is discarded on provider switch so you never see another provider's model list.
+
+### Fixed
+
+- **Valid images no longer stall on packaged builds**: release builds stub optional native image processors, and a missing processor previously blocked oversized-but-valid Read results. Images within the API's encoded-size limit now forward unchanged even when their dimensions exceed the client-side quality hint (the provider resizes server-side), and only the header dimensions are used when no processor exists.
+- **FileRead accepts an empty `pages` value**: models sometimes serialize an omitted optional field as an empty string; `pages: ""` is now treated like an omitted page filter instead of rejecting an otherwise valid read.
+- **Provider-specific model defaults**: the default `OPENAI_MODEL` is now derived from the actual base URL (OpenRouter, OpenCode Zen, MyTabulon, Maximo AI), instead of assuming Maximo's `maximo-pandora-3.8-nano` for every OpenAI-compatible provider.
+- **Clearer API errors**: non-OK responses from OpenAI-compatible endpoints now report `OpenAI-compatible API error` instead of the misleading `MaximoAI API error`.
+
 ## [0.1.22] - 2026-08-03
 
 ### Added

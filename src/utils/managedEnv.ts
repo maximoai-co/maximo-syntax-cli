@@ -182,13 +182,19 @@ export function applySafeConfigEnvironmentVariables(): void {
   if (globalConfig.maximoApiKey && !process.env.OPENAI_API_KEY) {
     process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
     process.env.OPENAI_API_KEY = globalConfig.maximoApiKey;
-    process.env.OPENAI_BASE_URL =
-      globalConfig.openAIBaseUrl || "https://api.maximoai.co/v1";
+    const baseUrl = globalConfig.openAIBaseUrl || "https://api.maximoai.co/v1";
+    process.env.OPENAI_BASE_URL = baseUrl;
     if (!process.env.OPENAI_MODEL) {
-      process.env.OPENAI_MODEL =
-        globalConfig.openAIBaseUrl?.includes("api.mytabulon.com")
-          ? globalConfig.mytabulonDefaultModel || "maximo-atlas-preview"
-          : "maximo-pandora-3.8-nano";
+      if (baseUrl.includes("api.mytabulon.com")) {
+        process.env.OPENAI_MODEL =
+          globalConfig.mytabulonDefaultModel || "maximo-atlas-preview";
+      } else if (baseUrl.includes("openrouter.ai/api/v1")) {
+        process.env.OPENAI_MODEL = "openai/gpt-5.4";
+      } else if (baseUrl.includes("opencode.ai/zen/")) {
+        process.env.OPENAI_MODEL = "deepseek-v4-flash";
+      } else {
+        process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
+      }
     }
   }
 }

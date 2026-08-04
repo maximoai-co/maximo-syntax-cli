@@ -178,6 +178,30 @@ export async function maybeResizeAndDownsampleImageBuffer(
     // that the API rejects with `image cannot be empty`.
     throw new ImageResizeError('Image file is empty (0 bytes)')
   }
+
+  // The API already accepts and resizes valid images within its encoded-size
+  // limit. Avoid invoking optional native processors for this common path;
+  // release builds intentionally stub those modules, and a missing processor
+  // must not prevent a valid image from reaching a vision model.
+  const base64SizeBeforeProcessing = Math.ceil((originalSize * 4) / 3)
+  if (base64SizeBeforeProcessing <= API_IMAGE_MAX_BASE64_SIZE) {
+    const detected = detectImageFormatFromBuffer(imageBuffer)
+    const detectedFormat = detected.slice(6)
+    const dimensions = detectImageDimensionsFromBuffer(imageBuffer)
+    return {
+      buffer: imageBuffer,
+      mediaType: detectedFormat === 'jpg' ? 'jpeg' : detectedFormat,
+      dimensions: dimensions
+        ? {
+            originalWidth: dimensions.width,
+            originalHeight: dimensions.height,
+            displayWidth: dimensions.width,
+            displayHeight: dimensions.height,
+          }
+        : undefined,
+    }
+  }
+
   try {
     const sharp = await getImageProcessor()
     const image = sharp(imageBuffer)
@@ -411,8 +435,11 @@ export async function maybeResizeAndDownsampleImageBuffer(
       (imageBuffer.readUInt32BE(16) > IMAGE_MAX_WIDTH ||
         imageBuffer.readUInt32BE(20) > IMAGE_MAX_HEIGHT)
 
-    // If original image's base64 encoding is within API limit, allow it through uncompressed
-    if (base64Size <= API_IMAGE_MAX_BASE64_SIZE && !overDim) {
+    // Packaged builds may not have a native image processor. If the original
+    // payload is within the API limit, forward it unchanged even when its
+    // dimensions exceed the client-side quality hint; the vision provider can
+    // resize it server-side. Rejecting it here makes valid Read results fail.
+    if (base64Size <= API_IMAGE_MAX_BASE64_SIZE) {
       logEvent('tengu_image_resize_fallback', {
         original_size_bytes: originalSize,
         base64_size_bytes: base64Size,

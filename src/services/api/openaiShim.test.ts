@@ -191,6 +191,128 @@ test('sends pasted base64 images as OpenAI-compatible data URLs', async () => {
   })
 })
 
+test('buffers vision turns when an OpenAI-compatible image stream does not close', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    expect(body.stream).toBe(false)
+    expect(body.stream_options).toBeUndefined()
+    expect(body.messages[0].content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,aW1hZ2U=' },
+    })
+    return Response.json({
+      id: 'chatcmpl-buffered-image',
+      model: 'fake-vision-model',
+      choices: [
+        {
+          message: { role: 'assistant', content: 'I can see the image.' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 4 },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<AsyncIterable<Record<string, unknown>>>
+      }
+    }
+  }
+
+  const stream = await client.beta.messages.create({
+    model: 'fake-vision-model',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'describe this' },
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data: 'aW1hZ2U=',
+            },
+          },
+        ],
+      },
+    ],
+    max_tokens: 64,
+    stream: true,
+  })
+
+  const events: Array<Record<string, unknown>> = []
+  for await (const event of stream) events.push(event)
+  expect(events).toContainEqual({
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'text_delta', text: 'I can see the image.' },
+  })
+  expect(events.at(-2)).toMatchObject({
+    type: 'message_delta',
+    delta: { stop_reason: 'end_turn' },
+  })
+})
+
+test('sends PDF document blocks as OpenAI-compatible file parts', async () => {
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body))
+    expect(body.messages[0].content).toEqual([
+      { type: 'text', text: 'summarize this' },
+      {
+        type: 'file',
+        file: {
+          filename: 'report.pdf',
+          file_data: 'data:application/pdf;base64,cGRm',
+        },
+      },
+    ])
+    return Response.json({
+      id: 'chatcmpl-pdf',
+      model: 'fake-model',
+      choices: [
+        {
+          message: { role: 'assistant', content: 'done' },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 1 },
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<unknown>
+      }
+    }
+  }
+
+  await client.beta.messages.create({
+    model: 'fake-model',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'summarize this' },
+          {
+            type: 'document',
+            title: 'report.pdf',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: 'cGRm',
+            },
+          },
+        ],
+      },
+    ],
+    max_tokens: 64,
+  })
+})
+
 test('forwards Read tool-result images as user vision input', async () => {
   globalThis.fetch = (async (_input, init) => {
     const body = JSON.parse(String(init?.body))
@@ -391,5 +513,53 @@ test('maps the selected effort to OpenAI-compatible reasoning_effort', async () 
     messages: [{ role: 'user', content: 'think about this' }],
     max_tokens: 64,
     output_config: { effort: 'medium' },
+  })
+})
+
+test('routes OpenRouter through its documented Chat Completions endpoint', async () => {
+  process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1'
+  globalThis.fetch = (async (input, init) => {
+    expect(String(input)).toBe('https://openrouter.ai/api/v1/chat/completions')
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer test-key')
+    expect(new Headers(init?.headers).get('HTTP-Referer')).toBe('https://maximoai.co')
+    expect(new Headers(init?.headers).get('X-OpenRouter-Title')).toBe('Maximo Syntax')
+    const body = JSON.parse(String(init?.body))
+    expect(body.model).toBe('openai/gpt-5.4')
+    return Response.json({
+      id: 'openrouter-completion',
+      model: 'openai/gpt-5.4',
+      choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: { messages: { create: (params: Record<string, unknown>) => Promise<unknown> } }
+  }
+  await client.beta.messages.create({
+    model: 'openai/gpt-5.4',
+    messages: [{ role: 'user', content: 'hello' }],
+    max_tokens: 64,
+  })
+})
+
+test('routes OpenCode Zen through its documented Chat Completions endpoint', async () => {
+  process.env.OPENAI_BASE_URL = 'https://opencode.ai/zen/v1'
+  globalThis.fetch = (async (input, init) => {
+    expect(String(input)).toBe('https://opencode.ai/zen/v1/chat/completions')
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer test-key')
+    return Response.json({
+      id: 'opencode-completion',
+      model: 'deepseek-v4-flash',
+      choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    })
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as {
+    beta: { messages: { create: (params: Record<string, unknown>) => Promise<unknown> } }
+  }
+  await client.beta.messages.create({
+    model: 'deepseek-v4-flash',
+    messages: [{ role: 'user', content: 'hello' }],
+    max_tokens: 64,
   })
 })

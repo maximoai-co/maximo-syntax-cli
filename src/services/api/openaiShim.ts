@@ -56,6 +56,7 @@ type OpenAIContentPart = {
   type: string;
   text?: string;
   image_url?: { url: string };
+  file?: { filename: string; file_data: string };
 };
 
 const TOOL_RESULT_IMAGE_PLACEHOLDER = "[Tool returned an image.]";
@@ -94,11 +95,7 @@ function convertContentBlocks(
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return String(content ?? "");
 
-  const parts: Array<{
-    type: string;
-    text?: string;
-    image_url?: { url: string };
-  }> = [];
+  const parts: OpenAIContentPart[] = [];
   for (const block of content) {
     switch (block.type) {
       case "text":
@@ -115,6 +112,32 @@ function convertContentBlocks(
           });
         } else if (src?.type === "url") {
           parts.push({ type: "image_url", image_url: { url: src.url } });
+        }
+        break;
+      }
+      case "document": {
+        // Chat Completions carries uploaded documents as standard file parts;
+        // dropping this block would make Read-produced PDFs invisible.
+        const src = block.source;
+        const filename =
+          typeof block.title === "string" && block.title
+            ? block.title
+            : src?.media_type === "application/pdf"
+              ? "attachment.pdf"
+              : "attachment";
+        if (src?.type === "base64" && src.media_type && src.data) {
+          parts.push({
+            type: "file",
+            file: {
+              filename,
+              file_data: `data:${src.media_type};base64,${src.data}`,
+            },
+          });
+        } else if (src?.type === "url" && src.url) {
+          parts.push({
+            type: "file",
+            file: { filename, file_data: src.url },
+          });
         }
         break;
       }
@@ -616,6 +639,107 @@ async function* openaiStreamToAnthropic(
   yield { type: "message_stop" };
 }
 
+type BufferedAssistantMessage = {
+  id: string;
+  model: string;
+  content: Array<Record<string, unknown>>;
+  stop_reason: string;
+  usage: AnthropicUsage;
+};
+
+/**
+ * Some OpenAI-compatible vision gateways start an image stream but never
+ * close it. Keep text-only turns streaming, but translate buffered vision
+ * responses back into the event shape the agent loop already consumes.
+ */
+async function* bufferedMessageToAnthropic(
+  message: BufferedAssistantMessage,
+): AsyncGenerator<AnthropicStreamEvent> {
+  let contentBlockIndex = 0;
+  const hasToolUse = message.content.some((block) => block.type === "tool_use");
+
+  yield {
+    type: "message_start",
+    message: {
+      id: message.id,
+      type: "message",
+      role: "assistant",
+      content: [],
+      model: message.model,
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+    },
+  };
+
+  for (const block of message.content) {
+    if (block.type === "text" && typeof block.text === "string") {
+      const index = contentBlockIndex++;
+      yield {
+        type: "content_block_start",
+        index,
+        content_block: { type: "text", text: "" },
+      };
+      if (block.text) {
+        yield {
+          type: "content_block_delta",
+          index,
+          delta: { type: "text_delta", text: block.text },
+        };
+      }
+      yield { type: "content_block_stop", index };
+      continue;
+    }
+
+    if (block.type === "tool_use") {
+      const index = contentBlockIndex++;
+      const id = typeof block.id === "string" ? block.id : `call_${makeMessageId()}`;
+      const name = typeof block.name === "string" ? block.name : "unknown";
+      const input = JSON.stringify(block.input ?? {});
+      yield {
+        type: "content_block_start",
+        index,
+        content_block: {
+          type: "tool_use",
+          id,
+          name,
+          input: {},
+        },
+      };
+      yield {
+        type: "content_block_delta",
+        index,
+        delta: { type: "input_json_delta", partial_json: input },
+      };
+      yield { type: "content_block_stop", index };
+    }
+  }
+
+  yield {
+    type: "message_delta",
+    delta: {
+      stop_reason: hasToolUse ? "tool_use" : message.stop_reason,
+      stop_sequence: null,
+    },
+    usage: message.usage,
+  };
+  yield { type: "message_stop" };
+}
+
+function containsImageContent(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsImageContent);
+  if (!value || typeof value !== "object") return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.type === "image") return true;
+  return containsImageContent(record.content) || containsImageContent(record.message);
+}
+
 // ---------------------------------------------------------------------------
 // The shim client — duck-types as Anthropic SDK
 // ---------------------------------------------------------------------------
@@ -663,14 +787,33 @@ class OpenAIShimMessages {
     const promise = (async () => {
       const request = resolveProviderRequest({ model: params.model });
       const requestControl = createRequestControl(options?.signal, self.timeout);
+      const bufferVisionResponse =
+        params.stream === true &&
+        request.transport === "chat_completions" &&
+        containsImageContent(params.messages);
+      const requestParams = bufferVisionResponse
+        ? { ...params, stream: false }
+        : params;
 
       try {
-        const response = await self._doRequest(request, params, {
+        const response = await self._doRequest(request, requestParams, {
           ...options,
           signal: requestControl.signal,
         });
 
         if (params.stream) {
+          if (bufferVisionResponse) {
+            const data = await response.json();
+            const message = self._convertNonStreamingResponse(
+              data,
+              request.resolvedModel,
+            ) as BufferedAssistantMessage;
+            return new OpenAIShimStream(
+              bufferedMessageToAnthropic(message),
+              requestControl.controller,
+              requestControl.dispose,
+            );
+          }
           return new OpenAIShimStream(
             request.transport === "codex_responses"
               ? codexStreamToAnthropic(response, request.resolvedModel)
@@ -826,6 +969,11 @@ class OpenAIShimMessages {
       headers.Authorization = `Bearer ${apiKey}`;
     }
 
+    if (/openrouter\.ai\/api\/v1/i.test(request.baseUrl)) {
+      headers["HTTP-Referer"] = "https://maximoai.co";
+      headers["X-OpenRouter-Title"] = "Maximo Syntax";
+    }
+
     const response = await fetch(`${request.baseUrl}/chat/completions`, {
       method: "POST",
       headers,
@@ -835,7 +983,9 @@ class OpenAIShimMessages {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "unknown error");
-      throw new Error(`MaximoAI API error ${response.status}: ${errorBody}`);
+      throw new Error(
+        `OpenAI-compatible API error ${response.status}: ${errorBody}`,
+      );
     }
 
     return response;

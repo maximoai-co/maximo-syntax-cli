@@ -17,6 +17,10 @@ import {
   isMaximoAIOpenAICompatibleProvider,
   isMaximoAISubscriber,
 } from "../../utils/auth.js";
+import type {
+  OpenAICompatibleProvider,
+  OpenCodePlan,
+} from "../../utils/config.js";
 
 // Response type from Maximo AI /v1/models endpoint
 export interface MaximoModel {
@@ -132,6 +136,101 @@ let cachedMyTabulonAccount: MyTabulonAccountInfo | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MYTABULON_BASE_URL = "https://api.mytabulon.com/v1";
 const CENCORI_BASE_URL = "https://api.cencori.com/v1";
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+export const OPENCODE_ZEN_BASE_URL = "https://opencode.ai/zen/v1";
+export const OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1";
+
+// OpenCode publishes several protocol families from the same model catalog.
+// The CLI transport intentionally uses only the models documented for its
+// OpenAI-compatible Chat Completions endpoints. See opencode.ai/docs/zen and
+// opencode.ai/docs/go for the protocol-specific model tables.
+const OPENCODE_CHAT_COMPLETION_MODELS: Record<OpenCodePlan, ReadonlySet<string>> = {
+  zen: new Set([
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "minimax-m3",
+    "minimax-m2.7",
+    "minimax-m2.5",
+    "glm-5.2",
+    "glm-5.1",
+    "glm-5",
+    "kimi-k2.5",
+    "kimi-k2.6",
+    "kimi-k2.7-code",
+    "kimi-k3",
+    "big-pickle",
+    "mimo-v2.5-free",
+    "laguna-s-2.1-free",
+    "ling-3.0-flash-free",
+    "north-mini-code-free",
+    "nemotron-3-ultra-free",
+    "deepseek-v4-flash-free",
+  ]),
+  go: new Set([
+    "grok-4.5",
+    "glm-5.2",
+    "glm-5.1",
+    "kimi-k3",
+    "kimi-k2.7-code",
+    "kimi-k2.6",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "mimo-v2.5",
+    "mimo-v2.5-pro",
+    "hy3",
+  ]),
+};
+
+function normalizedBaseUrl(baseUrl: string | undefined): string {
+  return (baseUrl || "").replace(/\/+$/, "").toLowerCase();
+}
+
+export function getOpenCodePlanForBaseUrl(
+  baseUrl: string | undefined,
+): OpenCodePlan | undefined {
+  const normalized = normalizedBaseUrl(baseUrl);
+  if (normalized === OPENCODE_GO_BASE_URL) return "go";
+  if (normalized === OPENCODE_ZEN_BASE_URL) return "zen";
+  return undefined;
+}
+
+export function getOpenAICompatibleProviderForBaseUrl(
+  baseUrl: string | undefined,
+): OpenAICompatibleProvider | undefined {
+  const normalized = normalizedBaseUrl(baseUrl);
+  if (normalized.includes("api.mytabulon.com")) return "mytabulon";
+  if (normalized.includes("api.cencori.com")) return "cencori";
+  if (normalized.includes("maximoai.co")) return "maximoai";
+  if (normalized === OPENROUTER_BASE_URL) return "openrouter";
+  if (getOpenCodePlanForBaseUrl(normalized)) return "opencode";
+  return undefined;
+}
+
+export function isOpenCodeChatCompletionModel(
+  model: MaximoModel,
+  plan: OpenCodePlan,
+): boolean {
+  return OPENCODE_CHAT_COMPLETION_MODELS[plan].has(model.id);
+}
+
+function fallbackModelForProvider(
+  provider: "openrouter" | "opencode",
+): string {
+  if (provider === "openrouter") return "openai/gpt-5.4";
+  return "deepseek-v4-flash";
+}
+
+function chooseOpenRouterDefaultModel(models: MaximoModel[]): string {
+  return (
+    models.find((model) => model.id === "openai/gpt-5.4")?.id ||
+    models.find((model) =>
+      model.architecture?.output_modalities?.includes("text") &&
+      model.supported_parameters?.includes("tools"),
+    )?.id ||
+    models[0]?.id ||
+    fallbackModelForProvider("openrouter")
+  );
+}
 
 export type MaximoModelLimits = {
   id: string;
@@ -318,6 +417,10 @@ function isMaximoAIProviderInternal(): boolean {
     return true;
   }
 
+  if (isOpenRouterProvider() || isOpenCodeProvider()) {
+    return true;
+  }
+
   const oauthTokens = getMaximoAIOAuthTokens();
   if (oauthTokens?.accessToken && isMaximoAISubscriber()) {
     return true;
@@ -352,6 +455,36 @@ export function isCencoriProvider(): boolean {
   return hasOpenAIConfig && baseUrl.includes("api.cencori.com");
 }
 
+/** Check if we're using OpenRouter as the OpenAI-compatible provider. */
+export function isOpenRouterProvider(): boolean {
+  const globalConfig = getGlobalConfig();
+  const baseUrl =
+    process.env.OPENAI_BASE_URL || globalConfig.openAIBaseUrl || "";
+  const hasOpenAIConfig =
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "1" ||
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "true" ||
+    Boolean(globalConfig.maximoApiKey);
+  return (
+    hasOpenAIConfig &&
+    getOpenAICompatibleProviderForBaseUrl(baseUrl) === "openrouter"
+  );
+}
+
+/** Check if we're using OpenCode Go or Zen as the OpenAI-compatible provider. */
+export function isOpenCodeProvider(): boolean {
+  const globalConfig = getGlobalConfig();
+  const baseUrl =
+    process.env.OPENAI_BASE_URL || globalConfig.openAIBaseUrl || "";
+  const hasOpenAIConfig =
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "1" ||
+    process.env.MAXIMO_SYNTAX_USE_OPENAI === "true" ||
+    Boolean(globalConfig.maximoApiKey);
+  return (
+    hasOpenAIConfig &&
+    getOpenAICompatibleProviderForBaseUrl(baseUrl) === "opencode"
+  );
+}
+
 /**
  * Get the base URL for Maximo AI API
  */
@@ -361,7 +494,9 @@ export function getMaximoAIBaseUrl(): string {
     globalConfig.openAIBaseUrl || process.env.OPENAI_BASE_URL;
   return configuredBaseUrl?.includes("maximoai.co") ||
     configuredBaseUrl?.includes("api.mytabulon.com") ||
-    configuredBaseUrl?.includes("api.cencori.com")
+    configuredBaseUrl?.includes("api.cencori.com") ||
+    configuredBaseUrl?.includes("openrouter.ai/api/v1") ||
+    configuredBaseUrl?.includes("opencode.ai/zen/")
     ? configuredBaseUrl
     : "https://api.maximoai.co/v1";
 }
@@ -433,24 +568,40 @@ export async function fetchMaximoModels({
       throw new Error("Failed to fetch models: malformed response");
     }
 
+    const provider = getOpenAICompatibleProviderForBaseUrl(baseUrl);
+    const openCodePlan = getOpenCodePlanForBaseUrl(baseUrl);
+    const compatibleModels =
+      provider === "opencode" && openCodePlan
+        ? models.filter((model) =>
+            isOpenCodeChatCompletionModel(model, openCodePlan),
+          )
+        : models;
+
+    if (provider === "opencode" && compatibleModels.length === 0) {
+      throw new Error(
+        `OpenCode ${openCodePlan === "go" ? "Go" : "Zen"} returned no models supported by its Chat Completions endpoint.`,
+      );
+    }
+
     // Sort models by name, prioritizing non-preview models
-    const sortedModels = baseUrl.includes("api.mytabulon.com")
-      ? [...models]
-      : [...models].sort((a, b) => {
-          // Prioritize Pandora models for coding
-          const aIsPandora = a.id.includes("pandora");
-          const bIsPandora = b.id.includes("pandora");
+    const sortedModels =
+      provider === "mytabulon" || provider === "openrouter" || provider === "opencode"
+        ? [...compatibleModels]
+        : [...compatibleModels].sort((a, b) => {
+            // Prioritize Pandora models for coding
+            const aIsPandora = a.id.includes("pandora");
+            const bIsPandora = b.id.includes("pandora");
 
-          if (aIsPandora && !bIsPandora) return -1;
-          if (!aIsPandora && bIsPandora) return 1;
+            if (aIsPandora && !bIsPandora) return -1;
+            if (!aIsPandora && bIsPandora) return 1;
 
-          // Then prioritize non-preview models
-          if (a.isPreview && !b.isPreview) return 1;
-          if (!a.isPreview && b.isPreview) return -1;
+            // Then prioritize non-preview models
+            if (a.isPreview && !b.isPreview) return 1;
+            if (!a.isPreview && b.isPreview) return -1;
 
-          // Then sort by name
-          return (a.name || a.id).localeCompare(b.name || b.id);
-        });
+            // Then sort by name
+            return (a.name || a.id).localeCompare(b.name || b.id);
+          });
 
     cachedModels = sortedModels;
     cachedModelsBaseUrl = baseUrl;
@@ -475,8 +626,8 @@ export async function fetchMaximoModels({
     if (throwOnError) {
       throw error;
     }
-    // Return cached models if available, even if expired
-    return cachedModels || [];
+    // Never show a different provider's catalog after a provider switch.
+    return cachedModelsBaseUrl === baseUrl ? cachedModels || [] : [];
   }
 }
 
@@ -564,13 +715,13 @@ export async function getMaximoModelOptions(): Promise<ModelOption[] | null> {
     return null;
   }
 
-  if (isMyTabulonProvider()) {
-    return models.map(toModelOption);
-  }
-
-  if (isCencoriProvider()) {
-    // Cencori model IDs (e.g. gpt-4o, claude-sonnet-4.5) don't follow the
-    // maximo-<family>- naming scheme, so skip family grouping and list as-is.
+  if (
+    isMyTabulonProvider() ||
+    isCencoriProvider() ||
+    isOpenRouterProvider() ||
+    isOpenCodeProvider()
+  ) {
+    // External model IDs do not follow Maximo's family naming scheme.
     return models.map(toModelOption);
   }
 
@@ -763,8 +914,12 @@ function persistMyTabulonState(
     ...current,
     maximoApiKey: apiKey,
     openAIBaseUrl: baseUrl,
+    openAIProvider: "mytabulon",
+    openCodePlan: undefined,
+    openAIModel: undefined,
     mytabulonDefaultModel: defaultModel,
     mytabulonAccount: account,
+    cencoriApiKey: undefined,
   }));
 }
 
@@ -813,8 +968,11 @@ function persistCencoriState(
   saveGlobalConfig((current) => ({
     ...current,
     cencoriApiKey: apiKey,
+    maximoApiKey: apiKey,
     openAIBaseUrl: baseUrl,
+    openAIProvider: "cencori",
     openAIModel: model ?? current.openAIModel,
+    openCodePlan: undefined,
     mytabulonDefaultModel: undefined,
     mytabulonAccount: undefined,
   }));
@@ -875,6 +1033,138 @@ export async function configureCencoriProvider(
         `(${reason}). You're logged in — pick a model when you start a session.`,
     };
   }
+}
+
+export type ConfigureOpenAICompatibleResult = {
+  models: MaximoModel[];
+  defaultModel?: string;
+  /** Present when credentials were saved but the provider catalog was unavailable. */
+  warning?: string;
+};
+
+function persistExternalProviderState({
+  apiKey,
+  baseUrl,
+  provider,
+  plan,
+  model,
+}: {
+  apiKey: string;
+  baseUrl: string;
+  provider: "openrouter" | "opencode";
+  plan?: OpenCodePlan;
+  model?: string;
+}): void {
+  const defaultModel = model || fallbackModelForProvider(provider);
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
+  process.env.OPENAI_API_KEY = apiKey;
+  process.env.OPENAI_BASE_URL = baseUrl;
+  process.env.OPENAI_MODEL = defaultModel;
+  saveGlobalConfig((current) => ({
+    ...current,
+    maximoApiKey: apiKey,
+    openAIBaseUrl: baseUrl,
+    openAIProvider: provider,
+    openAIModel: defaultModel,
+    openCodePlan: provider === "opencode" ? plan : undefined,
+    cencoriApiKey: undefined,
+    mytabulonDefaultModel: undefined,
+    mytabulonAccount: undefined,
+    oauthAccount: undefined,
+  }));
+}
+
+async function configureExternalProvider({
+  apiKey,
+  baseUrl,
+  provider,
+  plan,
+}: {
+  apiKey: string;
+  baseUrl: string;
+  provider: "openrouter" | "opencode";
+  plan?: OpenCodePlan;
+}): Promise<ConfigureOpenAICompatibleResult> {
+  const trimmedKey = apiKey.trim();
+  if (!trimmedKey) {
+    throw new Error(
+      `Enter your ${provider === "openrouter" ? "OpenRouter" : "OpenCode"} API key.`,
+    );
+  }
+
+  clearMaximoModelsCache();
+  try {
+    const models = await fetchMaximoModels({
+      baseUrl,
+      apiKey: trimmedKey,
+      forceRefresh: true,
+      persistMyTabulonAccount: false,
+      throwOnError: true,
+    });
+    if (models.length === 0) {
+      throw new Error("The provider returned no usable Chat Completions models.");
+    }
+    const defaultModel =
+      provider === "openrouter"
+        ? chooseOpenRouterDefaultModel(models)
+        : models[0]?.id || fallbackModelForProvider(provider);
+    persistExternalProviderState({
+      apiKey: trimmedKey,
+      baseUrl,
+      provider,
+      plan,
+      model: defaultModel,
+    });
+    return { models, defaultModel };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      /Failed to fetch models: (401|403)\b/.test(error.message)
+    ) {
+      throw error;
+    }
+    const fallbackModel = fallbackModelForProvider(provider);
+    persistExternalProviderState({
+      apiKey: trimmedKey,
+      baseUrl,
+      provider,
+      plan,
+      model: fallbackModel,
+    });
+    const providerLabel = provider === "openrouter" ? "OpenRouter" : `OpenCode ${plan === "go" ? "Go" : "Zen"}`;
+    const reason = error instanceof Error ? error.message : "unknown error";
+    return {
+      models: [],
+      defaultModel: fallbackModel,
+      warning:
+        `Connected to ${providerLabel}, but couldn't read the model list ` +
+        `(${reason}). You're logged in — refresh the model list before choosing a model.`,
+    };
+  }
+}
+
+/** Configure OpenRouter through its OpenAI-compatible Chat Completions API. */
+export function configureOpenRouterProvider(
+  apiKey: string,
+): Promise<ConfigureOpenAICompatibleResult> {
+  return configureExternalProvider({
+    apiKey,
+    baseUrl: OPENROUTER_BASE_URL,
+    provider: "openrouter",
+  });
+}
+
+/** Configure OpenCode Go or Zen through its Chat Completions endpoint. */
+export function configureOpenCodeProvider(
+  apiKey: string,
+  plan: OpenCodePlan = "zen",
+): Promise<ConfigureOpenAICompatibleResult> {
+  return configureExternalProvider({
+    apiKey,
+    baseUrl: plan === "go" ? OPENCODE_GO_BASE_URL : OPENCODE_ZEN_BASE_URL,
+    provider: "opencode",
+    plan,
+  });
 }
 
 /**

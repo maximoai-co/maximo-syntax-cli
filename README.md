@@ -210,6 +210,8 @@ maximo login
 | **Maximo AI account** | First-party Maximo AI subscription/pro API key | Default provider; routes through `https://api.maximoai.co/v1`. |
 | **MyTabulon Coding Plan** | MyTabulon platform API key (`mtb_live_…`) | Sign in via browser OAuth or paste a `mtb_live_` key. |
 | **Cencori** | Cencori OpenAI-compatible API key (`csk_…`) | Cencori is OpenAI-compatible, so chat and models go through `https://api.cencori.com/v1`. Paste your `csk_` key at the prompt — the key is saved to your global config and used for all API calls. |
+| **OpenRouter** | OpenRouter API key | Uses `https://openrouter.ai/api/v1/chat/completions` and loads models from `https://openrouter.ai/api/v1/models`. |
+| **OpenCode** | OpenCode Zen or Go API key | Choose Zen or Go, then use the corresponding Chat Completions endpoint and model catalog from `https://opencode.ai/zen/v1` or `https://opencode.ai/zen/go/v1`. |
 | **3rd-party platform** | OpenAI, Gemini, Bedrock, Ollama, and more | Set the relevant environment variables and restart. See [Alternative Providers](#alternative-providers). |
 
 To switch providers (e.g. to Cencori) at any time, run `maximo login` again and choose the provider you want.

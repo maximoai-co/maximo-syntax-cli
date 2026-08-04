@@ -14,11 +14,14 @@ import { getSSLErrorHint } from "../services/api/errorUtils.js";
 import {
   configureCencoriProvider,
   configureMyTabulonProvider,
+  configureOpenCodeProvider,
+  configureOpenRouterProvider,
 } from "../services/api/maximoModels.js";
 import { sendNotification } from "../services/notifier.js";
 import { OAuthService } from "../services/oauth/index.js";
 import { MyTabulonOAuthService } from "../services/oauth/mytabulon.js";
 import { getOauthAccountInfo, validateForceLoginOrg } from "../utils/auth.js";
+import type { OpenCodePlan } from "../utils/config.js";
 import { logError } from "../utils/log.js";
 import { getSettings_DEPRECATED } from "../utils/settings/settings.js";
 import { Select } from "./CustomSelect/select.js";
@@ -53,6 +56,16 @@ type OAuthStatus =
   | {
       state: "cencori_setup";
     } // Show Cencori API key setup
+  | {
+      state: "openrouter_setup";
+    } // Show OpenRouter API key setup
+  | {
+      state: "opencode_method";
+    } // Choose OpenCode Go or Zen
+  | {
+      state: "opencode_setup";
+      plan: OpenCodePlan;
+    } // Show OpenCode API key setup
   | {
       state: "mytabulon_waiting_for_login";
       url: string;
@@ -132,6 +145,7 @@ export function ConsoleOAuthFlow({
   // Maximo AI API key input state
   const [maximoApiKey, setMaximoApiKey] = useState("");
   const [maximoApiKeyCursor, setMaximoApiKeyCursor] = useState(0);
+  const [openCodePlan, setOpenCodePlan] = useState<OpenCodePlan>("zen");
   // After a few seconds we suggest the user to copy/paste url if the
   // browser did not open automatically. In this flow we expect the user to
   // copy the code from the browser and paste it in the terminal
@@ -218,7 +232,10 @@ export function ConsoleOAuthFlow({
         oauthStatus.state === "maximoai_setup" ||
         oauthStatus.state === "mytabulon_method" ||
         oauthStatus.state === "mytabulon_setup" ||
-        oauthStatus.state === "cencori_setup",
+        oauthStatus.state === "cencori_setup" ||
+        oauthStatus.state === "openrouter_setup" ||
+        oauthStatus.state === "opencode_method" ||
+        oauthStatus.state === "opencode_setup",
     }
   );
   useEffect(() => {
@@ -508,6 +525,8 @@ export function ConsoleOAuthFlow({
           maximoApiKeyCursor={maximoApiKeyCursor}
           setMaximoApiKeyCursor={setMaximoApiKeyCursor}
           startMyTabulonOAuth={startMyTabulonOAuth}
+          openCodePlan={openCodePlan}
+          setOpenCodePlan={setOpenCodePlan}
           onDone={onDone}
         />
       </Box>
@@ -533,6 +552,8 @@ type OAuthStatusMessageProps = {
   maximoApiKeyCursor: number;
   setMaximoApiKeyCursor: (offset: number) => void;
   startMyTabulonOAuth: () => Promise<void>;
+  openCodePlan: OpenCodePlan;
+  setOpenCodePlan: (plan: OpenCodePlan) => void;
   onDone: () => void;
 };
 function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
@@ -556,6 +577,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
     maximoApiKeyCursor,
     setMaximoApiKeyCursor,
     startMyTabulonOAuth,
+    openCodePlan,
+    setOpenCodePlan,
     onDone,
   } = t0;
   switch (oauthStatus.state) {
@@ -652,6 +675,24 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
       } else {
         t_cencori = $[51];
       }
+      const t_openrouter = {
+        label: (
+          <Text>
+            OpenRouter · <Text dimColor={true}>API key and model routing</Text>
+            {"\n"}
+          </Text>
+        ),
+        value: "openrouter",
+      };
+      const t_opencode = {
+        label: (
+          <Text>
+            OpenCode · <Text dimColor={true}>Go or Zen coding models</Text>
+            {"\n"}
+          </Text>
+        ),
+        value: "opencode",
+      };
       let t6;
       if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
         t6 = [
@@ -659,6 +700,8 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
           t_maximo,
           t5,
           t_cencori,
+          t_openrouter,
+          t_opencode,
           {
             label: (
               <Text>
@@ -702,6 +745,16 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                   logEvent("tengu_oauth_cencori_selected", {});
                   setOAuthStatus({
                     state: "cencori_setup",
+                  });
+                } else if (value_0 === "openrouter") {
+                  logEvent("tengu_oauth_openrouter_selected", {});
+                  setOAuthStatus({
+                    state: "openrouter_setup",
+                  });
+                } else if (value_0 === "opencode") {
+                  logEvent("tengu_oauth_opencode_selected", {});
+                  setOAuthStatus({
+                    state: "opencode_method",
                   });
                 } else {
                   setOAuthStatus({
@@ -794,8 +847,10 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                     ...current,
                     maximoApiKey: apiKey,
                     openAIBaseUrl: "https://api.maximoai.co/v1",
+                    openAIProvider: "maximoai",
                     mytabulonDefaultModel: undefined,
                     mytabulonAccount: undefined,
+                    openCodePlan: undefined,
                   }));
                   logEvent("tengu_oauth_maximoai_api_key_saved", {});
                   // Also need to refresh the provider settings so it takes effect immediately
@@ -1142,6 +1197,142 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
         t5 = $[65];
       }
       return t5;
+    }
+    case "openrouter_setup": {
+      return (
+        <Box flexDirection="column" gap={1} marginTop={1}>
+          <Text bold>Connect with OpenRouter</Text>
+          <Text>
+            OpenRouter provides an OpenAI-compatible Chat Completions API with
+            access to many models. Enter your API key to load its model list.
+          </Text>
+          <Box flexDirection="column">
+            <Text>Enter your OpenRouter API key:</Text>
+            <TextInput
+              value={maximoApiKey}
+              onChange={setMaximoApiKey}
+              onPaste={setMaximoApiKey}
+              onSubmit={(value: string) => {
+                void configureOpenRouterProvider(value)
+                  .then((result) => {
+                    logEvent("tengu_oauth_openrouter_api_key_saved", {});
+                    if (result.warning) console.log(`\n${result.warning}\n`);
+                    setOAuthStatus({ state: "success" });
+                    onDone();
+                  })
+                  .catch((error) => {
+                    logError(error);
+                    setOAuthStatus({
+                      state: "error",
+                      message: (error as Error).message,
+                      toRetry: { state: "openrouter_setup" },
+                    });
+                  });
+              }}
+              cursorOffset={maximoApiKeyCursor}
+              onChangeCursorOffset={setMaximoApiKeyCursor}
+              columns={textInputColumns}
+              mask="*"
+              placeholder="Enter your OpenRouter API key..."
+            />
+          </Box>
+          <Text dimColor>
+            Get your API key from: https://openrouter.ai/settings/keys
+          </Text>
+          <Text dimColor>
+            Press <Text bold>Escape</Text> to go back.
+          </Text>
+        </Box>
+      );
+    }
+    case "opencode_method": {
+      return (
+        <Box flexDirection="column" gap={1} marginTop={1}>
+          <Text bold>Connect with OpenCode</Text>
+          <Text>
+            Choose an OpenCode subscription. Both options use the official
+            OpenAI-compatible Chat Completions endpoint and load their models.
+          </Text>
+          <Select
+            options={[
+              {
+                label: (
+                  <Text>
+                    OpenCode Zen · <Text dimColor>Curated, pay-as-you-go models</Text>
+                    {"\n"}
+                  </Text>
+                ),
+                value: "zen",
+              },
+              {
+                label: (
+                  <Text>
+                    OpenCode Go · <Text dimColor>Low-cost coding subscription</Text>
+                    {"\n"}
+                  </Text>
+                ),
+                value: "go",
+              },
+            ]}
+            onChange={(value: string) => {
+              const plan = value === "go" ? "go" : "zen";
+              setOpenCodePlan(plan);
+              setOAuthStatus({ state: "opencode_setup", plan });
+            }}
+          />
+          <Text dimColor>
+            Press <Text bold>Escape</Text> to go back.
+          </Text>
+        </Box>
+      );
+    }
+    case "opencode_setup": {
+      const planLabel = oauthStatus.plan === "go" ? "Go" : "Zen";
+      return (
+        <Box flexDirection="column" gap={1} marginTop={1}>
+          <Text bold>Connect with OpenCode {planLabel}</Text>
+          <Text>
+            Enter your OpenCode API key. Maximo Syntax will fetch the models
+            available through the OpenAI-compatible Chat Completions endpoint.
+          </Text>
+          <Box flexDirection="column">
+            <Text>Enter your OpenCode {planLabel} API key:</Text>
+            <TextInput
+              value={maximoApiKey}
+              onChange={setMaximoApiKey}
+              onPaste={setMaximoApiKey}
+              onSubmit={(value: string) => {
+                void configureOpenCodeProvider(value, oauthStatus.plan)
+                  .then((result) => {
+                    logEvent("tengu_oauth_opencode_api_key_saved", {});
+                    if (result.warning) console.log(`\n${result.warning}\n`);
+                    setOAuthStatus({ state: "success" });
+                    onDone();
+                  })
+                  .catch((error) => {
+                    logError(error);
+                    setOAuthStatus({
+                      state: "error",
+                      message: (error as Error).message,
+                      toRetry: { state: "opencode_setup", plan: oauthStatus.plan },
+                    });
+                  });
+              }}
+              cursorOffset={maximoApiKeyCursor}
+              onChangeCursorOffset={setMaximoApiKeyCursor}
+              columns={textInputColumns}
+              mask="*"
+              placeholder={`Enter your OpenCode ${planLabel} API key...`}
+            />
+          </Box>
+          <Text dimColor>
+            Get your key from: https://opencode.ai/auth
+          </Text>
+          <Text dimColor>
+            Press <Text bold>Escape</Text> to go back.
+          </Text>
+        </Box>
+      );
     }
     case "platform_setup": {
       let t1;

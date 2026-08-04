@@ -5956,7 +5956,7 @@ async function run(): Promise<CommanderCommand> {
     .configureHelp(createSortedHelpConfig());
   auth
     .command("login")
-    .description("Sign in to Maximo AI")
+    .description("Sign in to Maximo AI or an OpenAI-compatible provider")
     .option("--email <email>", "Pre-populate email address on the login page")
     .option("--sso", "Force SSO login flow")
     .option(
@@ -5964,17 +5964,39 @@ async function run(): Promise<CommanderCommand> {
       "Use Maximo AI API usage billing instead of a Maximo subscription"
     )
     .option("--maximoai", "Use Maximo subscription (default)")
+    .option(
+      "--openrouter",
+      "Use OpenRouter with an OpenAI-compatible API key",
+    )
+    .option(
+      "--opencode",
+      "Use OpenCode Go or Zen with an OpenAI-compatible API key",
+    )
+    .option(
+      "--opencode-plan <plan>",
+      "OpenCode plan: zen or go",
+      "zen",
+    )
+    .option("--api-key <key>", "API key for --openrouter or --opencode")
     .action(
       async ({
         email,
         sso,
         console: useConsole,
         maximoai,
+        openrouter,
+        opencode,
+        opencodePlan,
+        apiKey,
       }: {
         email?: string;
         sso?: boolean;
         console?: boolean;
         maximoai?: boolean;
+        openrouter?: boolean;
+        opencode?: boolean;
+        opencodePlan?: string;
+        apiKey?: string;
       }) => {
         const { authLogin } = await import("./cli/handlers/auth.js");
         await authLogin({
@@ -5982,6 +6004,10 @@ async function run(): Promise<CommanderCommand> {
           sso,
           console: useConsole,
           maximoai,
+          openrouter,
+          opencode,
+          opencodePlan,
+          apiKey,
         });
       }
     );
