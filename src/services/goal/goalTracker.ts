@@ -21,6 +21,18 @@ import {
 
 type Listener = () => void
 
+export type GoalStatusSnapshot = {
+  status: GoalStatus
+  phase: GoalPhase
+  objective: string
+  tokensUsed: number
+  tokenBudget: number | null
+  totalWorkerRounds: number
+  totalVerifyRounds: number
+  pauseMessage: string | null
+  elapsedMs: number
+}
+
 let current: GoalOrchestration | null = null
 const listeners = new Set<Listener>()
 
@@ -42,6 +54,7 @@ function historyEntry(
 }
 
 function notify(): void {
+  cachedStatusDirty = true
   for (const l of listeners) {
     try {
       l()
@@ -115,19 +128,19 @@ export function subscribeGoal(listener: Listener): () => void {
   }
 }
 
-export function getGoalStatusSnapshot(): {
-  status: GoalStatus
-  phase: GoalPhase
-  objective: string
-  tokensUsed: number
-  tokenBudget: number | null
-  totalWorkerRounds: number
-  totalVerifyRounds: number
-  pauseMessage: string | null
-} | null {
+// Cached snapshot for useSyncExternalStore consumers (the footer badge).
+// getGoalStatusSnapshot must return a REFERENCE-STABLE value between
+// notify() calls, otherwise React re-renders on every tick (and calling
+// accountElapsed here would mutate + re-notify → "Maximum update depth
+// exceeded"). Elapsed accounting belongs to the round loop (goalRound.ts),
+// which runs once per turn end, not to a render-path getter.
+let cachedStatusSnapshot: GoalStatusSnapshot | null = null
+let cachedStatusDirty = true
+
+export function getGoalStatusSnapshot(): GoalStatusSnapshot | null {
   if (!current) return null
-  accountElapsed()
-  return {
+  if (!cachedStatusDirty && cachedStatusSnapshot) return cachedStatusSnapshot
+  cachedStatusSnapshot = {
     status: current.status,
     phase: current.phase,
     objective: current.objective,
@@ -136,7 +149,10 @@ export function getGoalStatusSnapshot(): {
     totalWorkerRounds: current.totalWorkerRounds,
     totalVerifyRounds: current.totalVerifyRounds,
     pauseMessage: current.pauseMessage,
+    elapsedMs: current.elapsedMs,
   }
+  cachedStatusDirty = false
+  return cachedStatusSnapshot
 }
 
 function makeScratchDir(goalId: string): string {

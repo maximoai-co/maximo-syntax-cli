@@ -154,6 +154,14 @@ type LocalJSXCommand = {
    * This defers loading heavy dependencies until the command is invoked.
    */
   load: () => Promise<LocalJSXCommandModule>
+  /**
+   * Opt-in for headless/print/SDK sessions. Most local-jsx commands render
+   * Ink UI and cannot run non-interactively, but text-first commands (e.g.
+   * /goal) call onDone() with a result and are safe in print mode. Without
+   * this flag, the headless command filter drops them entirely and they
+   * resolve as "Unknown skill" for desktop/SDK hosts.
+   */
+  supportsNonInteractive?: boolean
 }
 
 /**

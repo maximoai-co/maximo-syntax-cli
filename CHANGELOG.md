@@ -4,6 +4,14 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.26] - 2026-08-05
+
+### Fixed
+
+- **`/goal` now works over desktop / SDK hosts** ("Unknown skill: goal"): the headless (print/`stream-json`) command filter dropped every `local-jsx` command, so the desktop app — which runs the CLI via `--print --input-format stream-json` — could never resolve `/goal`. Headless-safe `local-jsx` commands can now opt in via `supportsNonInteractive` on the command definition; the filter, the `LocalJSXCommand` type, and the `/goal` command itself were updated.
+- **`◎ goal` footer badge no longer crashes with "Maximum update depth exceeded"**: `getGoalStatusSnapshot()` mutated state on every render and returned a fresh object, which sent `useSyncExternalStore` into an infinite loop in the TUI. It now returns a cached, reference-stable snapshot that is only invalidated when the goal tracker actually notifies.
+- **Empty `/goal` result in print mode**: local-jsx command text results now flow into the final `resultText`, so print/SDK/desktop hosts see the command output (e.g. `/goal status`) instead of an empty string.
+
 ## [0.1.25] - 2026-08-05
 
 ### Added

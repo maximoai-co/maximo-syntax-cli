@@ -800,6 +800,10 @@ async function getMessagesForSlashCommand(
                           }),
                       ...metaMessages,
                     ],
+              // Carry the command's text result so headless/print/SDK hosts
+              // (desktop via --print --input-format stream-json) see the
+              // output in the final result message instead of an empty string.
+              resultText: typeof result === "string" ? result : undefined,
               shouldQuery: options?.shouldQuery ?? false,
               command,
               nextInput: options?.nextInput,
@@ -819,6 +823,13 @@ async function getMessagesForSlashCommand(
               )
             )
             .then((jsx) => {
+              // Guard: if onDone fired during mod.call() (early-exit path
+              // that calls onDone then returns JSX), the outer Promise has
+              // already resolved with onDone's messages — including in
+              // non-interactive (print/SDK) sessions where commands like
+              // /goal call onDone with shouldQuery:true and return JSX.
+              // Do NOT override that result with an empty resolution.
+              if (doneWasCalled) return;
               if (jsx == null) return;
               if (context.options.isNonInteractiveSession) {
                 void resolve({
@@ -828,14 +839,6 @@ async function getMessagesForSlashCommand(
                 });
                 return;
               }
-              // Guard: if onDone fired during mod.call() (early-exit path
-              // that calls onDone then returns JSX), skip setToolJSX. This
-              // chain is fire-and-forget — the outer Promise resolves when
-              // onDone is called, so executeUserInput may have already run
-              // its setToolJSX({clearLocalJSX: true}) before we get here.
-              // Setting isLocalJSXCommand after clear leaves it stuck true,
-              // blocking useQueueProcessor and TextInput focus.
-              if (doneWasCalled) return;
               setToolJSX({
                 jsx,
                 shouldHidePromptInput: true,

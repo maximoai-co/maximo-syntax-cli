@@ -51,3 +51,5 @@ export {
   type GoalEvaluatorVerdict,
   type GoalVerifierVerdict,
 } from './types.js'
+
+export type { GoalStatusSnapshot } from './goalTracker.js'
