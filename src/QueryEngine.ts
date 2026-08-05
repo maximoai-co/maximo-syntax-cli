@@ -955,6 +955,22 @@ export class QueryEngine {
               uuid: message.uuid,
             };
           }
+          // Surface goal-mode status to SDK / desktop clients so the UI can
+          // show progress (verify / continue / complete / pause).
+          if (
+            message.subtype === "informational" &&
+            typeof message.content === "string" &&
+            (message.content.startsWith("Goal ") ||
+              message.content.startsWith("Goal:"))
+          ) {
+            yield {
+              type: "system",
+              subtype: "status" as const,
+              status: message.content.slice(0, 500),
+              session_id: getSessionId(),
+              uuid: message.uuid,
+            };
+          }
           // Don't yield other system messages in headless mode
           break;
         }

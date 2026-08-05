@@ -41,6 +41,10 @@ import { useHasSelection, useSelection } from '../../ink/hooks/use-selection.js'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
 import { getPlatform } from '../../utils/platform.js';
 import { PrBadge } from '../PrBadge.js';
+import {
+  getGoalStatusSnapshot,
+  subscribeGoal,
+} from '../../services/goal/index.js';
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -48,6 +52,32 @@ const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../
 /* eslint-enable @typescript-eslint/no-require-imports */
 const NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
 const NULL = () => null;
+function GoalModeFooterBadge(): React.ReactNode {
+  const snap = useSyncExternalStore(subscribeGoal, getGoalStatusSnapshot, NULL);
+  if (!snap || snap.status === 'complete') return null;
+  const label =
+    snap.status === 'active'
+      ? 'goal'
+      : snap.status === 'user_paused' ||
+          snap.status === 'back_off_paused' ||
+          snap.status === 'no_progress_paused' ||
+          snap.status === 'infra_paused' ||
+          snap.status === 'blocked' ||
+          snap.status === 'budget_limited'
+        ? 'goal paused'
+        : 'goal';
+  const color =
+    snap.status === 'active'
+      ? 'permission'
+      : snap.status === 'blocked' || snap.status === 'budget_limited'
+        ? 'error'
+        : 'warning';
+  return (
+    <Text color={color} key="goal-mode" bold>
+      ◎ {label}
+    </Text>
+  );
+}
 const MAX_VOICE_HINT_SHOWS = 3;
 type Props = {
   exitMessage: {
@@ -364,6 +394,8 @@ function ModeIndicator({
   ...(remoteSessionUrl ? [<Link url={remoteSessionUrl} key="remote">
             <Text color="ide">{figures.circleDouble} remote</Text>
           </Link>] : []),
+  // Autonomous /goal mode badge
+  <GoalModeFooterBadge key="goal-mode" />,
   // BackgroundTaskStatus is NOT in parts — it renders as a Box sibling so
   // its click-target Box isn't nested inside the <Text wrap="truncate">
   // wrapper (reconciler throws on Box-in-Text).

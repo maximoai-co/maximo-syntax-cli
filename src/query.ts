@@ -105,11 +105,14 @@ import type { Terminal, Continue } from './query/transitions.js'
 import { feature } from 'bun:bundle'
 import {
   getCurrentTurnTokenBudget,
+  getTotalInputTokens,
+  getTotalOutputTokens,
   getTurnOutputTokens,
   incrementBudgetContinuationCount,
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
+import { isGoalActive, runGoalRoundEnd } from './services/goal/index.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -1352,6 +1355,53 @@ async function* queryLoop(
             queryDepth: queryTracking.depth,
           })
         }
+      }
+
+      // Goal mode: host-side evaluate → verify → continue (main thread only).
+      // Subagents must not drive the parent goal loop.
+      if (
+        isGoalActive() &&
+        !toolUseContext.agentId &&
+        (querySource === 'repl_main_thread' ||
+          querySource === 'sdk' ||
+          String(querySource).startsWith('repl_main_thread'))
+      ) {
+        const allMessages = [...messagesForQuery, ...assistantMessages]
+        const goalDecision = await runGoalRoundEnd({
+          messages: allMessages,
+          totalTokens: getTotalInputTokens() + getTotalOutputTokens(),
+          effortValue: toolUseContext.getAppState().effortValue,
+          activeModel: toolUseContext.options.mainLoopModel,
+          signal: toolUseContext.abortController.signal,
+        })
+
+        if (goalDecision.statusMessage) {
+          yield createSystemMessage(goalDecision.statusMessage, 'info')
+        }
+
+        if (goalDecision.action === 'continue') {
+          logForDebugging('[goal] continuing after evaluator/verifier')
+          state = {
+            messages: [
+              ...allMessages,
+              createUserMessage({
+                content: goalDecision.directive,
+                isMeta: true,
+              }),
+            ],
+            toolUseContext,
+            autoCompactTracking: tracking,
+            maxOutputTokensRecoveryCount: 0,
+            hasAttemptedReactiveCompact: false,
+            maxOutputTokensOverride: undefined,
+            pendingToolUseSummary: undefined,
+            stopHookActive: undefined,
+            turnCount: turnCount + 1,
+            transition: { reason: 'goal_continuation' },
+          }
+          continue
+        }
+        // complete | pause | end_turn → fall through to completed
       }
 
       return { reason: 'completed' }

@@ -4,6 +4,19 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.25] - 2026-08-05
+
+### Added
+
+- **Autonomous `/goal` mode** (`/goal <objective> [--budget <tokens>] | status | pause | resume | clear`): set a long-running objective that Maximo works on across multiple turns without stopping to hand back control. The host drives the loop — after each model round an independent evaluator decides whether to continue, whether the work is candidate-complete, or whether it is blocked, and injects a continuation directive with the next step so the agent keeps going on its own.
+- **Goal planner**: a sub-agent run once at goal creation writes a short acceptance/verification plan; the goal rules reference it and the evaluator/verifier check against it.
+- **Adversarial verification**: when the evaluator marks the goal candidate-complete, a separate verifier pass (using the active/stronger model) tries to refute completion instead of rubber-stamping it; concrete gaps are fed back into the next continuation round.
+- **Pause / resume / budget control**: `/goal pause`, `/goal resume`, `/goal clear`, and an optional per-goal token budget (`--budget`) that stops the loop (and pauses the goal) when spent.
+- **Safety rails**: same-blocker stall detection auto-pauses the goal for a user action, and a premature-stop detector nudges the agent back when it tries to bail ("Giving up…", "Stopping here…") while open goal work remains.
+- **Evaluator model selection**: Maximo AI / MyTabulon logins try `maximo-pandora-3.8-nano` with the current reasoning effort first, then fall back to the active model + same effort; all other logins use the current selected model + effort only. Verifier always uses the active model.
+- **TUI + desktop integration**: a `◎ goal` / `◎ goal paused` badge in the prompt footer, goal-mode rules injected into the system prompt while a goal is active, `system/status` messages surfacing goal progress to SDK/desktop clients, and `/clear` now clears any active goal.
+- **Tests**: evaluator verdict parsing, model-candidate resolution, and Maximo-family provider detection (11 unit tests).
+
 ## [0.1.24] - 2026-08-04
 
 ### Added

@@ -511,6 +511,16 @@ ${CYBER_RISK_INSTRUCTION}`,
       "MCP servers connect/disconnect between turns"
     ),
     systemPromptSection("scratchpad", () => getScratchpadInstructions()),
+    systemPromptSection("goal_mode", () => {
+      // Lazy require avoids circular import at module init.
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const goal = require("../services/goal/index.js") as typeof import("../services/goal/index.js")
+      /* eslint-enable @typescript-eslint/no-require-imports */
+      if (!goal.isGoalActive()) return null
+      const snap = goal.getGoalSnapshot()
+      if (!snap) return null
+      return goal.renderGoalRules(snap.objective, snap.planText, snap.scratchDir)
+    }),
     systemPromptSection("frc", () => getFunctionResultClearingSection(model)),
     systemPromptSection(
       "summarize_tool_results",

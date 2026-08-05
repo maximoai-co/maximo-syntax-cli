@@ -45,6 +45,7 @@ import {
 } from '../../utils/task/diskOutput.js'
 import { getCurrentWorktreeSession } from '../../utils/worktree.js'
 import { clearSessionCaches } from './caches.js'
+import { clearGoal, hasGoal } from '../../services/goal/index.js'
 
 export async function clearConversation({
   setMessages,
@@ -72,6 +73,11 @@ export async function clearConversation({
     signal: AbortSignal.timeout(sessionEndTimeoutMs),
     timeoutMs: sessionEndTimeoutMs,
   })
+
+  // Clear any active autonomous goal for this session
+  if (hasGoal()) {
+    clearGoal()
+  }
 
   // Signal to inference that this conversation's cache can be evicted.
   const lastRequestId = getLastMainRequestId()
