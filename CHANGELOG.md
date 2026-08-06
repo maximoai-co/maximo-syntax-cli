@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.28] - 2026-08-06
+
+### Fixed
+
+- **CLI --effort now accepts xhigh/minimal/ultra**: desktop sends `--effort xhigh` for Extra High but the CLI only allowed `low,medium,high,max`, so it exited before reaching the API (`The Maximo Syntax engine exited without a response.`). Now normalizes `Extra High/extra_high/ultra/maximum` variants and allows `minimal,low,medium,high,xhigh,max,ultra`.
+
 ## [0.1.27] - 2026-08-06
 
 ### Fixed
