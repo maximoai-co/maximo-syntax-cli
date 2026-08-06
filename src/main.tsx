@@ -1664,16 +1664,16 @@ async function run(): Promise<CommanderCommand> {
     .addOption(
       new Option(
         "--effort <level>",
-        `Effort level for the current session (low, medium, high, max)`
+        `Effort level for the current session (minimal, low, medium, high, xhigh, max, ultra)`
       ).argParser((rawValue: string) => {
-        const value = rawValue.toLowerCase();
-        const allowed = ["low", "medium", "high", "max"];
-        if (!allowed.includes(value)) {
+        const normalized = rawValue.trim().toLowerCase().replace(/[-_\s]+/g, "").replace(/^extrahigh$/, "xhigh").replace(/^ultra$/, "xhigh").replace(/^maximum$/, "max").replace(/^med$/, "medium");
+        const allowed = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+        if (!allowed.includes(normalized)) {
           throw new InvalidArgumentError(
             `It must be one of: ${allowed.join(", ")}`
           );
         }
-        return value;
+        return normalized;
       })
     )
     .option(
