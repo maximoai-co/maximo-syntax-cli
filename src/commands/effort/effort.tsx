@@ -105,16 +105,22 @@ function unsetEffortLevel(): EffortCommandResult {
   };
 }
 export function executeEffort(args: string): EffortCommandResult {
-  const normalized = args.toLowerCase();
-  if (normalized === 'auto' || normalized === 'unset') {
+  const raw = args.trim();
+  const normalized = raw.toLowerCase().replace(/[-_\s]+/g, "");
+  const canonical =
+    normalized === "extrahigh" || normalized === "ultra" ? "xhigh" :
+    normalized === "maximum" ? "max" :
+    normalized === "med" ? "medium" :
+    normalized;
+  if (canonical === 'auto' || canonical === 'unset') {
     return unsetEffortLevel();
   }
-  if (!isEffortLevel(normalized)) {
+  if (!isEffortLevel(canonical)) {
     return {
       message: `Invalid argument: ${args}. Valid options are: minimal, low, medium, high, xhigh, max, ultra, auto`
     };
   }
-  return setEffortValue(normalized);
+  return setEffortValue(canonical);
 }
 function ShowCurrentEffort(t0) {
   const {

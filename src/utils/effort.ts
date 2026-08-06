@@ -106,11 +106,18 @@ export function parseEffortValue(value: unknown): EffortValue | undefined {
   if (typeof value === "number" && isValidNumericEffort(value)) {
     return value;
   }
-  const str = String(value).toLowerCase();
-  if (isEffortLevel(str)) {
-    return str;
+  const raw = String(value).trim();
+  const str = raw.toLowerCase().replace(/[-_\s]+/g, "");
+  // Accept display spellings: "Extra High" -> xhigh, "Maximum" -> max
+  const normalized =
+    str === "extrahigh" || str === "ultra" ? "xhigh" :
+    str === "maximum" ? "max" :
+    str === "med" ? "medium" :
+    str;
+  if (isEffortLevel(normalized)) {
+    return normalized;
   }
-  const numericValue = parseInt(str, 10);
+  const numericValue = parseInt(raw, 10);
   if (!isNaN(numericValue) && isValidNumericEffort(numericValue)) {
     return numericValue;
   }

@@ -4,6 +4,14 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.27] - 2026-08-06
+
+### Fixed
+
+- **Meta model logo mapping**: expanded `modelProvider` detection to recognize Meta, Llama, and Muse model families (including `meta-muse` and related prefix variants) so Meta model logos render correctly across all views.
+- **Tooltip z-index / clipping fix**: raised tooltip stacking order so hover tooltips appear on top without getting cut off.
+- **Effort normalization & desktop integration**: version-agnostic effort normalization (`xhigh`) across desktop and CLI.
+
 ## [0.1.26] - 2026-08-05
 
 ### Fixed

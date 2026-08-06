@@ -363,8 +363,11 @@ export function getCachedMaximoModelLimits(
 }
 
 function normalizeEffortName(value: string): string {
-  const normalized = value.trim().toLowerCase().replace(/-/g, "");
-  return normalized === "xhigh" ? "xhigh" : normalized;
+  const normalized = value.trim().toLowerCase().replace(/[-_\s]+/g, "");
+  if (normalized === "extrahigh" || normalized === "ultra") return "xhigh";
+  if (normalized === "maximum") return "max";
+  if (normalized === "med") return "medium";
+  return normalized;
 }
 
 export function getCachedMaximoModelEffortConfig(
