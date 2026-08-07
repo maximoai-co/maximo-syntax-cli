@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.29] - 2026-08-08
+
+### Added
+
+- **Image generation tool**: `ImageGeneration` lets Maximo generate images through the connected backend. `api.maximoai.co` logins hit `POST /v1/api/image-generation` (Maximo Astra Seedream 4.5 via Replicate) and `api.mytabulon.com` logins hit `POST /v1/image-generation` (MyTabulon Vertex Gemini image pipeline); Cencori and other providers keep the tool disabled. The generated image URLs are returned to the model as image blocks so Maximo can present them inline. Async agents may use the tool too.
+
 ## [0.1.28] - 2026-08-06
 
 ### Fixed
