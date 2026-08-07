@@ -277,13 +277,25 @@ export const ImageGenerationTool = buildTool({
   mapToolResultToToolResultBlockParam(output, toolUseID) {
     const { prompt, images } = output;
 
-    const textContent = [
-      `Generated image${images.length === 1 ? "" : "s"} for prompt: "${prompt}"`,
+    const lines: string[] = [];
+    lines.push(`Generated image${images.length === 1 ? "" : "s"} for prompt: "${prompt}"`);
+    if (!images || images.length === 0) {
+      lines.push("No images were returned — tell the user generation failed and ask to try again.");
+    } else {
+      for (let i = 0; i < images.length; i++) {
+        const url = images[i]?.url;
+        if (url) {
+          lines.push(`Image ${i + 1} URL: ${url}`);
+        }
+      }
+      lines.push(
+        "IMPORTANT: Use the exact URL(s) above verbatim in your markdown. Do NOT invent, shorten, or change the domain/path. Example: ![alt text](<exact URL>)"
+      );
+    }
+
+    const blocks: Array<Record<string, unknown>> = [
+      { type: "text", text: lines.join("\n") },
     ];
-    const blocks: Array<Record<string, unknown>> = textContent.map((text) => ({
-      type: "text",
-      text,
-    }));
 
     // Surface the generated images to the model as image blocks so it can
     // describe/embed them in its response.
