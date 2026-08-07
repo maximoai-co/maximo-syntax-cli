@@ -4,11 +4,17 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.31] - 2026-08-08
+
+### Fixed
+
+- **Remove hardcoded URL examples from prompt**: `ImageGeneration` prompt previously listed `https://api.mytabulon.com/...` / `https://api.maximoai.co/...` as examples. Now fully generic — prompt mandates verbatim copying of the exact URL returned by the tool without naming any domain, preventing any hardcoding. Logic was already domain-agnostic (echoes backend URL).
+
 ## [0.1.30] - 2026-08-08
 
 ### Fixed
 
-- **ImageGeneration hallucinated URL fix**: `ImageGeneration` now surfaces the exact backend-returned image URL(s) as copyable text (`Image 1 URL: https://...`) alongside the image block, and the tool prompt now mandates verbatim copying (`![alt](exact_url_from_tool_result)`) with a `CRITICAL` never-invent rule. This stops the model from hallucinating `https://ai-image-output.maximo.ai/gen/...` and breaking images. The code is endpoint-agnostic — it echoes whatever URL the backend returns — so both `api.maximoai.co` (`/v1/api/image-generation`) and `api.mytabulon.com` (`/v1/image-generation`) logins work correctly, including multi-image (`output_count` 1-4) and empty-result cases. No hardcoded domains in logic; example domains only appear in the prompt as guidance.
+- **ImageGeneration hallucinated URL fix**: `ImageGeneration` now surfaces the exact backend-returned image URL(s) as copyable text (`Image 1 URL: https://...`) alongside the image block, and the tool prompt now mandates verbatim copying (`![alt](exact_url_from_tool_result)`) with a `CRITICAL` never-invent rule. This stops the model from hallucinating `https://ai-image-output.maximo.ai/gen/...` and breaking images. The code is endpoint-agnostic — it echoes whatever URL the backend returns — so both Maximo AI and MyTabulon logins work correctly, including multi-image (`output_count` 1-4) and empty-result cases. No hardcoded domains in code or prompt.
 
 ## [0.1.29] - 2026-08-08
 

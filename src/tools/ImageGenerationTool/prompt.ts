@@ -11,8 +11,7 @@ Usage notes:
   - Provide a detailed, descriptive prompt for best results (subject, style, composition, lighting)
   - Optional: aspect_ratio (e.g. "16:9", "1:1", "4:3"), size ("1K", "2K", "4K"), output count
   - After generating, include the image in your response using markdown: ![description](exact_url_from_tool_result)
-  - CRITICAL: You MUST copy the URL(s) exactly as returned in the tool result text (lines like "Image 1 URL: https://..."). NEVER invent, guess, or reconstruct a URL. If you use any other URL (e.g. ai-image-output.maximo.ai) the image will be broken.
-  - Use the full https://api.mytabulon.com/uploads/... or https://api.maximoai.co/uploads/... URL verbatim, one markdown image per URL returned.
-  - Do NOT shorten, re-encode, or change the domain/path. The URL must be pasted exactly as shown.
+  - CRITICAL: You MUST copy the URL(s) exactly as returned in the tool result text (lines like "Image 1 URL: https://..."). NEVER invent, guess, or reconstruct a URL. If you use any hallucinated or reconstructed URL the image will be broken.
+  - Use the full URL exactly as returned - verbatim, one markdown image per URL. Do NOT shorten, re-encode, or change any part of it.
 `;
 }
