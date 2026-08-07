@@ -280,7 +280,8 @@ export const ImageGenerationTool = buildTool({
     const lines: string[] = [];
     lines.push(`Generated image${images.length === 1 ? "" : "s"} for prompt: "${prompt}"`);
     if (!images || images.length === 0) {
-      lines.push("No images were returned — tell the user generation failed and ask to try again.");
+      lines.push("No images were returned — generation failed. Do NOT invent a URL (never use https://example.com, https://via.placeholder.com, https://placehold.co, https://picsum.photos, or https://ai-image-output...). Tell the user it failed, why it might have (check login: Maximo AI / MyTabulon required), and ask to try again.");
+      lines.push("FORBIDDEN PLACEHOLDERS: https://example.com, https://via.placeholder.com, https://placehold.co, https://picsum.photos — using any of these is a failure.");
     } else {
       for (let i = 0; i < images.length; i++) {
         const url = images[i]?.url;

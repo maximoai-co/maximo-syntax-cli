@@ -11,7 +11,8 @@ Usage notes:
   - Provide a detailed, descriptive prompt for best results (subject, style, composition, lighting)
   - Optional: aspect_ratio (e.g. "16:9", "1:1", "4:3"), size ("1K", "2K", "4K"), output count
   - After generating, include the image in your response using markdown: ![description](exact_url_from_tool_result)
-  - CRITICAL: You MUST copy the URL(s) exactly as returned in the tool result text (lines like "Image 1 URL: https://..."). NEVER invent, guess, or reconstruct a URL. If you use any hallucinated or reconstructed URL the image will be broken.
+  - CRITICAL: You MUST copy the URL(s) exactly as returned in the tool result text (lines like "Image 1 URL: https://..."). NEVER invent, guess, or reconstruct a URL — this includes https://example.com, https://via.placeholder.com, https://placehold.co, https://picsum.photos, or any placeholder. If you use any hallucinated/reconstructed/placeholder URL the image will be broken and the task fails.
   - Use the full URL exactly as returned - verbatim, one markdown image per URL. Do NOT shorten, re-encode, or change any part of it.
+  - If the tool result contains "No images were returned" you MUST report the failure verbatim and MUST NOT output any ![...](https://...) at all.
 `;
 }

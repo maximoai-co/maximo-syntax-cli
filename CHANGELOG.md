@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.32] - 2026-08-08
+
+### Fixed
+
+- **Block example.com/placeholder hallucinations**: `ImageGeneration` prompt and empty-result text now explicitly forbid `https://example.com`, `https://via.placeholder.com`, `https://placehold.co`, `https://picsum.photos` (and any placeholder). Empty results now report failure verbatim and forbid any `![...](https://...)` output. Still fully generic — no hard-coded backend domains, echoes exact backend URL.
+
 ## [0.1.31] - 2026-08-08
 
 ### Fixed
