@@ -13,6 +13,7 @@ import { readFileSync } from "fs";
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 const version = pkg.version;
 const isDevelopmentBuild = process.argv.includes("--dev");
+const isStandaloneBuild = process.argv.includes("--standalone");
 const buildNodeEnv = isDevelopmentBuild ? "development" : "production";
 
 // Bun can otherwise infer NODE_ENV=development while bundling from a
@@ -68,7 +69,7 @@ const result = await Bun.build({
   splitting: false,
   sourcemap: "external",
   minify: false,
-  naming: "cli.mjs",
+  naming: isStandaloneBuild ? "cli-standalone.mjs" : "cli.mjs",
   // @ts-expect-error Bun.BuildConfig.features is supported at runtime (bun:bundle DCE)
   features: enabledFeatures,
   define: {
@@ -275,7 +276,21 @@ export const SeverityNumber = {};
       },
     },
   ],
-  external: [
+  external: isStandaloneBuild ? [
+    // Optional provider/telemetry adapters are loaded only when explicitly
+    // configured and are not installed in the public checkout by default.
+    "@aws-sdk/client-bedrock",
+    "@aws-sdk/client-sts",
+    "@azure/identity",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/exporter-trace-otlp-proto",
+    "@opentelemetry/exporter-logs-otlp-proto",
+    "@opentelemetry/exporter-logs-otlp-grpc",
+    "@opentelemetry/exporter-metrics-otlp-proto",
+    "@opentelemetry/exporter-metrics-otlp-grpc",
+    "@opentelemetry/exporter-metrics-otlp-http",
+    "@opentelemetry/exporter-prometheus",
+  ] : [
     // OpenTelemetry — too many named exports to stub, kept external
     "@opentelemetry/api",
     "@opentelemetry/api-logs",
@@ -314,4 +329,4 @@ if (!result.success) {
   process.exit(1);
 }
 
-console.log(`✓ Built maximo-syntax-cli v${version} → dist/cli.mjs`);
+console.log(`✓ Built maximo-syntax-cli v${version} → dist/${isStandaloneBuild ? "cli-standalone.mjs" : "cli.mjs"}`);
