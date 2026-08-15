@@ -126,7 +126,7 @@ A call that omits \`description\` or \`prompt\` is rejected. Do not start the su
 Optional but supported on every spawn:
 - \`subagent_type\`: one of the types listed above. If omitted, ${forkEnabled ? 'a fork of yourself is created' : 'the general-purpose agent is used'}.
 - \`model\`: an exact slug from the live catalog below, a family alias (\`sonnet\`, \`opus\`, \`haiku\`), or \`inherit\`. Do not invent slugs. Omit to inherit the parent model. Compact list: ${availableModels}.
-- \`effort\`: a level listed for that model in the catalog (plus display aliases like Extra High). Omit to inherit the parent effort. Never pass an effort the chosen model does not list.
+- \`effort\`: a level listed for that model in the catalog below. Omit to inherit the parent effort. Never pass an effort the chosen model does not list.
 - \`isolation\`: \`"none"\` (default, shared workspace) or \`"worktree"\` (isolated git worktree). Never pass any other value. \`"none"\` is valid and means "do not isolate".
 - \`run_in_background\`: \`true\` to return immediately and get a completion notification later.
 
@@ -271,7 +271,7 @@ ${
     : `When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.`
 }
 
-Always pass both \`description\` (3-5 word title) and \`prompt\` (full task). You may set \`model\` to any available model slug and \`effort\` to any effort that model supports; omit them to inherit the parent. \`isolation\` accepts only \`"none"\` (default, shared workspace) or \`"worktree"\`.`
+Always pass both \`description\` (3-5 word title) and \`prompt\` (full task). You may set \`model\` to a slug from the live catalog and \`effort\` to a level listed for that model; omit them to inherit the parent. \`isolation\` accepts only \`"none"\` (default, shared workspace) or \`"worktree"\`.`
 
   // Coordinator mode gets the slim prompt -- the coordinator system prompt
   // already covers usage notes, examples, and when-not-to-use guidance.
@@ -331,7 +331,7 @@ Usage notes:
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.)${forkEnabled ? '' : ", since it is not aware of the user's intent"}
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 - If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple ${AGENT_TOOL_NAME} tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.
-- You can optionally set \`model\` to any available model slug listed above (or \`inherit\`) and \`effort\` to any effort that model supports. Omit both to inherit the parent conversation's model and effort.
+- You can optionally set \`model\` to a slug from the live catalog (or \`inherit\`) and \`effort\` to a level listed for that model. Omit both to inherit the parent conversation's model and effort.
 - You can optionally set \`isolation: "none"\` (default, shared workspace) or \`isolation: "worktree"\` to run the agent in a temporary git worktree, giving it an isolated copy of the repository. The worktree is automatically cleaned up if the agent makes no changes; if changes are made, the worktree path and branch are returned in the result. Do not pass any isolation value other than \`"none"\` or \`"worktree"\`.${
     process.env.USER_TYPE === 'ant'
       ? `\n- You can set \`isolation: "remote"\` to run the agent in a remote CCR environment. This is always a background task; you'll be notified when it completes. Use for long-running tasks that need a fresh sandbox.`

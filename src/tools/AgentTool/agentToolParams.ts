@@ -1,10 +1,5 @@
 import { getCachedMaximoModelEffortConfig } from "../../services/api/maximoModels.js";
-import {
-  EFFORT_LEVELS,
-  type EffortValue,
-  getSupportedEffortLevelsForModel,
-  parseEffortValue,
-} from "../../utils/effort.js";
+import { type EffortValue, parseEffortValue } from "../../utils/effort.js";
 import { isInheritAgentModel } from "../../utils/model/agent.js";
 import { getModelOptions } from "../../utils/model/modelOptions.js";
 
@@ -183,15 +178,11 @@ export function listSubagentModelSlugs(): string[] {
 
 export function listSubagentEffortLevels(model?: string): string[] {
   if (model) {
-    const supported = getSupportedEffortLevelsForModel(model);
-    if (supported?.length) return [...supported];
+    return [...(getCachedMaximoModelEffortConfig(model)?.supportedEfforts ?? [])];
   }
-  const fromCatalog = [
-    ...new Set(
-      listSubagentDelegationCatalog().flatMap(entry => entry.efforts),
-    ),
+  return [
+    ...new Set(listSubagentDelegationCatalog().flatMap(entry => entry.efforts)),
   ];
-  return fromCatalog.length > 0 ? fromCatalog : [...EFFORT_LEVELS];
 }
 
 export type SubagentCatalogEntry = {
@@ -215,13 +206,9 @@ export function listSubagentDelegationCatalog(): SubagentCatalogEntry[] {
     if (!trimmed || seen.has(trimmed)) return;
     seen.add(trimmed);
     const config = getCachedMaximoModelEffortConfig(trimmed);
-    const supported =
-      config?.supportedEfforts?.length
-        ? config.supportedEfforts
-        : getSupportedEffortLevelsForModel(trimmed);
     entries.push({
       slug: trimmed,
-      efforts: supported ? [...supported] : [],
+      efforts: config?.supportedEfforts ? [...config.supportedEfforts] : [],
       ...(config?.defaultEffort ? { defaultEffort: config.defaultEffort } : {}),
     });
   };

@@ -31,26 +31,15 @@ export type EffortValue = EffortLevel | number;
 
 export function getSupportedEffortLevelsForModel(
   model: string
-): readonly EffortLevel[] | undefined {
+): readonly string[] | undefined {
   const providerConfig = getCachedMaximoModelEffortConfig(model);
-  if (providerConfig) {
-    return providerConfig.supportedEfforts.filter(isEffortLevel);
+  if (!providerConfig) {
+    return undefined;
   }
-
-  const m = model.toLowerCase();
-  // Atlas 1.2 supports these levels by contract. Keep the first request from
-  // downgrading max to high while the asynchronous provider catalogue is
-  // still loading; refreshed provider metadata remains authoritative above.
-  if (m.includes("maximo-atlas-1.2")) {
-    return ["low", "medium", "high", "xhigh", "max"];
-  }
-  if (m.includes("opus-4-6")) {
-    return ["low", "medium", "high", "max"];
-  }
-  if (m.includes("sonnet-4-6")) {
-    return ["low", "medium", "high"];
-  }
-  return undefined;
+  // Provider catalog is the only source of per-model efforts. Do not invent
+  // fallback lists for Atlas/Pandora/Opus/Sonnet — those go stale and can
+  // hide levels the API actually advertises (for example Pandora 3.8 nano max).
+  return providerConfig.supportedEfforts;
 }
 
 export function modelSupportsEffort(model: string): boolean {
@@ -209,8 +198,6 @@ export function resolveAppliedEffort(
           supportedLevels[supportedLevels.length - 1]
         );
       }
-    } else if (resolved === "max" && !modelSupportsMaxEffort(model)) {
-      return "high";
     }
   }
   return resolved;

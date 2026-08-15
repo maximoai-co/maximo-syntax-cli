@@ -66,18 +66,12 @@ test('deepseek-chat clamps oversized max output overrides to the provider limit'
   expect(getMaxOutputTokensForModel('deepseek-chat')).toBe(8_192)
 })
 
-test('Atlas 1.2 preserves xhigh and max before provider metadata is cached', () => {
+test('does not invent effort lists or clamp max before provider metadata is cached', () => {
   clearMaximoModelsCache()
 
-  expect(getSupportedEffortLevelsForModel('maximo-atlas-1.2')).toEqual([
-    'low',
-    'medium',
-    'high',
-    'xhigh',
-    'max',
-  ])
-  expect(resolveAppliedEffort('maximo-atlas-1.2', 'xhigh')).toBe('xhigh')
-  expect(resolveAppliedEffort('maximo-atlas-1.2', 'max')).toBe('max')
+  expect(getSupportedEffortLevelsForModel('maximo-atlas-1.2')).toBeUndefined()
+  expect(getSupportedEffortLevelsForModel('maximo-pandora-3.8-nano')).toBeUndefined()
+  expect(resolveAppliedEffort('maximo-pandora-3.8-nano', 'max')).toBe('max')
 })
 
 test('Maximo model metadata drives context and output limits', async () => {
@@ -242,4 +236,42 @@ test('invalid provider output metadata cannot collapse the effective context win
   ])
   expect(getDefaultEffortForModel('maximo-atlas-1.2')).toBe('medium')
   expect(modelSupportsEffort('maximo-atlas-1.2')).toBe(true)
+})
+
+test('Pandora 3.8 nano efforts come from the provider catalog including max', async () => {
+  process.env.MAXIMO_SYNTAX_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = 'https://api.maximoai.co/v1'
+  process.env.OPENAI_API_KEY = 'test-key'
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 'maximo-pandora-3.8-nano',
+            name: 'Maximo AI: Pandora 3.8 Nano',
+            reasoning_efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+            reasoning: {
+              supported_efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+              default_effort: 'high',
+            },
+          },
+        ],
+      }),
+    )) as typeof fetch
+
+  await fetchMaximoModels({
+    forceRefresh: true,
+    persistMyTabulonAccount: false,
+  })
+
+  expect(getSupportedEffortLevelsForModel('maximo-pandora-3.8-nano')).toEqual([
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ])
+  expect(resolveAppliedEffort('maximo-pandora-3.8-nano', 'max')).toBe('max')
+  expect(modelSupportsEffort('maximo-pandora-3.8-nano')).toBe(true)
 })

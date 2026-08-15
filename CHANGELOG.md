@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.36] - 2026-08-15
+
+### Fixed
+
+- **Effort lists are catalog-only**: removed hardcoded Atlas/Opus/Sonnet effort fallbacks and the old `max`→`high` clamp. The Agent tool, `/effort`, and API send path now use each model's advertised `supported_efforts` from the provider catalog, so models like Pandora 3.8 nano can use `max` when the catalog says they support it.
+
 ## [0.1.35] - 2026-08-15
 
 ### Changed
