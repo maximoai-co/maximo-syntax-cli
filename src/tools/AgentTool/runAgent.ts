@@ -61,7 +61,7 @@ import { clearSessionHooks } from "../../utils/hooks/sessionHooks.js";
 import { executeSubagentStartHooks } from "../../utils/hooks.js";
 import { createUserMessage } from "../../utils/messages.js";
 import { getAgentModel } from "../../utils/model/agent.js";
-import type { EffortValue } from "../../utils/effort.js";
+import { resolveAppliedEffort, type EffortValue } from "../../utils/effort.js";
 import {
   clearAgentTranscriptSubdir,
   recordSidechainTranscript,
@@ -488,13 +488,15 @@ export async function* runAgent({
       };
     }
 
-    // Effort precedence: tool call override → agent definition → parent session
-    const effortValue =
+    // Effort precedence: tool call override → agent definition → parent session.
+    // Clamp to the resolved model's advertised levels from the provider catalog.
+    const requestedEffort =
       effort !== undefined
         ? effort
         : agentDefinition.effort !== undefined
           ? agentDefinition.effort
           : state.effortValue;
+    const effortValue = resolveAppliedEffort(resolvedAgentModel, requestedEffort);
 
     if (
       toolPermissionContext === state.toolPermissionContext &&

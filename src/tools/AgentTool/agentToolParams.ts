@@ -1,3 +1,4 @@
+import { getCachedMaximoModelEffortConfig } from "../../services/api/maximoModels.js";
 import {
   EFFORT_LEVELS,
   type EffortValue,
@@ -177,20 +178,7 @@ export function normalizeAgentToolInput(value: unknown): unknown {
 }
 
 export function listSubagentModelSlugs(): string[] {
-  const slugs = new Set<string>(["inherit"]);
-  try {
-    for (const option of getModelOptions()) {
-      if (typeof option.value === "string" && option.value.trim()) {
-        slugs.add(option.value.trim());
-      }
-    }
-  } catch {
-    // Catalog may be unavailable during early boot or tests.
-  }
-  for (const alias of ["sonnet", "opus", "haiku"] as const) {
-    slugs.add(alias);
-  }
-  return [...slugs];
+  return listSubagentDelegationCatalog().map(entry => entry.slug);
 }
 
 export function listSubagentEffortLevels(model?: string): string[] {
@@ -198,7 +186,55 @@ export function listSubagentEffortLevels(model?: string): string[] {
     const supported = getSupportedEffortLevelsForModel(model);
     if (supported?.length) return [...supported];
   }
-  return [...EFFORT_LEVELS];
+  const fromCatalog = [
+    ...new Set(
+      listSubagentDelegationCatalog().flatMap(entry => entry.efforts),
+    ),
+  ];
+  return fromCatalog.length > 0 ? fromCatalog : [...EFFORT_LEVELS];
+}
+
+export type SubagentCatalogEntry = {
+  slug: string;
+  efforts: string[];
+  defaultEffort?: string;
+};
+
+/**
+ * Live model + effort roster from the same provider catalog the CLI / desktop
+ * pickers use (`getModelOptions` + per-model effort metadata).
+ */
+export function listSubagentDelegationCatalog(): SubagentCatalogEntry[] {
+  const entries: SubagentCatalogEntry[] = [
+    { slug: "inherit", efforts: [] },
+  ];
+  const seen = new Set<string>(["inherit"]);
+
+  const add = (slug: string) => {
+    const trimmed = slug.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    const config = getCachedMaximoModelEffortConfig(trimmed);
+    const supported =
+      config?.supportedEfforts?.length
+        ? config.supportedEfforts
+        : getSupportedEffortLevelsForModel(trimmed);
+    entries.push({
+      slug: trimmed,
+      efforts: supported ? [...supported] : [],
+      ...(config?.defaultEffort ? { defaultEffort: config.defaultEffort } : {}),
+    });
+  };
+
+  try {
+    for (const option of getModelOptions()) {
+      if (typeof option.value === "string") add(option.value);
+    }
+  } catch {
+    // Catalog may be unavailable during early boot or tests.
+  }
+
+  return entries;
 }
 
 export function formatSubagentModelList(slugs: readonly string[]): string {
@@ -206,4 +242,33 @@ export function formatSubagentModelList(slugs: readonly string[]): string {
   const shown = slugs.slice(0, 24);
   const extra = slugs.length - shown.length;
   return extra > 0 ? `${shown.join(", ")}, and ${extra} more` : shown.join(", ");
+}
+
+export function formatSubagentDelegationCatalog(
+  entries: readonly SubagentCatalogEntry[],
+  limit = 40,
+): string {
+  const models = entries.filter(entry => entry.slug !== "inherit");
+  if (models.length === 0) {
+    return "The live provider catalog is not loaded yet. Omit `model` and `effort` to inherit the parent conversation, or pass a known slug from this session.";
+  }
+
+  const shown = entries.slice(0, limit);
+  const extra = entries.length - shown.length;
+  const lines = shown.map(entry => {
+    if (entry.slug === "inherit") {
+      return "- inherit — use the parent conversation model and effort";
+    }
+    if (entry.efforts.length === 0) {
+      return `- ${entry.slug} — omit effort (no advertised effort levels)`;
+    }
+    const defaultSuffix = entry.defaultEffort
+      ? ` (default ${entry.defaultEffort})`
+      : "";
+    return `- ${entry.slug} — efforts: ${entry.efforts.join(", ")}${defaultSuffix}`;
+  });
+  if (extra > 0) {
+    lines.push(`- …and ${extra} more slugs from the same provider catalog`);
+  }
+  return lines.join("\n");
 }

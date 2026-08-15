@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.35] - 2026-08-15
+
+### Changed
+
+- **Agent tool now shows the live model/effort catalog**: the `Agent` tool description lists the same provider catalog the CLI uses for `/model` and `/effort`, with each slug and that model's supported efforts. The catalog is refreshed if it has not loaded yet, and an unsupported effort is clamped to the chosen model's advertised levels.
+
 ## [0.1.34] - 2026-08-15
 
 ### Fixed

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { isInheritAgentModel } from "../../utils/model/agent.ts";
 import {
   deriveAgentDescription,
+  formatSubagentDelegationCatalog,
   normalizeAgentToolInput,
   normalizeEffortInput,
   normalizeIsolation,
@@ -101,6 +102,34 @@ describe("deriveAgentDescription", () => {
   it("keeps the first five words", () => {
     expect(deriveAgentDescription("Analyze Kimi K3 video style now")).toBe(
       "Analyze Kimi K3 video style",
+    );
+  });
+});
+
+describe("formatSubagentDelegationCatalog", () => {
+  it("lists each catalog slug with that model's efforts", () => {
+    const text = formatSubagentDelegationCatalog([
+      { slug: "inherit", efforts: [] },
+      {
+        slug: "maximo-atlas-1.2",
+        efforts: ["low", "medium", "high", "xhigh", "max"],
+        defaultEffort: "high",
+      },
+      { slug: "maximo-pandora-3.8-nano", efforts: ["low", "medium", "high"] },
+    ]);
+
+    expect(text).toContain("inherit — use the parent conversation model and effort");
+    expect(text).toContain(
+      "maximo-atlas-1.2 — efforts: low, medium, high, xhigh, max (default high)",
+    );
+    expect(text).toContain(
+      "maximo-pandora-3.8-nano — efforts: low, medium, high",
+    );
+  });
+
+  it("explains when the live catalog has not loaded", () => {
+    expect(formatSubagentDelegationCatalog([{ slug: "inherit", efforts: [] }])).toContain(
+      "catalog is not loaded yet",
     );
   });
 });

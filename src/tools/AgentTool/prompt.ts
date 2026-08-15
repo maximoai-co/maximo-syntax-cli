@@ -2,6 +2,7 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/gr
 import { getSubscriptionType } from '../../utils/auth.js'
 import { hasEmbeddedSearchTools } from '../../utils/embeddedTools.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from '../../utils/envUtils.js'
+import { getModelOptionsAsync } from '../../utils/model/modelOptions.js'
 import { isTeammate } from '../../utils/teammate.js'
 import { isInProcessTeammate } from '../../utils/teammateContext.js'
 import { FILE_READ_TOOL_NAME } from '../FileReadTool/prompt.js'
@@ -10,8 +11,9 @@ import { GLOB_TOOL_NAME } from '../GlobTool/prompt.js'
 import { SEND_MESSAGE_TOOL_NAME } from '../SendMessageTool/constants.js'
 import { AGENT_TOOL_NAME } from './constants.js'
 import {
+  formatSubagentDelegationCatalog,
   formatSubagentModelList,
-  listSubagentEffortLevels,
+  listSubagentDelegationCatalog,
   listSubagentModelSlugs,
 } from './agentToolParams.js'
 import { isForkSubagentEnabled } from './forkSubagent.js'
@@ -101,8 +103,15 @@ Forks are cheap because they share your prompt cache. Don't set \`model\` on a f
 `
     : ''
 
+  try {
+    await getModelOptionsAsync()
+  } catch {
+    // Keep going with whatever the sync catalog already has.
+  }
   const availableModels = formatSubagentModelList(listSubagentModelSlugs())
-  const availableEfforts = listSubagentEffortLevels().join(', ')
+  const catalogText = formatSubagentDelegationCatalog(
+    listSubagentDelegationCatalog(),
+  )
 
   const requiredCallShapeSection = `
 
@@ -116,10 +125,16 @@ A call that omits \`description\` or \`prompt\` is rejected. Do not start the su
 
 Optional but supported on every spawn:
 - \`subagent_type\`: one of the types listed above. If omitted, ${forkEnabled ? 'a fork of yourself is created' : 'the general-purpose agent is used'}.
-- \`model\`: any available model slug, a family alias (\`sonnet\`, \`opus\`, \`haiku\`), or \`inherit\`. Omit to inherit the parent model. Available models right now: ${availableModels}.
-- \`effort\`: any effort the chosen model supports (${availableEfforts}, plus display aliases like Extra High). Omit to inherit the parent effort.
+- \`model\`: an exact slug from the live catalog below, a family alias (\`sonnet\`, \`opus\`, \`haiku\`), or \`inherit\`. Do not invent slugs. Omit to inherit the parent model. Compact list: ${availableModels}.
+- \`effort\`: a level listed for that model in the catalog (plus display aliases like Extra High). Omit to inherit the parent effort. Never pass an effort the chosen model does not list.
 - \`isolation\`: \`"none"\` (default, shared workspace) or \`"worktree"\` (isolated git worktree). Never pass any other value. \`"none"\` is valid and means "do not isolate".
 - \`run_in_background\`: \`true\` to return immediately and get a completion notification later.
+
+## Live model and effort catalog
+
+This is the same provider catalog the CLI uses for \`/model\` and \`/effort\`. Use these exact \`model\` slugs and only the efforts listed on that row:
+
+${catalogText}
 
 Example of a correct call:
 

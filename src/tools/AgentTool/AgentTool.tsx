@@ -91,8 +91,8 @@ const baseInputSchema = lazySchema(() => z.object({
   description: z.string().describe('A short (3-5 word) title for the task. Required. Shown in the UI as the subagent name.'),
   prompt: z.string().describe('The full task for the agent to perform. Required. The subagent starts with zero conversation context, so include everything it needs.'),
   subagent_type: z.string().optional().describe('The type of specialized agent to use for this task. Built-in types include general-purpose, Explore, and Plan when enabled. If omitted, the general-purpose agent is used (or a fork, when forking is enabled).'),
-  model: z.string().optional().describe('Optional model slug for this subagent. Pass any available model id from the current provider catalog, a family alias (sonnet, opus, haiku), or "inherit". If omitted, uses the agent definition\'s model or inherits the parent. Only set this when you intend a different model than the parent.'),
-  effort: z.string().optional().describe('Optional reasoning effort for this subagent. Pass any effort the chosen model supports (minimal, low, medium, high, xhigh, max, ultra — plus Extra High / extra_high aliases). If omitted, inherits the parent effort or the agent definition\'s effort.'),
+  model: z.string().optional().describe('Optional model slug for this subagent. Pass an exact slug from the live catalog in this tool\'s description, a family alias (sonnet, opus, haiku), or "inherit". If omitted, uses the agent definition\'s model or inherits the parent. Do not invent slugs.'),
+  effort: z.string().optional().describe('Optional reasoning effort for this subagent. Pass a level listed for the chosen model in this tool\'s live catalog (minimal, low, medium, high, xhigh, max, ultra — plus Extra High / extra_high aliases). If omitted, inherits the parent effort or the agent definition\'s effort. Unsupported levels are clamped to that model\'s catalog.'),
   run_in_background: z.boolean().optional().describe('Set to true to run this agent in the background. You will be notified when it completes.')
 }));
 
