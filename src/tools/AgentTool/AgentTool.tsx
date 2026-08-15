@@ -24,10 +24,11 @@ import { AbortError, errorMessage, toError } from '../../utils/errors.js';
 import type { CacheSafeParams } from '../../utils/forkedAgent.js';
 import { lazySchema } from '../../utils/lazySchema.js';
 import { createUserMessage, extractTextContent, isSyntheticMessage, normalizeMessages } from '../../utils/messages.js';
-import { getAgentModel } from '../../utils/model/agent.js';
+import { getAgentModel, isInheritAgentModel } from '../../utils/model/agent.js';
 import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
 import {
   formatSubagentModelList,
+  isAccountCatalogModel,
   listSubagentModelSlugs,
   normalizeAgentToolInput,
   normalizeEffortInput,
@@ -91,7 +92,7 @@ const baseInputSchema = lazySchema(() => z.object({
   description: z.string().describe('A short (3-5 word) title for the task. Required. Shown in the UI as the subagent name.'),
   prompt: z.string().describe('The full task for the agent to perform. Required. The subagent starts with zero conversation context, so include everything it needs.'),
   subagent_type: z.string().optional().describe('The type of specialized agent to use for this task. Built-in types include general-purpose, Explore, and Plan when enabled. If omitted, the general-purpose agent is used (or a fork, when forking is enabled).'),
-  model: z.string().optional().describe('Optional model slug for this subagent. Pass an exact slug from the live catalog in this tool\'s description, a family alias (sonnet, opus, haiku), or "inherit". If omitted, uses the agent definition\'s model or inherits the parent. Do not invent slugs.'),
+  model: z.string().optional().describe('Optional model slug for this subagent. Pass an exact slug from the live logged-in account catalog in this tool\'s description, or "inherit". If omitted, uses the agent definition\'s model or inherits the parent. Do not invent slugs and do not use Claude family aliases such as sonnet, opus, or haiku unless that exact slug is in the catalog.'),
   effort: z.string().optional().describe('Optional reasoning effort for this subagent. Pass a level from the chosen model\'s row in this tool\'s live catalog. If omitted, inherits the parent effort or the agent definition\'s effort. Do not invent effort names.'),
   run_in_background: z.boolean().optional().describe('Set to true to run this agent in the background. You will be notified when it completes.')
 }));
@@ -433,8 +434,11 @@ export const AgentTool = buildTool({
     }
 
     // Resolve agent params for logging (these are already resolved in runAgent)
+    if (model && !isInheritAgentModel(model) && !isAccountCatalogModel(model)) {
+      throw new Error(`Model '${model}' is not in the logged-in account catalog. Use inherit or one of: ${formatSubagentModelList(listSubagentModelSlugs())}.`);
+    }
     const resolvedAgentModel = getAgentModel(selectedAgent.model, toolUseContext.options.mainLoopModel, isForkPath ? undefined : model, permissionMode);
-    if (model && !isModelAllowed(resolvedAgentModel)) {
+    if (model && !isModelAllowed(resolvedAgentModel) && !isAccountCatalogModel(resolvedAgentModel)) {
       throw new Error(`Model '${model}' is not available. Available models: ${formatSubagentModelList(listSubagentModelSlugs())}.`);
     }
     logEvent('tengu_agent_tool_selected', {

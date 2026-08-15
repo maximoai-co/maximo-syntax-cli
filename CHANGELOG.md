@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.37] - 2026-08-15
+
+### Fixed
+
+- **Agent models come from the logged-in account catalog**: the `Agent` tool now lists the same models `/model` shows for the current login (Maximo AI, MyTabulon, Cencori, OpenRouter, OpenCode). Claude leftovers (`sonnet` / `opus` / `haiku`) are no longer advertised or accepted unless that exact slug is in the account catalog. Explore and statusline built-in agents inherit the parent model instead of pinning Haiku/Sonnet.
+
 ## [0.1.36] - 2026-08-15
 
 ### Fixed

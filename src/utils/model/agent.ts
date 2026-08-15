@@ -7,7 +7,8 @@ import {
   getRuntimeMainLoopModel,
   parseUserSpecifiedModel,
 } from './model.js'
-import { getModelOptions } from './modelOptions.js'
+import { getCachedMaximoModelOptions } from '../../services/api/maximoModels.js'
+import { getGlobalConfig } from '../config.js'
 import { getAPIProvider } from './providers.js'
 
 export const AGENT_MODEL_OPTIONS = [...MODEL_ALIASES, 'inherit'] as const
@@ -137,8 +138,8 @@ export function getAgentModelDisplay(model: string | undefined): string {
 }
 
 /**
- * Get available model options for agents: inherit, the current provider
- * catalog, then family aliases that are not already represented.
+ * Get available model options for agents from the logged-in account catalog.
+ * Does not add Claude Code family aliases (sonnet/opus/haiku).
  */
 export function getAgentModelOptions(): AgentModelOption[] {
   const options: AgentModelOption[] = [
@@ -151,39 +152,22 @@ export function getAgentModelOptions(): AgentModelOption[] {
   const seen = new Set<string>(['inherit'])
 
   try {
-    for (const option of getModelOptions()) {
+    const catalog = [
+      ...(getCachedMaximoModelOptions() ?? []),
+      ...(getGlobalConfig().additionalModelOptionsCache ?? []),
+    ]
+    for (const option of catalog) {
       if (typeof option.value !== 'string' || !option.value.trim()) continue
       if (seen.has(option.value)) continue
       seen.add(option.value)
       options.push({
         value: option.value,
-        label: option.label,
-        description: option.description,
+        label: option.label || option.value,
+        description: option.description || 'From the logged-in account catalog',
       })
     }
   } catch {
     // Catalog may be unavailable during early boot or tests.
-  }
-
-  const aliasFallbacks: AgentModelOption[] = [
-    {
-      value: 'sonnet',
-      label: 'Sonnet',
-      description: 'Balanced performance - best for most agents',
-    },
-    {
-      value: 'opus',
-      label: 'Opus',
-      description: 'Most capable for complex reasoning tasks',
-    },
-    {
-      value: 'haiku',
-      label: 'Haiku',
-      description: 'Fast and efficient for simple tasks',
-    },
-  ]
-  for (const alias of aliasFallbacks) {
-    if (!seen.has(alias.value)) options.push(alias)
   }
 
   return options

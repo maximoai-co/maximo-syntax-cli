@@ -125,14 +125,14 @@ A call that omits \`description\` or \`prompt\` is rejected. Do not start the su
 
 Optional but supported on every spawn:
 - \`subagent_type\`: one of the types listed above. If omitted, ${forkEnabled ? 'a fork of yourself is created' : 'the general-purpose agent is used'}.
-- \`model\`: an exact slug from the live catalog below, a family alias (\`sonnet\`, \`opus\`, \`haiku\`), or \`inherit\`. Do not invent slugs. Omit to inherit the parent model. Compact list: ${availableModels}.
+- \`model\`: an exact slug from the live logged-in account catalog below, or \`inherit\`. Do not invent slugs and do not use Claude family aliases (\`sonnet\`, \`opus\`, \`haiku\`) unless that exact id is in this catalog. Omit to inherit the parent model. Compact list: ${availableModels}.
 - \`effort\`: a level listed for that model in the catalog below. Omit to inherit the parent effort. Never pass an effort the chosen model does not list.
 - \`isolation\`: \`"none"\` (default, shared workspace) or \`"worktree"\` (isolated git worktree). Never pass any other value. \`"none"\` is valid and means "do not isolate".
 - \`run_in_background\`: \`true\` to return immediately and get a completion notification later.
 
 ## Live model and effort catalog
 
-This is the same provider catalog the CLI uses for \`/model\` and \`/effort\`. Use these exact \`model\` slugs and only the efforts listed on that row:
+This is the same logged-in account catalog \`/model\` shows (Maximo AI, MyTabulon, Cencori, OpenRouter, OpenCode, etc.). Use these exact \`model\` slugs and only the efforts listed on that row:
 
 ${catalogText}
 
@@ -271,7 +271,7 @@ ${
     : `When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.`
 }
 
-Always pass both \`description\` (3-5 word title) and \`prompt\` (full task). You may set \`model\` to a slug from the live catalog and \`effort\` to a level listed for that model; omit them to inherit the parent. \`isolation\` accepts only \`"none"\` (default, shared workspace) or \`"worktree"\`.`
+Always pass both \`description\` (3-5 word title) and \`prompt\` (full task). You may set \`model\` to a slug from the live logged-in account catalog and \`effort\` to a level listed for that model; omit them to inherit the parent. \`isolation\` accepts only \`"none"\` (default, shared workspace) or \`"worktree"\`.`
 
   // Coordinator mode gets the slim prompt -- the coordinator system prompt
   // already covers usage notes, examples, and when-not-to-use guidance.

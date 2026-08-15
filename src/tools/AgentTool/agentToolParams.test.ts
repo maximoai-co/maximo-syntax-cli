@@ -3,6 +3,8 @@ import { isInheritAgentModel } from "../../utils/model/agent.ts";
 import {
   deriveAgentDescription,
   formatSubagentDelegationCatalog,
+  isAccountCatalogModel,
+  listSubagentDelegationCatalog,
   normalizeAgentToolInput,
   normalizeEffortInput,
   normalizeIsolation,
@@ -57,7 +59,7 @@ describe("normalizeAgentToolInput", () => {
       description: "Explore auth flow",
       prompt: "Find the login handler and report.",
       subagent_type: "Explore",
-      model: "sonnet",
+      model: "maximo-atlas-1.2",
       run_in_background: false,
     };
     expect(normalizeAgentToolInput(input)).toEqual(input);
@@ -103,6 +105,24 @@ describe("deriveAgentDescription", () => {
     expect(deriveAgentDescription("Analyze Kimi K3 video style now")).toBe(
       "Analyze Kimi K3 video style",
     );
+  });
+});
+
+describe("isAccountCatalogModel", () => {
+  it("accepts inherit and rejects Claude family leftovers when the account catalog is empty", () => {
+    expect(isAccountCatalogModel("inherit")).toBe(true);
+    expect(isAccountCatalogModel("parent")).toBe(true);
+    expect(isAccountCatalogModel("sonnet")).toBe(false);
+    expect(isAccountCatalogModel("opus")).toBe(false);
+    expect(isAccountCatalogModel("haiku")).toBe(false);
+  });
+
+  it("does not advertise Claude leftovers when the account catalog has not loaded", () => {
+    const slugs = listSubagentDelegationCatalog().map(entry => entry.slug);
+    expect(slugs).toEqual(["inherit"]);
+    expect(slugs.includes("sonnet")).toBe(false);
+    expect(slugs.includes("opus")).toBe(false);
+    expect(slugs.includes("haiku")).toBe(false);
   });
 });
 

@@ -1,7 +1,11 @@
-import { getCachedMaximoModelEffortConfig } from "../../services/api/maximoModels.js";
+import {
+  getCachedMaximoModel,
+  getCachedMaximoModelEffortConfig,
+  getCachedMaximoModelOptions,
+} from "../../services/api/maximoModels.js";
+import { getGlobalConfig } from "../../utils/config.js";
 import { type EffortValue, parseEffortValue } from "../../utils/effort.js";
 import { isInheritAgentModel } from "../../utils/model/agent.js";
-import { getModelOptions } from "../../utils/model/modelOptions.js";
 
 const SENTINEL_STRINGS = new Set([
   "",
@@ -192,8 +196,52 @@ export type SubagentCatalogEntry = {
 };
 
 /**
- * Live model + effort roster from the same provider catalog the CLI / desktop
- * pickers use (`getModelOptions` + per-model effort metadata).
+ * Model slugs from the logged-in account catalog — the same list `/model`
+ * shows for Maximo AI, MyTabulon, Cencori, OpenRouter, and OpenCode.
+ * Never falls back to Claude Code leftovers (sonnet/opus/haiku).
+ */
+export function listAccountCatalogSlugs(): string[] {
+  const slugs: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: unknown) => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "default" || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    slugs.push(trimmed);
+  };
+
+  try {
+    for (const option of getCachedMaximoModelOptions() ?? []) {
+      add(option.value);
+    }
+  } catch {
+    // Catalog may be unavailable during early boot or tests.
+  }
+
+  try {
+    for (const option of getGlobalConfig().additionalModelOptionsCache ?? []) {
+      add(option.value);
+    }
+  } catch {
+    // Config may be unavailable in tests.
+  }
+
+  return slugs;
+}
+
+export function isAccountCatalogModel(model: string | undefined): boolean {
+  if (!model || isInheritAgentModel(model)) return true;
+  const trimmed = model.trim();
+  if (!trimmed) return true;
+  if (getCachedMaximoModel(trimmed)) return true;
+  const wanted = trimmed.toLowerCase();
+  return listAccountCatalogSlugs().some(slug => slug.toLowerCase() === wanted);
+}
+
+/**
+ * Live model + effort roster from the logged-in account catalog (same source
+ * as `/model` and `/effort`). Does not include Claude family aliases.
  */
 export function listSubagentDelegationCatalog(): SubagentCatalogEntry[] {
   const entries: SubagentCatalogEntry[] = [
@@ -213,12 +261,8 @@ export function listSubagentDelegationCatalog(): SubagentCatalogEntry[] {
     });
   };
 
-  try {
-    for (const option of getModelOptions()) {
-      if (typeof option.value === "string") add(option.value);
-    }
-  } catch {
-    // Catalog may be unavailable during early boot or tests.
+  for (const slug of listAccountCatalogSlugs()) {
+    add(slug);
   }
 
   return entries;

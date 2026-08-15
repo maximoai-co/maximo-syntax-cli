@@ -75,9 +75,9 @@ export const EXPLORE_AGENT: BuiltInAgentDefinition = {
   ],
   source: "built-in",
   baseDir: "built-in",
-  // Ants get inherit to use the main agent's model; external users get haiku for speed
-  // Note: For ants, getAgentModel() checks tengu_explore_agent GrowthBook flag at runtime
-  model: process.env.USER_TYPE === "ant" ? "inherit" : "haiku",
+  // Inherit the parent model so Explore never pins Claude haiku on Maximo /
+  // MyTabulon / Cencori / OpenRouter / OpenCode logins.
+  model: "inherit",
   // Explore is a fast read-only search agent — it doesn't need commit/PR/lint
   // rules from MAXIMO.md. The main agent has full context and interprets results.
   omitMaximoMd: true,
