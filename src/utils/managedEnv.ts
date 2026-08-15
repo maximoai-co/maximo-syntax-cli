@@ -8,6 +8,10 @@ import {
 } from "./managedEnvConstants.js";
 import { clearMTLSCache } from "./mtls.js";
 import { clearProxyCache, configureGlobalAgents } from "./proxy.js";
+import {
+  MYTABULON_DEFAULT_MODEL,
+  normalizeRetiredMytabulonModel,
+} from "./model/modelDefaults.js";
 import { isSettingSourceEnabled } from "./settings/constants.js";
 import {
   getSettings_DEPRECATED,
@@ -187,7 +191,8 @@ export function applySafeConfigEnvironmentVariables(): void {
     if (!process.env.OPENAI_MODEL) {
       if (baseUrl.includes("api.mytabulon.com")) {
         process.env.OPENAI_MODEL =
-          globalConfig.mytabulonDefaultModel || "maximo-atlas-preview";
+          normalizeRetiredMytabulonModel(globalConfig.mytabulonDefaultModel) ||
+          MYTABULON_DEFAULT_MODEL;
       } else if (baseUrl.includes("openrouter.ai/api/v1")) {
         process.env.OPENAI_MODEL = "openai/gpt-5.4";
       } else if (baseUrl.includes("opencode.ai/zen/")) {

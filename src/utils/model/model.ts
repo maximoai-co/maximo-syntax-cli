@@ -21,6 +21,10 @@ import {
 } from "../context.js";
 import { isEnvTruthy } from "../envUtils.js";
 import { getModelStrings, resolveOverriddenModel } from "./modelStrings.js";
+import {
+  MYTABULON_DEFAULT_MODEL,
+  normalizeRetiredMytabulonModel,
+} from "./modelDefaults.js";
 import { formatModelPricing, getOpus46CostTier } from "../modelCost.js";
 import { getSettings_DEPRECATED } from "../settings/settings.js";
 import type { PermissionMode } from "../permissions/PermissionMode.js";
@@ -71,14 +75,16 @@ export function isMaximoAIProvider(): boolean {
 }
 
 function getOpenAIProviderDefaultModel(fallback: string): string {
-  if (process.env.OPENAI_MODEL) {
-    return process.env.OPENAI_MODEL;
-  }
   const globalConfig = getGlobalConfig();
   const baseUrl =
     process.env.OPENAI_BASE_URL || globalConfig.openAIBaseUrl || "";
+  if (process.env.OPENAI_MODEL) {
+    return normalizeRetiredMytabulonModel(process.env.OPENAI_MODEL) ||
+      process.env.OPENAI_MODEL;
+  }
   if (baseUrl.includes("api.mytabulon.com")) {
-    return globalConfig.mytabulonDefaultModel || "maximo-atlas-preview";
+    return normalizeRetiredMytabulonModel(globalConfig.mytabulonDefaultModel) ||
+      MYTABULON_DEFAULT_MODEL;
   }
   if (baseUrl.includes("maximoai.co")) {
     return "maximo-pandora-3.8-nano";
@@ -151,6 +157,10 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
       settings.model ||
       process.env.OPENAI_MODEL ||
       undefined;
+  }
+
+  if (typeof specifiedModel === "string") {
+    specifiedModel = normalizeRetiredMytabulonModel(specifiedModel);
   }
 
   // Ignore the user-specified model if it's not in the availableModels allowlist.
@@ -340,6 +350,9 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   if (name.includes("maximo-pandora-3.7-nano")) {
     return "maximo-pandora-3.7-nano";
   }
+  if (name.includes("maximo-atlas-1.2")) {
+    return "maximo-atlas-1.2";
+  }
   if (name.includes("maximo-atlas-preview")) {
     return "maximo-atlas-preview";
   }
@@ -462,8 +475,8 @@ export function getMaximoAiUserDefaultModelDescription(
       return "Pandora 3.8 Nano · Fast & efficient";
     }
     return getOpenAIProviderDefaultModel("maximo-pandora-3.8-nano") ===
-      "maximo-atlas-preview"
-      ? "Atlas Preview · Included with MyTabulon Coding Plan"
+      MYTABULON_DEFAULT_MODEL
+      ? "Atlas 1.2 · Included with MyTabulon Coding Plan"
       : "Pandora 3.8 Nano · Optimized for coding";
   }
   // Fall back to Anthropic model descriptions for non-Maximo providers

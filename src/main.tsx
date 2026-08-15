@@ -1659,7 +1659,7 @@ async function run(): Promise<CommanderCommand> {
     // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
     .option(
       "--model <model>",
-      `Model for the current session. Use a model from the active provider (e.g. 'maximo-pandora-3.8-nano' or 'maximo-atlas-preview').`
+      `Model for the current session. Use a model from the active provider (e.g. 'maximo-pandora-3.8-nano' or 'maximo-atlas-1.2').`
     )
     .addOption(
       new Option(

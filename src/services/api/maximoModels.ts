@@ -17,6 +17,7 @@ import {
   isMaximoAIOpenAICompatibleProvider,
   isMaximoAISubscriber,
 } from "../../utils/auth.js";
+import { chooseMytabulonDefaultModel } from "../../utils/model/modelDefaults.js";
 import type {
   OpenAICompatibleProvider,
   OpenCodePlan,
@@ -905,10 +906,7 @@ function persistMyTabulonState(
   models: MaximoModel[],
   account: MyTabulonAccountInfo
 ): void {
-  const defaultModel =
-    models.find((model) => model.id === "maximo-atlas-preview")?.id ||
-    models[0]?.id ||
-    "maximo-atlas-preview";
+  const defaultModel = chooseMytabulonDefaultModel(models.map((model) => model.id));
   process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
   process.env.OPENAI_API_KEY = apiKey;
   process.env.OPENAI_BASE_URL = baseUrl;

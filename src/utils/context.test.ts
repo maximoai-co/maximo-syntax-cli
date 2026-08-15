@@ -18,6 +18,7 @@ import {
   getDefaultEffortForModel,
   getSupportedEffortLevelsForModel,
   modelSupportsEffort,
+  resolveAppliedEffort,
 } from './effort.ts'
 
 const originalEnv = {
@@ -63,6 +64,20 @@ test('deepseek-chat clamps oversized max output overrides to the provider limit'
   process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS = '32000'
 
   expect(getMaxOutputTokensForModel('deepseek-chat')).toBe(8_192)
+})
+
+test('Atlas 1.2 preserves xhigh and max before provider metadata is cached', () => {
+  clearMaximoModelsCache()
+
+  expect(getSupportedEffortLevelsForModel('maximo-atlas-1.2')).toEqual([
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ])
+  expect(resolveAppliedEffort('maximo-atlas-1.2', 'xhigh')).toBe('xhigh')
+  expect(resolveAppliedEffort('maximo-atlas-1.2', 'max')).toBe('max')
 })
 
 test('Maximo model metadata drives context and output limits', async () => {
@@ -193,8 +208,8 @@ test('invalid provider output metadata cannot collapse the effective context win
       JSON.stringify({
         data: [
           {
-            id: 'maximo-atlas-preview',
-            name: 'Maximo Atlas Preview',
+            id: 'maximo-atlas-1.2',
+            name: 'Maximo Atlas 1.2',
             context_window: 262_000,
             // Some OpenAI-compatible model registries use max_tokens for the
             // total window. It must not be interpreted as an output reserve.
@@ -214,17 +229,17 @@ test('invalid provider output metadata cannot collapse the effective context win
     persistMyTabulonAccount: false,
   })
 
-  expect(getContextWindowForModel('maximo-atlas-preview')).toBe(262_000)
-  expect(getCompactSummaryMaxOutputTokensForModel('maximo-atlas-preview')).toBe(
+  expect(getContextWindowForModel('maximo-atlas-1.2')).toBe(262_000)
+  expect(getCompactSummaryMaxOutputTokensForModel('maximo-atlas-1.2')).toBe(
     20_000,
   )
-  expect(getEffectiveContextWindowSize('maximo-atlas-preview')).toBe(242_000)
-  expect(getAutoCompactThreshold('maximo-atlas-preview')).toBe(229_000)
-  expect(getSupportedEffortLevelsForModel('maximo-atlas-preview')).toEqual([
+  expect(getEffectiveContextWindowSize('maximo-atlas-1.2')).toBe(242_000)
+  expect(getAutoCompactThreshold('maximo-atlas-1.2')).toBe(229_000)
+  expect(getSupportedEffortLevelsForModel('maximo-atlas-1.2')).toEqual([
     'low',
     'medium',
     'high',
   ])
-  expect(getDefaultEffortForModel('maximo-atlas-preview')).toBe('medium')
-  expect(modelSupportsEffort('maximo-atlas-preview')).toBe(true)
+  expect(getDefaultEffortForModel('maximo-atlas-1.2')).toBe('medium')
+  expect(modelSupportsEffort('maximo-atlas-1.2')).toBe(true)
 })

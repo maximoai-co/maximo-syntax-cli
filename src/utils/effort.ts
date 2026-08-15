@@ -38,6 +38,12 @@ export function getSupportedEffortLevelsForModel(
   }
 
   const m = model.toLowerCase();
+  // Atlas 1.2 supports these levels by contract. Keep the first request from
+  // downgrading max to high while the asynchronous provider catalogue is
+  // still loading; refreshed provider metadata remains authoritative above.
+  if (m.includes("maximo-atlas-1.2")) {
+    return ["low", "medium", "high", "xhigh", "max"];
+  }
   if (m.includes("opus-4-6")) {
     return ["low", "medium", "high", "max"];
   }

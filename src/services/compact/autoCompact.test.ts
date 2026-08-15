@@ -22,7 +22,7 @@ function assistant(text: string): Message {
       id: crypto.randomUUID(),
       type: 'message',
       role: 'assistant',
-      model: 'maximo-atlas-preview',
+      model: 'maximo-atlas-1.2',
       content: [{ type: 'text', text }],
       stop_reason: 'end_turn',
       stop_sequence: null,

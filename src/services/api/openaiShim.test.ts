@@ -490,7 +490,7 @@ test('maps the selected effort to OpenAI-compatible reasoning_effort', async () 
     expect(body.reasoning_effort).toBe('medium')
     return Response.json({
       id: 'chatcmpl-effort',
-      model: 'maximo-atlas-preview',
+      model: 'maximo-atlas-1.2',
       choices: [
         {
           message: { role: 'assistant', content: 'done' },
@@ -509,7 +509,7 @@ test('maps the selected effort to OpenAI-compatible reasoning_effort', async () 
     }
   }
   await client.beta.messages.create({
-    model: 'maximo-atlas-preview',
+    model: 'maximo-atlas-1.2',
     messages: [{ role: 'user', content: 'think about this' }],
     max_tokens: 64,
     output_config: { effort: 'medium' },
