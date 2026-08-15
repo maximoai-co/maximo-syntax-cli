@@ -1,19 +1,20 @@
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { capitalize } from '../stringUtils.js'
-import { MODEL_ALIASES, type ModelAlias } from './aliases.js'
+import { MODEL_ALIASES } from './aliases.js'
 import { applyBedrockRegionPrefix, getBedrockRegionPrefix } from './bedrock.js'
 import {
   getCanonicalName,
   getRuntimeMainLoopModel,
   parseUserSpecifiedModel,
 } from './model.js'
+import { getModelOptions } from './modelOptions.js'
 import { getAPIProvider } from './providers.js'
 
 export const AGENT_MODEL_OPTIONS = [...MODEL_ALIASES, 'inherit'] as const
 export type AgentModelAlias = (typeof AGENT_MODEL_OPTIONS)[number]
 
 export type AgentModelOption = {
-  value: AgentModelAlias
+  value: string
   label: string
   description: string
 }
@@ -24,6 +25,12 @@ export type AgentModelOption = {
  */
 export function getDefaultSubagentModel(): string {
   return 'inherit'
+}
+
+export function isInheritAgentModel(value: string | undefined): boolean {
+  if (!value) return true
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'inherit' || normalized === 'parent' || normalized === 'same'
 }
 
 /**
@@ -37,7 +44,7 @@ export function getDefaultSubagentModel(): string {
 export function getAgentModel(
   agentModel: string | undefined,
   parentModel: string,
-  toolSpecifiedModel?: ModelAlias,
+  toolSpecifiedModel?: string,
   permissionMode?: PermissionMode,
 ): string {
   if (process.env.MAXIMO_SYNTAX_SUBAGENT_MODEL) {
@@ -66,8 +73,9 @@ export function getAgentModel(
     return resolvedModel
   }
 
-  // Prioritize tool-specified model if provided
-  if (toolSpecifiedModel) {
+  // Prioritize tool-specified model if provided. Treat inherit/parent/same
+  // (and empty sentinels) as "use the parent", matching Grok Build.
+  if (toolSpecifiedModel && !isInheritAgentModel(toolSpecifiedModel)) {
     if (aliasMatchesParentTier(toolSpecifiedModel, parentModel)) {
       return parentModel
     }
@@ -129,10 +137,35 @@ export function getAgentModelDisplay(model: string | undefined): string {
 }
 
 /**
- * Get available model options for agents
+ * Get available model options for agents: inherit, the current provider
+ * catalog, then family aliases that are not already represented.
  */
 export function getAgentModelOptions(): AgentModelOption[] {
-  return [
+  const options: AgentModelOption[] = [
+    {
+      value: 'inherit',
+      label: 'Inherit from parent',
+      description: 'Use the same model as the main conversation',
+    },
+  ]
+  const seen = new Set<string>(['inherit'])
+
+  try {
+    for (const option of getModelOptions()) {
+      if (typeof option.value !== 'string' || !option.value.trim()) continue
+      if (seen.has(option.value)) continue
+      seen.add(option.value)
+      options.push({
+        value: option.value,
+        label: option.label,
+        description: option.description,
+      })
+    }
+  } catch {
+    // Catalog may be unavailable during early boot or tests.
+  }
+
+  const aliasFallbacks: AgentModelOption[] = [
     {
       value: 'sonnet',
       label: 'Sonnet',
@@ -148,10 +181,10 @@ export function getAgentModelOptions(): AgentModelOption[] {
       label: 'Haiku',
       description: 'Fast and efficient for simple tasks',
     },
-    {
-      value: 'inherit',
-      label: 'Inherit from parent',
-      description: 'Use the same model as the main conversation',
-    },
   ]
+  for (const alias of aliasFallbacks) {
+    if (!seen.has(alias.value)) options.push(alias)
+  }
+
+  return options
 }

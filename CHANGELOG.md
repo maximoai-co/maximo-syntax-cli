@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.34] - 2026-08-15
+
+### Fixed
+
+- **Sub-agent tool calls no longer fail on Grok-style arguments**: the `Agent` tool now accepts any available model slug (not just `sonnet`/`opus`/`haiku`), any effort the chosen model supports (`minimal`/`low`/`medium`/`high`/`xhigh`/`max`/`ultra`, plus display aliases like Extra High), and `isolation: "none"` or `"worktree"`. Grok Build-style aliases (`background`, `task`, `work_tree`) are rewritten before validation, and a missing `description` is derived from the prompt so recoverable calls are not rejected. The tool prompt now teaches the required `description` + `prompt` shape and lists current models and efforts.
+
 ## [0.1.33] - 2026-08-13
 
 ### Changed

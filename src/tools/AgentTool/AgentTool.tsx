@@ -25,6 +25,14 @@ import type { CacheSafeParams } from '../../utils/forkedAgent.js';
 import { lazySchema } from '../../utils/lazySchema.js';
 import { createUserMessage, extractTextContent, isSyntheticMessage, normalizeMessages } from '../../utils/messages.js';
 import { getAgentModel } from '../../utils/model/agent.js';
+import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
+import {
+  formatSubagentModelList,
+  listSubagentModelSlugs,
+  normalizeAgentToolInput,
+  normalizeEffortInput,
+  type AgentIsolationMode,
+} from './agentToolParams.js';
 import { permissionModeSchema } from '../../utils/permissions/PermissionMode.js';
 import type { PermissionResult } from '../../utils/permissions/PermissionResult.js';
 import { filterDeniedAgents, getDenyRuleForAgent } from '../../utils/permissions/permissions.js';
@@ -80,10 +88,11 @@ function getAutoBackgroundMs(): number {
 
 // Base input schema without multi-agent parameters
 const baseInputSchema = lazySchema(() => z.object({
-  description: z.string().describe('A short (3-5 word) description of the task'),
-  prompt: z.string().describe('The task for the agent to perform'),
-  subagent_type: z.string().optional().describe('The type of specialized agent to use for this task'),
-  model: z.enum(['sonnet', 'opus', 'haiku']).optional().describe("Optional model override for this agent. Takes precedence over the agent definition's model frontmatter. If omitted, uses the agent definition's model, or inherits from the parent."),
+  description: z.string().describe('A short (3-5 word) title for the task. Required. Shown in the UI as the subagent name.'),
+  prompt: z.string().describe('The full task for the agent to perform. Required. The subagent starts with zero conversation context, so include everything it needs.'),
+  subagent_type: z.string().optional().describe('The type of specialized agent to use for this task. Built-in types include general-purpose, Explore, and Plan when enabled. If omitted, the general-purpose agent is used (or a fork, when forking is enabled).'),
+  model: z.string().optional().describe('Optional model slug for this subagent. Pass any available model id from the current provider catalog, a family alias (sonnet, opus, haiku), or "inherit". If omitted, uses the agent definition\'s model or inherits the parent. Only set this when you intend a different model than the parent.'),
+  effort: z.string().optional().describe('Optional reasoning effort for this subagent. Pass any effort the chosen model supports (minimal, low, medium, high, xhigh, max, ultra — plus Extra High / extra_high aliases). If omitted, inherits the parent effort or the agent definition\'s effort.'),
   run_in_background: z.boolean().optional().describe('Set to true to run this agent in the background. You will be notified when it completes.')
 }));
 
@@ -96,7 +105,7 @@ const fullInputSchema = lazySchema(() => {
     mode: permissionModeSchema().optional().describe('Permission mode for spawned teammate (e.g., "plan" to require plan approval).')
   });
   return baseInputSchema().merge(multiAgentInputSchema).extend({
-    isolation: ("external" === 'ant' ? z.enum(['worktree', 'remote']) : z.enum(['worktree'])).optional().describe("external" === 'ant' ? 'Isolation mode. "worktree" creates a temporary git worktree so the agent works on an isolated copy of the repo. "remote" launches the agent in a remote CCR environment (always runs in background).' : 'Isolation mode. "worktree" creates a temporary git worktree so the agent works on an isolated copy of the repo.'),
+    isolation: ("external" === 'ant' ? z.enum(['none', 'worktree', 'remote']) : z.enum(['none', 'worktree'])).optional().describe("external" === 'ant' ? 'Isolation mode. "none" (default) shares the parent workspace. "worktree" creates a temporary git worktree so the agent works on an isolated copy of the repo. "remote" launches the agent in a remote CCR environment (always runs in background).' : 'Isolation mode. "none" (default) shares the parent workspace. "worktree" creates a temporary git worktree so the agent works on an isolated copy of the repo. Do not pass any other value.'),
     cwd: z.string().optional().describe('Absolute path to run the agent in. Overrides the working directory for all filesystem and shell operations within this agent. Mutually exclusive with isolation: "worktree".')
   });
 });
@@ -119,9 +128,14 @@ export const inputSchema = lazySchema(() => {
   // by forceAsync) or "schema hides a param that would've worked" (gate
   // flips off mid-session: everything still runs async via memoized
   // forceAsync). No Zod rejection, no crash — unlike required→optional.
-  return isBackgroundTasksDisabled || isForkSubagentEnabled() ? schema.omit({
+  const gated = isBackgroundTasksDisabled || isForkSubagentEnabled() ? schema.omit({
     run_in_background: true
   }) : schema;
+
+  // Rewrite Grok-style / aliased args (isolation:"none", background, task,
+  // Extra High) into the advertised shape before Zod validates. toJSONSchema
+  // on the preprocess pipe still emits the inner object schema.
+  return z.preprocess(normalizeAgentToolInput, gated);
 });
 type InputSchema = ReturnType<typeof inputSchema>;
 
@@ -133,8 +147,9 @@ type AgentToolInput = z.infer<ReturnType<typeof baseInputSchema>> & {
   name?: string;
   team_name?: string;
   mode?: z.infer<ReturnType<typeof permissionModeSchema>>;
-  isolation?: 'worktree' | 'remote';
+  isolation?: 'none' | AgentIsolationMode;
   cwd?: string;
+  effort?: string;
 };
 
 // Output schema - multi-agent spawned schema added dynamically at runtime when enabled
@@ -241,6 +256,7 @@ export const AgentTool = buildTool({
     subagent_type,
     description,
     model: modelParam,
+    effort: effortParam,
     run_in_background,
     name,
     team_name,
@@ -250,6 +266,8 @@ export const AgentTool = buildTool({
   }: AgentToolInput, toolUseContext, canUseTool, assistantMessage, onProgress?) {
     const startTime = Date.now();
     const model = isCoordinatorMode() ? undefined : modelParam;
+    const requestedEffort = isCoordinatorMode() ? undefined : normalizeEffortInput(effortParam);
+    const requestedIsolation = isolation === 'none' ? undefined : isolation;
 
     // Get app state for permission mode and agent filtering
     const appState = toolUseContext.getAppState();
@@ -416,6 +434,9 @@ export const AgentTool = buildTool({
 
     // Resolve agent params for logging (these are already resolved in runAgent)
     const resolvedAgentModel = getAgentModel(selectedAgent.model, toolUseContext.options.mainLoopModel, isForkPath ? undefined : model, permissionMode);
+    if (model && !isModelAllowed(resolvedAgentModel)) {
+      throw new Error(`Model '${model}' is not available. Available models: ${formatSubagentModelList(listSubagentModelSlugs())}.`);
+    }
     logEvent('tengu_agent_tool_selected', {
       agent_type: selectedAgent.agentType as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       model: resolvedAgentModel as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -427,8 +448,9 @@ export const AgentTool = buildTool({
       is_fork: isForkPath
     });
 
-    // Resolve effective isolation mode (explicit param overrides agent def)
-    const effectiveIsolation = isolation ?? selectedAgent.isolation;
+    // Resolve effective isolation mode (explicit param overrides agent def).
+    // "none" is a documented no-op so Grok-style calls do not fail validation.
+    const effectiveIsolation = requestedIsolation ?? selectedAgent.isolation;
 
     // Remote isolation: delegate to CCR. Gated ant-only — the guard enables
     // dead code elimination of the entire block for external builds.
@@ -632,7 +654,8 @@ export const AgentTool = buildTool({
         useExactTools: true
       }),
       worktreePath: worktreeInfo?.worktreePath,
-      description
+      description,
+      effort: requestedEffort
     };
 
     // Helper to wrap execution with a cwd override: explicit cwd arg (KAIROS)

@@ -61,7 +61,7 @@ import { clearSessionHooks } from "../../utils/hooks/sessionHooks.js";
 import { executeSubagentStartHooks } from "../../utils/hooks.js";
 import { createUserMessage } from "../../utils/messages.js";
 import { getAgentModel } from "../../utils/model/agent.js";
-import type { ModelAlias } from "../../utils/model/aliases.js";
+import type { EffortValue } from "../../utils/effort.js";
 import {
   clearAgentTranscriptSubdir,
   recordSidechainTranscript,
@@ -269,6 +269,7 @@ export async function* runAgent({
   useExactTools,
   worktreePath,
   description,
+  effort,
   transcriptSubdir,
   onQueryProgress,
 }: {
@@ -289,7 +290,10 @@ export async function* runAgent({
     abortController?: AbortController;
     agentId?: AgentId;
   };
-  model?: ModelAlias;
+  model?: string;
+  /** Optional reasoning effort override from the Agent tool call. Takes
+   * precedence over the agent definition and the parent session effort. */
+  effort?: EffortValue;
   maxTurns?: number;
   /** Preserve toolUseResult on messages for subagents with viewable transcripts */
   preserveToolUseResults?: boolean;
@@ -484,11 +488,13 @@ export async function* runAgent({
       };
     }
 
-    // Override effort level if agent defines one
+    // Effort precedence: tool call override → agent definition → parent session
     const effortValue =
-      agentDefinition.effort !== undefined
-        ? agentDefinition.effort
-        : state.effortValue;
+      effort !== undefined
+        ? effort
+        : agentDefinition.effort !== undefined
+          ? agentDefinition.effort
+          : state.effortValue;
 
     if (
       toolPermissionContext === state.toolPermissionContext &&
