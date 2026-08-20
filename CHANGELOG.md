@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.38] - 2026-08-20
+
+### Changed
+
+- **Retire Atlas 1.1 as a MyTabulon default**: `maximo-atlas-1.1` and its `atlas-1.1` alias now resolve to `maximo-atlas-1.2` everywhere the CLI picks a MyTabulon model — saved `mytabulonDefaultModel` selections, provider fallbacks, and the default-model chooser. Existing Atlas 1.1 history stays readable.
+
 ## [0.1.37] - 2026-08-15
 
 ### Fixed
