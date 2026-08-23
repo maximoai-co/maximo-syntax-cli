@@ -279,6 +279,7 @@ export type GlobalConfig = {
   bypassPermissionsModeAccepted?: boolean;
   hasUsedBackslashReturn?: boolean;
   autoCompactEnabled: boolean; // Controls whether auto-compact is enabled
+  autoCompactPercent?: number; // Auto-compact trigger threshold as a percentage of the model's max context window (10-70, default 40)
   showTurnDuration: boolean; // Controls whether to show turn duration message (e.g., "Cooked for 1m 6s")
   /**
    * @deprecated Use settings.env instead.
@@ -646,6 +647,7 @@ function createDefaultGlobalConfig(): GlobalConfig {
     verbose: false,
     editorMode: "normal",
     autoCompactEnabled: true,
+    autoCompactPercent: 40,
     showTurnDuration: true,
     hasSeenTasksHint: false,
     hasUsedStash: false,
@@ -698,6 +700,7 @@ export const GLOBAL_CONFIG_KEYS = [
   "editorMode",
   "hasUsedBackslashReturn",
   "autoCompactEnabled",
+  "autoCompactPercent",
   "showTurnDuration",
   "diffTool",
   "env",

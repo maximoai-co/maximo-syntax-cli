@@ -46,6 +46,36 @@ export function getEffectiveContextWindowSize(model: string): number {
   return Math.max(0, contextWindow - reservedTokensForSummary)
 }
 
+// Auto-compact triggers at this percentage of the model's max context window.
+// Precedence: MAXIMO_SYNTAX_AUTOCOMPACT_PCT env (set per-spawn by the desktop
+// app from its settings UI) > global config autoCompactPercent > default.
+export const AUTOCOMPACT_DEFAULT_PERCENT = 40
+const AUTOCOMPACT_MIN_PERCENT = 10
+const AUTOCOMPACT_MAX_PERCENT = 70
+
+function clampAutoCompactPercent(value: number): number {
+  if (!Number.isFinite(value)) return AUTOCOMPACT_DEFAULT_PERCENT
+  return Math.min(
+    AUTOCOMPACT_MAX_PERCENT,
+    Math.max(AUTOCOMPACT_MIN_PERCENT, Math.floor(value)),
+  )
+}
+
+export function getAutoCompactPercent(): number {
+  const envPercent = process.env.MAXIMO_SYNTAX_AUTOCOMPACT_PCT
+  if (envPercent) {
+    const parsed = parseFloat(envPercent)
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
+      return clampAutoCompactPercent(parsed)
+    }
+  }
+  const configured = getGlobalConfig().autoCompactPercent
+  if (typeof configured === 'number') {
+    return clampAutoCompactPercent(configured)
+  }
+  return AUTOCOMPACT_DEFAULT_PERCENT
+}
+
 export type AutoCompactTrackingState = {
   compacted: boolean
   turnCounter: number
@@ -57,8 +87,7 @@ export type AutoCompactTrackingState = {
   consecutiveFailures?: number
 }
 
-// Fallback buffers for providers that do not expose context/output metadata.
-export const AUTOCOMPACT_BUFFER_TOKENS = 13_000
+// Fallback buffers for warning/error proximity indicators.
 export const WARNING_THRESHOLD_BUFFER_TOKENS = 20_000
 export const ERROR_THRESHOLD_BUFFER_TOKENS = 20_000
 export const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
@@ -67,11 +96,9 @@ export const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
 // BQ 2026-03-10: 1,279 sessions had 50+ consecutive failures (up to 3,272)
 // in a single session, wasting ~250K API calls/day globally.
 const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
-
-function usesMaximoModelLimits(model: string): boolean {
-  const limits = getCachedMaximoModelLimits(model)
-  return Boolean(limits?.contextWindow && limits.maxOutputTokens)
-}
+let skipInitialAutoCompact = isEnvTruthy(
+  process.env.MAXIMO_SYNTAX_SKIP_FIRST_AUTOCOMPACT,
+)
 
 function getMaximoOutputRatio(model: string): number | undefined {
   const limits = getCachedMaximoModelLimits(model)
@@ -94,25 +121,20 @@ function getThresholdBufferTokens(
 }
 
 export function getAutoCompactThreshold(model: string): number {
-  const effectiveContextWindow = getEffectiveContextWindowSize(model)
+  let contextWindow = getContextWindowForModel(model, getSdkBetas())
 
-  const autocompactThreshold = usesMaximoModelLimits(model)
-    ? effectiveContextWindow
-    : effectiveContextWindow - AUTOCOMPACT_BUFFER_TOKENS
-
-  // Override for easier testing of autocompact
-  const envPercent = process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
-  if (envPercent) {
-    const parsed = parseFloat(envPercent)
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
-      const percentageThreshold = Math.floor(
-        effectiveContextWindow * (parsed / 100),
-      )
-      return Math.min(percentageThreshold, autocompactThreshold)
+  const autoCompactWindow = process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
+  if (autoCompactWindow) {
+    const parsed = parseInt(autoCompactWindow, 10)
+    if (!isNaN(parsed) && parsed > 0) {
+      contextWindow = Math.min(contextWindow, parsed)
     }
   }
 
-  return Math.max(0, autocompactThreshold)
+  // Threshold is a straight percentage of the model's max context window so
+  // compaction fires well before the window fills — leaving headroom for the
+  // summary output and post-compact re-injections.
+  return Math.max(0, Math.floor(contextWindow * (getAutoCompactPercent() / 100)))
 }
 
 export function calculateTokenWarningState(
@@ -361,6 +383,10 @@ export async function autoCompactIfNeeded(
   }
 
   const model = toolUseContext.options.mainLoopModel
+  if (skipInitialAutoCompact) {
+    skipInitialAutoCompact = false
+    return { wasCompacted: false }
+  }
   const shouldCompact = await shouldAutoCompact(
     messages,
     model,
@@ -380,28 +406,35 @@ export async function autoCompactIfNeeded(
     querySource,
   }
 
-  // EXPERIMENT: Try session memory compaction first
-  const sessionMemoryResult = await trySessionMemoryCompaction(
-    messages,
-    toolUseContext.agentId,
-    recompactionInfo.autoCompactThreshold,
-  )
-  if (sessionMemoryResult) {
-    // Reset lastSummarizedMessageId since session memory compaction prunes messages
-    // and the old message UUID will no longer exist after the REPL replaces messages
-    setLastSummarizedMessageId(undefined)
-    runPostCompactCleanup(querySource)
-    // Reset cache read baseline so the post-compact drop isn't flagged as a
-    // break. compactConversation does this internally; SM-compact doesn't.
-    // BQ 2026-03-01: missing this made 20% of tengu_prompt_cache_break events
-    // false positives (systemPromptChanged=true, timeSinceLastAssistantMsg=-1).
-    if (feature('PROMPT_CACHE_BREAK_DETECTION')) {
-      notifyCompaction(querySource ?? 'compact', toolUseContext.agentId)
-    }
-    markPostCompaction()
-    return {
-      wasCompacted: true,
-      compactionResult: sessionMemoryResult,
+  // EXPERIMENT: Try session memory compaction first.
+  // Skipped when keep-tail compaction is active: compactConversation now
+  // produces a deterministic "summary + last N turns" result that the UI and
+  // resume relink are built around; SM's variable 10-40k tail contradicts
+  // that contract. MAXIMO_SYNTAX_DISABLE_KEEP_TAIL_COMPACT restores the old
+  // SM-first behavior instantly (kill switch).
+  if (!isEnvTruthy(process.env.MAXIMO_SYNTAX_DISABLE_KEEP_TAIL_COMPACT)) {
+    const sessionMemoryResult = await trySessionMemoryCompaction(
+      messages,
+      toolUseContext.agentId,
+      recompactionInfo.autoCompactThreshold,
+    )
+    if (sessionMemoryResult) {
+      // Reset lastSummarizedMessageId since session memory compaction prunes messages
+      // and the old message UUID will no longer exist after the REPL replaces messages
+      setLastSummarizedMessageId(undefined)
+      runPostCompactCleanup(querySource)
+      // Reset cache read baseline so the post-compact drop isn't flagged as a
+      // break. compactConversation does this internally; SM-compact doesn't.
+      // BQ 2026-03-01: missing this made 20% of tengu_prompt_cache_break events
+      // false positives (systemPromptChanged=true, timeSinceLastAssistantMsg=-1).
+      if (feature('PROMPT_CACHE_BREAK_DETECTION')) {
+        notifyCompaction(querySource ?? 'compact', toolUseContext.agentId)
+      }
+      markPostCompaction()
+      return {
+        wasCompacted: true,
+        compactionResult: sessionMemoryResult,
+      }
     }
   }
 

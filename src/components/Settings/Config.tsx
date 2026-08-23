@@ -130,6 +130,13 @@ type Props = {
   onIsSearchModeChange?: (inSearchMode: boolean) => void;
   contentHeight?: number;
 };
+
+// Mirrors the clamp in services/compact/autoCompact.ts — keeps the /config
+// picker consistent with what the threshold logic will actually honor.
+function clampAutoCompactPercentSetting(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 40
+  return Math.min(70, Math.max(10, Math.round(value)))
+}
 type SettingBase =
   | {
       id: string;
@@ -384,6 +391,26 @@ export function Config({
         });
         logEvent("tengu_auto_compact_setting_changed", {
           enabled: autoCompactEnabled,
+        });
+      },
+    },
+    {
+      id: "autoCompactPercent",
+      label: "Auto-compact threshold (% of context)",
+      value: String(
+        clampAutoCompactPercentSetting(globalConfig.autoCompactPercent),
+      ),
+      options: ["10", "20", "30", "40", "50", "60", "70"],
+      type: "enum" as const,
+      onChange(autoCompactPercent: string) {
+        const percent = Number(autoCompactPercent);
+        saveGlobalConfig(current => ({
+          ...current,
+          autoCompactPercent: percent,
+        }));
+        setGlobalConfig({
+          ...getGlobalConfig(),
+          autoCompactPercent: percent,
         });
       },
     },

@@ -7,6 +7,7 @@ import type { CanUseToolFn } from './hooks/useCanUseTool.js'
 import { FallbackTriggeredError } from './services/api/withRetry.js'
 import {
   calculateTokenWarningState,
+  getAutoCompactThreshold,
   isAutoCompactEnabled,
   type AutoCompactTrackingState,
 } from './services/compact/autoCompact.js'
@@ -122,6 +123,13 @@ const taskSummaryModule = feature('BG_SESSIONS')
   ? (require('./utils/taskSummary.js') as typeof import('./utils/taskSummary.js'))
   : null
 /* eslint-enable @typescript-eslint/no-require-imports */
+
+// In-turn compaction fires this many tokens ABOVE the auto-compact threshold.
+// tokenCountWithEstimation mixes real API usage (anchor message) with a
+// chars/4 estimate for trailing messages; the margin absorbs that drift so
+// in-turn compaction doesn't fire on noise, while still triggering well
+// before the proactive top-of-loop check or an API prompt-too-long.
+const IN_TURN_COMPACT_SAFETY_MARGIN_TOKENS = 2_000
 
 function* yieldMissingToolResultBlocks(
   assistantMessages: AssistantMessage[],
@@ -1759,6 +1767,113 @@ async function* queryLoop(
         turnCount: nextTurnCount,
       })
       return { reason: 'max_turns', turnCount: nextTurnCount }
+    }
+
+    // In-turn compaction: long-running agentic turns can cross the auto-compact
+    // threshold mid-flight, before the per-iteration proactive check at the top
+    // of this loop ever runs again. When the accumulated context
+    // (conversation + assistant messages + tool results) crosses the threshold
+    // plus a small safety margin for estimate-vs-actual drift, compact here and
+    // continue the SAME turn on the post-compact message set — the model never
+    // sees an interruption.
+    //
+    // Main thread only: subagents/forked agents inherit their parent's
+    // conversation and must not self-compact (same guard shape as the proactive
+    // autocompact site). The deps.autocompact call re-applies its own guards
+    // (circuit breaker, image preservation, DISABLE_* envs), so this site stays
+    // thin.
+    const inTurnCandidate = [...messagesForQuery, ...assistantMessages, ...toolResults]
+    const mainThreadNoAgent =
+      !toolUseContext.agentId && !querySource.startsWith('agent:')
+    if (
+      mainThreadNoAgent &&
+      !toolUseContext.abortController.signal.aborted &&
+      !shouldPreventContinuation &&
+      isAutoCompactEnabled() &&
+      tokenCountWithEstimation(inTurnCandidate) - snipTokensFreed >=
+        getAutoCompactThreshold(toolUseContext.options.mainLoopModel) +
+          IN_TURN_COMPACT_SAFETY_MARGIN_TOKENS
+    ) {
+      queryCheckpoint('query_in_turn_autocompact_start')
+      const { compactionResult: inTurnResult, consecutiveFailures: inTurnFailures } =
+        await deps.autocompact(
+          inTurnCandidate,
+          toolUseContext,
+          {
+            systemPrompt,
+            userContext,
+            systemContext,
+            toolUseContext,
+            forkContextMessages: inTurnCandidate,
+          },
+          querySource,
+          tracking,
+          snipTokensFreed,
+        )
+      queryCheckpoint('query_in_turn_autocompact_end')
+
+      if (inTurnResult) {
+        logEvent('tengu_auto_compact_succeeded', {
+          originalMessageCount: inTurnCandidate.length,
+          compactedMessageCount:
+            inTurnResult.summaryMessages.length +
+            inTurnResult.attachments.length +
+            inTurnResult.hookResults.length +
+            (inTurnResult.messagesToKeep?.length ?? 0),
+          preCompactTokenCount: inTurnResult.preCompactTokenCount,
+          postCompactTokenCount: inTurnResult.postCompactTokenCount,
+          truePostCompactTokenCount: inTurnResult.truePostCompactTokenCount,
+          compactionInputTokens: inTurnResult.compactionUsage?.input_tokens,
+          compactionOutputTokens: inTurnResult.compactionUsage?.output_tokens,
+          compactionCacheReadTokens:
+            inTurnResult.compactionUsage?.cache_read_input_tokens ?? 0,
+          compactionCacheCreationTokens:
+            inTurnResult.compactionUsage?.cache_creation_input_tokens ?? 0,
+          compactionTotalTokens: inTurnResult.compactionUsage
+            ? inTurnResult.compactionUsage.input_tokens +
+              (inTurnResult.compactionUsage.cache_creation_input_tokens ?? 0) +
+              (inTurnResult.compactionUsage.cache_read_input_tokens ?? 0) +
+              inTurnResult.compactionUsage.output_tokens
+            : 0,
+          queryChainId: queryChainIdForAnalytics,
+          queryDepth: queryTracking.depth,
+          midTurn: true,
+        })
+
+        tracking = {
+          compacted: true,
+          turnId: deps.uuid(),
+          turnCounter: 0,
+          consecutiveFailures: 0,
+        }
+
+        const postCompactMessages = buildPostCompactMessages(inTurnResult)
+        for (const message of postCompactMessages) {
+          yield message
+        }
+        // Re-anchor toolResults for the transition below so the compacted
+        // history isn't re-appended to the pre-compact message set.
+        toolResults.length = 0
+
+        state = {
+          messages: postCompactMessages,
+          toolUseContext: { ...updatedToolUseContext, queryTracking },
+          autoCompactTracking: tracking,
+          turnCount: nextTurnCount,
+          maxOutputTokensRecoveryCount: 0,
+          hasAttemptedReactiveCompact: false,
+          pendingToolUseSummary: nextPendingToolUseSummary,
+          maxOutputTokensOverride: undefined,
+          stopHookActive,
+          transition: { reason: 'next_turn' },
+        }
+        continue
+      } else if (inTurnFailures !== undefined) {
+        tracking = {
+          ...(tracking ?? { compacted: false, turnId: '', turnCounter: 0 }),
+          consecutiveFailures: inTurnFailures,
+        }
+      }
     }
 
     queryCheckpoint('query_recursive_call')

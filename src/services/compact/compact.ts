@@ -117,6 +117,7 @@ import {
   getCompactUserSummaryMessage,
   getPartialCompactPrompt,
 } from './prompt.js'
+import { selectTailTurns } from './turnSlicing.js'
 
 export const POST_COMPACT_MAX_FILES_TO_RESTORE = 5
 export const POST_COMPACT_TOKEN_BUDGET = 50_000
@@ -610,17 +611,37 @@ export async function compactConversation(
     }
 
     const transcriptPath = getTranscriptPath()
+
+    // Keep the most recent conversation turns verbatim alongside the summary
+    // so the model retains direct recall of current work ("summary + tail").
+    // Falls back to summary-only when slicing is unsafe (short conversations,
+    // near-no-op, or an unanswered media turn in the tail).
+    const { kept: keptTail } = selectTailTurns(messages)
+
     const summaryMessages: UserMessage[] = [
       createUserMessage({
         content: getCompactUserSummaryMessage(
           summary,
           suppressFollowUpQuestions,
           transcriptPath,
+          keptTail.length > 0,
         ),
         isCompactSummary: true,
         isVisibleInTranscriptOnly: true,
       }),
     ]
+
+    // Suffix-preserving anchor: the kept tail follows the summary in the
+    // post-compact array, so the resume relink points at the last summary
+    // message (same shape session-memory compaction produces).
+    if (keptTail.length > 0) {
+      boundaryMarker.compactMetadata =
+        annotateBoundaryWithPreservedSegment(
+          boundaryMarker,
+          summaryMessages.at(-1)!.uuid,
+          keptTail,
+        ).compactMetadata
+    }
 
     // Previously "postCompactTokenCount" — renamed because this is the
     // compact API call's total usage (input_tokens ≈ preCompactTokenCount),
@@ -629,13 +650,15 @@ export async function compactConversation(
       summaryResponse,
     ])
 
-    // Message-payload estimate of the resulting context. The next iteration's
-    // shouldAutoCompact will see this PLUS ~20-40K for system prompt + tools +
-    // userContext (via API usage.input_tokens). So `willRetriggerNextTurn: true`
-    // is a strong signal; `false` may still retrigger when this is close to threshold.
+    // Message-payload estimate of the resulting context, INCLUDING the kept
+    // verbatim tail. The next iteration's shouldAutoCompact will see this
+    // PLUS ~20-40K for system prompt + tools + userContext (via API usage.
+    // input_tokens). So `willRetriggerNextTurn: true` is a strong signal;
+    // `false` may still retrigger when this is close to threshold.
     const truePostCompactTokenCount = roughTokenCountEstimationForMessages([
       boundaryMarker,
       ...summaryMessages,
+      ...keptTail,
       ...postCompactFileAttachments,
       ...hookMessages,
     ])
@@ -737,6 +760,7 @@ export async function compactConversation(
     return {
       boundaryMarker,
       summaryMessages,
+      messagesToKeep: keptTail.length > 0 ? keptTail : undefined,
       attachments: postCompactFileAttachments,
       hookResults: hookMessages,
       userDisplayMessage: combinedUserDisplayMessage || undefined,

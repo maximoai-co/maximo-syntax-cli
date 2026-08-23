@@ -28,6 +28,7 @@ const originalEnv = {
     process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW,
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:
     process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE,
+  MAXIMO_SYNTAX_AUTOCOMPACT_PCT: process.env.MAXIMO_SYNTAX_AUTOCOMPACT_PCT,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
 }
@@ -41,6 +42,8 @@ afterEach(() => {
     originalEnv.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE =
     originalEnv.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+  process.env.MAXIMO_SYNTAX_AUTOCOMPACT_PCT =
+    originalEnv.MAXIMO_SYNTAX_AUTOCOMPACT_PCT
   process.env.OPENAI_API_KEY = originalEnv.OPENAI_API_KEY
   process.env.OPENAI_BASE_URL = originalEnv.OPENAI_BASE_URL
   globalThis.fetch = originalFetch
@@ -81,6 +84,7 @@ test('Maximo model metadata drives context and output limits', async () => {
   delete process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
   delete process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   delete process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+  delete process.env.MAXIMO_SYNTAX_AUTOCOMPACT_PCT
 
   const maximoModels = [
     {
@@ -173,8 +177,10 @@ test('Maximo model metadata drives context and output limits', async () => {
     expect(getEffectiveContextWindowSize(model.id)).toBe(
       model.context_length - reserve,
     )
+    // Default threshold is AUTOCOMPACT_DEFAULT_PERCENT (40%) of the raw
+    // context window.
     expect(getAutoCompactThreshold(model.id)).toBe(
-      model.context_length - reserve,
+      Math.floor(model.context_length * 0.4),
     )
   }
 
@@ -196,6 +202,7 @@ test('invalid provider output metadata cannot collapse the effective context win
   delete process.env.MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS
   delete process.env.MAXIMO_SYNTAX_AUTO_COMPACT_WINDOW
   delete process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+  delete process.env.MAXIMO_SYNTAX_AUTOCOMPACT_PCT
 
   globalThis.fetch = (async () =>
     new Response(
@@ -228,7 +235,10 @@ test('invalid provider output metadata cannot collapse the effective context win
     20_000,
   )
   expect(getEffectiveContextWindowSize('maximo-atlas-1.2')).toBe(242_000)
-  expect(getAutoCompactThreshold('maximo-atlas-1.2')).toBe(229_000)
+  // 40% of the raw 262k context window
+  expect(getAutoCompactThreshold('maximo-atlas-1.2')).toBe(
+    Math.floor(262_000 * 0.4),
+  )
   expect(getSupportedEffortLevelsForModel('maximo-atlas-1.2')).toEqual([
     'low',
     'medium',
