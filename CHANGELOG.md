@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.40] - 2026-08-30
+
+### Added
+
+- **Persist profile photo on login**: Maximo AI OAuth and MyTabulon `/v1/me` now store `username` and `profilePhotoUrl` in `~/.maximo.json`, so Maximo Syntax Desktop can show the signed-in photo after browser OAuth or API-key login. Provider switches and logout clear `maximoAccount`.
+
 ## [0.1.38] - 2026-08-20
 
 ### Changed

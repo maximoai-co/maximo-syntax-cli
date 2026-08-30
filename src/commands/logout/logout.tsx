@@ -52,6 +52,7 @@ export async function performLogout({
     updated.openAIProvider = undefined;
     updated.mytabulonDefaultModel = undefined;
     updated.mytabulonAccount = undefined;
+    updated.maximoAccount = undefined;
     updated.openCodePlan = undefined;
     updated.cencoriApiKey = undefined;
     updated.openAIModel = undefined;

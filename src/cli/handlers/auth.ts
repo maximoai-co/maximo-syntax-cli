@@ -65,6 +65,11 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
       emailAddress: profile.account.email,
       organizationUuid: profile.organization.uuid,
       displayName: profile.account.display_name || undefined,
+      username:
+        (profile.account as { username?: string }).username || undefined,
+      profilePhotoUrl:
+        (profile.account as { profile_photo_url?: string }).profile_photo_url ||
+        undefined,
       hasExtraUsageEnabled:
         profile.organization.has_extra_usage_enabled ?? undefined,
       billingType: profile.organization.billing_type ?? undefined,

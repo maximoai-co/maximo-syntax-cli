@@ -123,6 +123,11 @@ type MyTabulonContextResponse = {
     email?: string;
     username?: string;
     display_name?: string;
+    first_name?: string;
+    last_name?: string;
+    profile_photo_url?: string | null;
+    phone?: string | null;
+    bio?: string | null;
   } | null;
   coding_plan?: MyTabulonCodingPlanResponse;
   scopes?: string[];
@@ -880,6 +885,8 @@ async function refreshMyTabulonAccount({
     emailAddress: context?.user?.email || previous?.emailAddress,
     displayName: context?.user?.display_name || previous?.displayName,
     username: context?.user?.username || previous?.username,
+    profilePhotoUrl:
+      context?.user?.profile_photo_url || previous?.profilePhotoUrl,
     workspaceId: context?.workspace?.id || previous?.workspaceId,
     workspaceName: context?.workspace?.name || previous?.workspaceName,
     codingPlanActive:
@@ -920,6 +927,7 @@ function persistMyTabulonState(
     openAIModel: undefined,
     mytabulonDefaultModel: defaultModel,
     mytabulonAccount: account,
+    maximoAccount: undefined,
     cencoriApiKey: undefined,
   }));
 }
@@ -976,6 +984,7 @@ function persistCencoriState(
     openCodePlan: undefined,
     mytabulonDefaultModel: undefined,
     mytabulonAccount: undefined,
+    maximoAccount: undefined,
   }));
 }
 
@@ -1071,6 +1080,7 @@ function persistExternalProviderState({
     cencoriApiKey: undefined,
     mytabulonDefaultModel: undefined,
     mytabulonAccount: undefined,
+    maximoAccount: undefined,
     oauthAccount: undefined,
   }));
 }

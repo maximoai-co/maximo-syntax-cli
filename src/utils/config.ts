@@ -166,6 +166,8 @@ export type AccountInfo = {
   workspaceRole?: string | null;
   // Populated by /api/oauth/profile
   displayName?: string;
+  username?: string;
+  profilePhotoUrl?: string;
   hasExtraUsageEnabled?: boolean;
   billingType?: BillingType | null;
   accountCreatedAt?: string;
@@ -177,6 +179,7 @@ export type MyTabulonAccountInfo = {
   emailAddress?: string;
   displayName?: string;
   username?: string;
+  profilePhotoUrl?: string;
   workspaceId?: string;
   workspaceName?: string;
   codingPlanActive: boolean;
@@ -269,6 +272,14 @@ export type GlobalConfig = {
   openCodePlan?: OpenCodePlan;
   mytabulonDefaultModel?: string;
   mytabulonAccount?: MyTabulonAccountInfo;
+  maximoAccount?: {
+    userId?: string;
+    emailAddress?: string;
+    displayName?: string;
+    username?: string;
+    profilePhotoUrl?: string;
+    [key: string]: unknown;
+  };
   hasAcknowledgedCostThreshold?: boolean;
   hasSeenUndercoverAutoNotice?: boolean; // ant-only: whether the one-time auto-undercover explainer has been shown
   hasSeenUltraplanTerms?: boolean; // ant-only: whether the one-time CCR terms notice has been shown in the ultraplan launch dialog

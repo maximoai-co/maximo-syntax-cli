@@ -531,6 +531,11 @@ export async function populateOAuthAccountInfoIfNeeded(): Promise<boolean> {
         emailAddress: profile.account.email,
         organizationUuid: profile.organization.uuid,
         displayName: profile.account.display_name || undefined,
+        username:
+          (profile.account as { username?: string }).username || undefined,
+        profilePhotoUrl:
+          (profile.account as { profile_photo_url?: string })
+            .profile_photo_url || undefined,
         hasExtraUsageEnabled:
           profile.organization.has_extra_usage_enabled ?? false,
         billingType: profile.organization.billing_type ?? undefined,
@@ -549,6 +554,8 @@ export function storeOAuthAccountInfo({
   emailAddress,
   organizationUuid,
   displayName,
+  username,
+  profilePhotoUrl,
   hasExtraUsageEnabled,
   billingType,
   accountCreatedAt,
@@ -558,6 +565,8 @@ export function storeOAuthAccountInfo({
   emailAddress: string;
   organizationUuid: string | undefined;
   displayName?: string;
+  username?: string;
+  profilePhotoUrl?: string;
   hasExtraUsageEnabled?: boolean;
   billingType?: BillingType;
   accountCreatedAt?: string;
@@ -575,6 +584,12 @@ export function storeOAuthAccountInfo({
   if (displayName) {
     accountInfo.displayName = displayName;
   }
+  if (username) {
+    accountInfo.username = username;
+  }
+  if (profilePhotoUrl) {
+    accountInfo.profilePhotoUrl = profilePhotoUrl;
+  }
   saveGlobalConfig((current) => {
     // For oauthAccount we need to compare content since it's an object
     if (
@@ -582,6 +597,8 @@ export function storeOAuthAccountInfo({
       current.oauthAccount?.emailAddress === accountInfo.emailAddress &&
       current.oauthAccount?.organizationUuid === accountInfo.organizationUuid &&
       current.oauthAccount?.displayName === accountInfo.displayName &&
+      current.oauthAccount?.username === accountInfo.username &&
+      current.oauthAccount?.profilePhotoUrl === accountInfo.profilePhotoUrl &&
       current.oauthAccount?.hasExtraUsageEnabled ===
         accountInfo.hasExtraUsageEnabled &&
       current.oauthAccount?.billingType === accountInfo.billingType &&
