@@ -109,6 +109,89 @@ function isTransientCapacityError(error: unknown): boolean {
   );
 }
 
+const RATE_LIMIT_MIN_DELAY_MS = 2_000;
+
+function providerErrorBlob(error: unknown): string {
+  if (error == null) return "";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) {
+    const extra =
+      "error" in error && error.error != null
+        ? JSON.stringify((error as { error?: unknown }).error)
+        : "";
+    return `${error.message} ${extra}`;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+/**
+ * OpenAI-compatible TPM / short-window 429s. Distinct from Anthropic
+ * subscriber quota 429s, which can last hours and should not spin-retry.
+ */
+export function isTransientProviderRateLimit(error: unknown): boolean {
+  const blob = providerErrorBlob(error);
+  return (
+    /token_limit_exceeded/i.test(blob) ||
+    /tokens per minute limit/i.test(blob) ||
+    /OpenAI-compatible API error 429/i.test(blob)
+  );
+}
+
+function isUserAbortError(error: unknown): boolean {
+  if (error instanceof APIUserAbortError) return true;
+  return error instanceof Error && error.name === "AbortError";
+}
+
+/**
+ * Generic (non-APIError) failures from the OpenAI-compatible shim: raw
+ * `fetch failed`, TypeError network drops, and HTTP 429/5xx thrown as Error.
+ */
+function isGenericTransientProviderError(error: unknown): boolean {
+  if (error == null || isUserAbortError(error)) return false;
+  if (error instanceof APIError) return false;
+  if (error instanceof TypeError) return true;
+  const blob = providerErrorBlob(error);
+  return (
+    /fetch failed/i.test(blob) ||
+    /failed to fetch/i.test(blob) ||
+    /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH/i.test(
+      blob,
+    ) ||
+    /socket hang up|UND_ERR|timed out/i.test(blob) ||
+    /OpenAI-compatible API error (429|408|409|5\d\d)/i.test(blob) ||
+    /token_limit_exceeded/i.test(blob)
+  );
+}
+
+function asSystemRetryError(error: unknown): APIError {
+  if (error instanceof APIError) return error;
+  const message = error instanceof Error ? error.message : String(error);
+  const statusMatch = /OpenAI-compatible API error (\d{3})/.exec(message);
+  const status = statusMatch ? Number(statusMatch[1]) : undefined;
+  if (status) {
+    return new APIError(
+      status,
+      { message },
+      message,
+      new globalThis.Headers(),
+    );
+  }
+  return new APIConnectionError({
+    message,
+    cause: error instanceof Error ? error : undefined,
+  });
+}
+
+export function isRetryableApiFailure(error: unknown): boolean {
+  if (isUserAbortError(error)) return false;
+  if (error instanceof APIError) return shouldRetry(error);
+  return isGenericTransientProviderError(error);
+}
+
 function isStaleConnectionError(error: unknown): boolean {
   if (!(error instanceof APIConnectionError)) {
     return false;
@@ -375,13 +458,12 @@ export async function* withRetry<T>(
         throw new CannotRetryError(error, retryContext);
       }
 
-      // AWS/GCP errors aren't always APIError, but can be retried
+      // AWS/GCP errors aren't always APIError, but can be retried.
+      // OpenAI-compatible shim errors are often generic Error/TypeError
+      // (`fetch failed`, HTTP 429 JSON) rather than Anthropic APIError.
       const handledCloudAuthError =
         handleAwsCredentialError(error) || handleGcpCredentialError(error);
-      if (
-        !handledCloudAuthError &&
-        (!(error instanceof APIError) || !shouldRetry(error))
-      ) {
+      if (!handledCloudAuthError && !isRetryableApiFailure(error)) {
         throw new CannotRetryError(error, retryContext);
       }
 
@@ -464,6 +546,9 @@ export async function* withRetry<T>(
         );
       } else {
         delayMs = getRetryDelay(attempt, retryAfter);
+        if (isTransientProviderRateLimit(error)) {
+          delayMs = Math.max(delayMs, RATE_LIMIT_MIN_DELAY_MS);
+        }
       }
 
       // In persistent mode the for-loop `attempt` is clamped at maxRetries+1;
@@ -493,14 +578,12 @@ export async function* withRetry<T>(
         let remaining = delayMs;
         while (remaining > 0) {
           if (options.signal?.aborted) throw new APIUserAbortError();
-          if (error instanceof APIError) {
-            yield createSystemAPIErrorMessage(
-              error,
-              remaining,
-              reportedAttempt,
-              maxRetries
-            );
-          }
+          yield createSystemAPIErrorMessage(
+            asSystemRetryError(error),
+            remaining,
+            reportedAttempt,
+            maxRetries
+          );
           const chunk = Math.min(remaining, HEARTBEAT_INTERVAL_MS);
           await sleep(chunk, options.signal, { abortError });
           remaining -= chunk;
@@ -509,14 +592,12 @@ export async function* withRetry<T>(
         // persistentAttempt counter which keeps growing to the 5-min cap.
         if (attempt >= maxRetries) attempt = maxRetries;
       } else {
-        if (error instanceof APIError) {
-          yield createSystemAPIErrorMessage(
-            error,
-            delayMs,
-            attempt,
-            maxRetries
-          );
-        }
+        yield createSystemAPIErrorMessage(
+          asSystemRetryError(error),
+          delayMs,
+          attempt,
+          maxRetries
+        );
         await sleep(delayMs, options.signal, { abortError });
       }
     }
@@ -774,6 +855,9 @@ function shouldRetry(error: APIError): boolean {
   // Retry on rate limits, but not for MaximoAI Subscription users
   // Enterprise users can retry because they typically use PAYG instead of rate limits
   if (error.status === 429) {
+    // OpenAI-compatible TPM 429s ("retry shortly") are short-window and
+    // should retry even for subscribers. Anthropic quota 429s can last hours.
+    if (isTransientProviderRateLimit(error)) return true;
     return !isMaximoAISubscriber() || isEnterpriseSubscriber();
   }
 

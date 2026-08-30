@@ -1,3 +1,4 @@
+import { APIConnectionError, APIError } from '@anthropic-ai/sdk'
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { createOpenAIShimClient } from './openaiShim.js'
 
@@ -562,4 +563,53 @@ test('routes OpenCode Zen through its documented Chat Completions endpoint', asy
     messages: [{ role: 'user', content: 'hello' }],
     max_tokens: 64,
   })
+})
+
+function shimClient() {
+  return createOpenAIShimClient({}) as {
+    beta: { messages: { create: (params: Record<string, unknown>) => Promise<unknown> } }
+  }
+}
+
+test('throws APIError with status 429 for OpenAI-compatible rate limits', async () => {
+  const body = {
+    error: {
+      code: 'token_limit_exceeded',
+      message: 'Tokens per minute limit (20000000) exceeded for your tier (model weight x10 applied). Reduce batch size or retry shortly.',
+      type: 'rate_limit_error',
+    },
+  }
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(body), { status: 429, headers: { 'Content-Type': 'application/json' } })) as FetchType
+
+  try {
+    await shimClient().beta.messages.create({
+      model: 'fake-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      max_tokens: 64,
+    })
+    throw new Error('expected 429 to reject')
+  } catch (error) {
+    expect(error).toBeInstanceOf(APIError)
+    expect((error as APIError).status).toBe(429)
+    expect((error as APIError).message).toMatch(/token_limit_exceeded|Tokens per minute|429/)
+  }
+})
+
+test('wraps fetch failed as APIConnectionError so the query loop can retry', async () => {
+  globalThis.fetch = (async () => {
+    throw new TypeError('fetch failed')
+  }) as FetchType
+
+  try {
+    await shimClient().beta.messages.create({
+      model: 'fake-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      max_tokens: 64,
+    })
+    throw new Error('expected fetch failed to reject')
+  } catch (error) {
+    expect(error).toBeInstanceOf(APIConnectionError)
+    expect((error as Error).message).toMatch(/fetch failed/)
+  }
 })

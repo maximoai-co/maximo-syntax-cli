@@ -17,6 +17,10 @@
  */
 
 import {
+  APIConnectionError,
+  APIError,
+} from "@anthropic-ai/sdk";
+import {
   codexStreamToAnthropic,
   collectCodexCompletedResponse,
   convertCodexResponseToAnthropicMessage,
@@ -740,6 +744,40 @@ function containsImageContent(value: unknown): boolean {
   return containsImageContent(record.content) || containsImageContent(record.message);
 }
 
+function errorText(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  return typeof value === "string" ? value : "";
+}
+
+/** User-cancelled aborts must not be retried. Timeouts and network drops should. */
+function isOpenAIUserAbort(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted && /timed out/i.test(errorText(signal.reason))) return false;
+  if (signal?.aborted) return true;
+  if (/timed out/i.test(errorText(error))) return false;
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function throwOpenAICompatibleHttpError(response: Response, errorBody: string): never {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(errorBody);
+  } catch {
+    parsed = undefined;
+  }
+  const record = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : undefined;
+  const nested =
+    record?.error && typeof record.error === "object"
+      ? (record.error as Record<string, unknown>)
+      : record;
+  const display = `OpenAI-compatible API error ${response.status}: ${errorBody}`;
+  throw new APIError(
+    response.status,
+    { ...(nested ?? {}), message: display } as object,
+    display,
+    response.headers,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The shim client — duck-types as Anthropic SDK
 // ---------------------------------------------------------------------------
@@ -974,18 +1012,26 @@ class OpenAIShimMessages {
       headers["X-OpenRouter-Title"] = "Maximo Syntax";
     }
 
-    const response = await fetch(`${request.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: options?.signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${request.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: options?.signal,
+      });
+    } catch (error) {
+      if (isOpenAIUserAbort(error, options?.signal)) throw error;
+      if (error instanceof APIError) throw error;
+      throw new APIConnectionError({
+        message: error instanceof Error ? error.message : "fetch failed",
+        cause: error instanceof Error ? error : undefined,
+      });
+    }
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "unknown error");
-      throw new Error(
-        `OpenAI-compatible API error ${response.status}: ${errorBody}`,
-      );
+      throwOpenAICompatibleHttpError(response, errorBody);
     }
 
     return response;
