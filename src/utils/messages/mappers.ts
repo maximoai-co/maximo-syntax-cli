@@ -79,6 +79,10 @@ export function toSDKCompactMetadata(
   meta: CompactMetadata
 ): SDKCompactMetadata {
   const seg = meta.preservedSegment;
+  const extra = meta as CompactMetadata & {
+    compactSummary?: string;
+    postTokens?: number;
+  };
   return {
     trigger: meta.trigger,
     pre_tokens: meta.preTokens,
@@ -89,7 +93,13 @@ export function toSDKCompactMetadata(
         tail_uuid: seg.tailUuid,
       },
     }),
-  };
+    ...(typeof extra.compactSummary === "string" && extra.compactSummary
+      ? { summary: extra.compactSummary }
+      : {}),
+    ...(typeof extra.postTokens === "number"
+      ? { post_tokens: extra.postTokens }
+      : {}),
+  } as SDKCompactMetadata;
 }
 
 /**

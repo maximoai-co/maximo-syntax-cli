@@ -1,8 +1,7 @@
-// Voice keyterms for improving STT accuracy in the voice_stream endpoint.
+// Voice keyterms for improving Smallest.ai Pulse transcription accuracy.
 //
-// Provides domain-specific vocabulary hints (Deepgram "keywords") so the STT
-// engine correctly recognises coding terminology, project names, and branch
-// names that would otherwise be misheard.
+// Provides domain-specific vocabulary hints so the STT engine correctly
+// recognises coding terminology, project names, and branch names.
 
 import { basename } from "path";
 import { getProjectRoot } from "../bootstrap/state.js";
@@ -11,8 +10,7 @@ import { getBranch } from "../utils/git.js";
 // ─── Global keyterms ────────────────────────────────────────────────
 
 const GLOBAL_KEYTERMS: readonly string[] = [
-  // Terms Deepgram consistently mangles without keyword hints.
-  // Note: "Maximo" and "Anthropic" are already server-side base keyterms.
+  // Terms that benefit from Smallest.ai Pulse keyword hints.
   // Avoid terms nobody speaks aloud as-spelled (stdout → "standard out").
   "MCP",
   "symlink",
@@ -23,6 +21,8 @@ const GLOBAL_KEYTERMS: readonly string[] = [
   "TypeScript",
   "JSON",
   "OAuth",
+  "Smallest",
+  "Pulse",
   "webhook",
   "gRPC",
   "dotfiles",
@@ -55,7 +55,7 @@ function fileNameWords(filePath: string): string[] {
 const MAX_KEYTERMS = 50;
 
 /**
- * Build a list of keyterms for the voice_stream STT endpoint.
+ * Build a list of keyterms for the Smallest.ai Pulse STT endpoint.
  *
  * Combines hardcoded global coding terms with session context (project name,
  * git branch, recent files) without any model calls.

@@ -37,6 +37,7 @@ import {
   buildPostCompactMessages,
   type CompactionResult,
   createPlanAttachmentIfNeeded,
+  stripStaleUsageFromPreservedMessages,
 } from './compact.js'
 import { estimateMessageTokens } from './microCompact.js'
 import { getCompactUserSummaryMessage } from './prompt.js'
@@ -576,9 +577,11 @@ export async function trySessionMemoryCompaction(
     // After REPL pruning, old boundaries re-yielded from messagesToKeep would
     // trigger an unwanted second prune (isCompactBoundaryMessage returns true),
     // discarding the new boundary and summary.
-    const messagesToKeep = messages
-      .slice(startIndex)
-      .filter(m => !isCompactBoundaryMessage(m))
+    const messagesToKeep = stripStaleUsageFromPreservedMessages(
+      messages
+        .slice(startIndex)
+        .filter(m => !isCompactBoundaryMessage(m)),
+    )
 
     // Run session start hooks to restore MAXIMO.md and other context
     const hookResults = await processSessionStartHooks('compact', {

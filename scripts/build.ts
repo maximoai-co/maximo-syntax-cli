@@ -27,7 +27,7 @@ process.env.NODE_ENV = buildNodeEnv;
 // MyTabulon logins. Do not flip unrelated flags without verifying those
 // subsystems work in the open tree.
 const featureFlags: Record<string, boolean> = {
-  VOICE_MODE: false,
+  VOICE_MODE: true,
   PROACTIVE: false,
   KAIROS: false,
   BRIDGE_MODE: false,

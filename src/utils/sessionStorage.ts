@@ -1876,6 +1876,7 @@ function applyPreservedSegmentRelinks(
   // Validate tail→head BEFORE mutating so malformed metadata is a true
   // no-op (walk stops at headUuid, doesn't need the relink to run first).
   const preservedUuids = new Set<UUID>();
+  let relinkLive = false;
   if (segIsLive) {
     const walkSeen = new Set<UUID>();
     let cur = messages.get(lastSeg.tailUuid);
@@ -1889,12 +1890,14 @@ function applyPreservedSegmentRelinks(
       }
       cur = cur.parentUuid ? messages.get(cur.parentUuid) : undefined;
     }
-    if (!reachedHead) {
+    if (reachedHead) {
+      relinkLive = true;
+    } else {
       // tail→head walk broke — a UUID in the preserved segment isn't in the
-      // transcript. Returning here skips the prune below, so resume loads
-      // the full pre-compact history. Known cause: mid-turn-yielded
-      // attachment pushed to mutableMessages but never recordTranscript'd
-      // (SDK subprocess restarted before next turn's qe:420 flush).
+      // transcript. Previously this returned without pruning, so resume
+      // loaded the full pre-compact history and the next turn immediately
+      // autocompacted. Fall through with an empty preserved set: prune at
+      // the boundary and keep the summary rather than the stale full chain.
       logEvent("tengu_relink_walk_broken", {
         tailInTranscript: messages.has(lastSeg.tailUuid),
         headInTranscript: messages.has(lastSeg.headUuid),
@@ -1902,11 +1905,11 @@ function applyPreservedSegmentRelinks(
         walkSteps: walkSeen.size,
         transcriptSize: messages.size,
       });
-      return;
+      preservedUuids.clear();
     }
   }
 
-  if (segIsLive) {
+  if (relinkLive) {
     const head = messages.get(lastSeg.headUuid);
     if (head) {
       messages.set(lastSeg.headUuid, {

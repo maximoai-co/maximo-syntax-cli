@@ -76,9 +76,7 @@ function turnContainsUnansweredMedia(messages: Message[]): boolean {
  * Bails out (returns empty `kept` → caller falls back to plain summary-only
  * compaction) when:
  * - fewer than two turn groups exist (nothing meaningful to summarize),
- * - keeping the tail would leave less than one full turn to summarize,
- * - the tail would swallow ≥60% of all messages (compaction would barely
- *   reclaim anything), or
+ * - keeping the tail would leave less than one full turn to summarize, or
  * - the tail contains an unanswered-media turn (unsafe to detach).
  */
 export function selectTailTurns(
@@ -114,10 +112,10 @@ export function selectTailTurns(
     0,
   )
 
-  // Compaction must meaningfully shrink the conversation; otherwise keep the
-  // legacy behavior (full summarize) rather than churning tokens on a
-  // near-no-op boundary.
-  if (summarizedCount < 1 || kept.length > messages.length * 0.6) {
+  // Need at least one message on the summarized side. Message-count
+  // percentages are a bad proxy here: one huge old turn plus three small
+  // recent ones should still keep the recent turns verbatim.
+  if (summarizedCount < 1) {
     return { kept: [], summarizedCount: messages.length }
   }
 

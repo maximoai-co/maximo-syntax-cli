@@ -113,6 +113,7 @@ import {
 } from '../tokenEstimation.js'
 import { groupMessagesByApiRound } from './grouping.js'
 import {
+  formatCompactSummary,
   getCompactPrompt,
   getCompactUserSummaryMessage,
   getPartialCompactPrompt,
@@ -346,6 +347,39 @@ export function buildPostCompactMessages(result: CompactionResult): Message[] {
  *   - suffix-preserving (reactive/session-memory): last summary message
  *   - prefix-preserving (partial compact): the boundary itself
  */
+/**
+ * Kept-tail assistants still carry the pre-compact API usage on disk. If we
+ * leave those numbers in place, the next shouldAutoCompact sees ~preCompact
+ * tokens and immediately re-compacts. Zero them the same way resume relink
+ * does, without mutating the original transcript rows (REPL scrollback).
+ */
+export function stripStaleUsageFromPreservedMessages(
+  messages: Message[],
+): Message[] {
+  return messages.map(message => {
+    if (message.type !== 'assistant' || !('usage' in message.message)) {
+      return message
+    }
+    const usage = message.message.usage
+    if (!usage) {
+      return message
+    }
+    return {
+      ...message,
+      message: {
+        ...message.message,
+        usage: {
+          ...usage,
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+    }
+  })
+}
+
 export function annotateBoundaryWithPreservedSegment(
   boundary: SystemCompactBoundaryMessage,
   anchorUuid: UUID,
@@ -614,9 +648,10 @@ export async function compactConversation(
 
     // Keep the most recent conversation turns verbatim alongside the summary
     // so the model retains direct recall of current work ("summary + tail").
-    // Falls back to summary-only when slicing is unsafe (short conversations,
-    // near-no-op, or an unanswered media turn in the tail).
-    const { kept: keptTail } = selectTailTurns(messages)
+    // Falls back to summary-only when slicing is unsafe (short conversations
+    // or an unanswered media turn in the tail).
+    const { kept: rawKeptTail } = selectTailTurns(messages)
+    const keptTail = stripStaleUsageFromPreservedMessages(rawKeptTail)
 
     const summaryMessages: UserMessage[] = [
       createUserMessage({
@@ -642,6 +677,14 @@ export async function compactConversation(
           keptTail,
         ).compactMetadata
     }
+    const compactSummary = formatCompactSummary(summary)
+    if (compactSummary) {
+      ;(
+        boundaryMarker.compactMetadata as typeof boundaryMarker.compactMetadata & {
+          compactSummary?: string
+        }
+      ).compactSummary = compactSummary
+    }
 
     // Previously "postCompactTokenCount" — renamed because this is the
     // compact API call's total usage (input_tokens ≈ preCompactTokenCount),
@@ -662,6 +705,11 @@ export async function compactConversation(
       ...postCompactFileAttachments,
       ...hookMessages,
     ])
+    ;(
+      boundaryMarker.compactMetadata as typeof boundaryMarker.compactMetadata & {
+        postTokens?: number
+      }
+    ).postTokens = truePostCompactTokenCount
 
     // Extract compaction API usage metrics
     const compactionUsage = getTokenUsage(summaryResponse)

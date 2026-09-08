@@ -2,7 +2,6 @@ import { normalizeLanguageForSTT } from "../../hooks/useVoice.js";
 import { getShortcutDisplay } from "../../keybindings/shortcutFormat.js";
 import { logEvent } from "../../services/analytics/index.js";
 import type { LocalCommandCall } from "../../types/command.js";
-import { isAnthropicAuthEnabled } from "../../utils/auth.js";
 import { getGlobalConfig, saveGlobalConfig } from "../../utils/config.js";
 import { settingsChangeDetector } from "../../utils/settings/changeDetector.js";
 import {
@@ -16,18 +15,10 @@ const LANG_HINT_MAX_SHOWS = 2;
 export const call: LocalCommandCall = async () => {
   // Check auth and kill-switch before allowing voice mode
   if (!isVoiceModeEnabled()) {
-    // Differentiate: OAuth-less users get an auth hint, everyone else
-    // gets nothing (command shouldn't be reachable when the kill-switch is on).
-    if (!isAnthropicAuthEnabled()) {
-      return {
-        type: "text" as const,
-        value:
-          "Voice mode requires a Maximo.ai account. Please run /login to sign in.",
-      };
-    }
     return {
       type: "text" as const,
-      value: "Voice mode is not available.",
+      value:
+        "Voice mode requires a Maximo AI or MyTabulon account with voice access.",
     };
   }
 
@@ -77,7 +68,7 @@ export const call: LocalCommandCall = async () => {
     return {
       type: "text" as const,
       value:
-        "Voice mode requires a Maximo.ai account. Please run /login to sign in.",
+        "Voice mode requires a Maximo AI or MyTabulon account with voice access.",
     };
   }
 

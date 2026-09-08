@@ -4,6 +4,17 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.42] - 2026-09-08
+
+### Fixed
+
+- **Premature auto-compact**: resume, model change, edit-and-resend, and stop-then-send no longer compact on leftover transcript usage. Desktop/SDK processes skip auto-compact for the entire first turn (including in-turn checks). Kept-tail assistants no longer carry pre-compact token counts, so the next turn cannot immediately re-compact.
+- **Compacted chat replay**: the last three turns stay in model context after compact, but are no longer re-emitted as new transcript rows. The default UI hides the preserved tail after the compact divider (ctrl+o still has history).
+
+### Added
+
+- **Voice mode in the open build**: `VOICE_MODE` is enabled in the public bundle so `/voice` works for Maximo AI and MyTabulon accounts with voice access.
+
 ## [0.1.40] - 2026-08-30
 
 ### Added

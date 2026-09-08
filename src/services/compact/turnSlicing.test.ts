@@ -102,8 +102,10 @@ test('bails out when there is nothing meaningful to summarize', () => {
   // Single turn → no summary possible
   expect(selectTailTurns(buildTurns(1), 3).kept).toHaveLength(0)
 
-  // Three turns, keep 3 = everything kept → nothing to summarize
-  expect(selectTailTurns(buildTurns(3), 3).kept).toHaveLength(0)
+  // Three turns: keep two verbatim and summarize the oldest one.
+  const three = selectTailTurns(buildTurns(3), 3)
+  expect(three.kept).toHaveLength(10)
+  expect(three.summarizedCount).toBe(5)
 })
 
 test('two-turn conversation keeps one turn and summarizes the other', () => {
@@ -112,11 +114,11 @@ test('two-turn conversation keeps one turn and summarizes the other', () => {
   expect(summarizedCount).toBe(5)
 })
 
-test('bails out when the tail would swallow most of the conversation', () => {
-  // 4 turns keep 3 = 75% kept → over the 60% guard → summary-only fallback
-  expect(selectTailTurns(buildTurns(4), 3).kept).toHaveLength(0)
-  // Edge: exactly 5 turns keep 3 = 60% kept → allowed (not >60%)
-  expect(selectTailTurns(buildTurns(5), 3)).toHaveLength
+test('keeps three turns even when that is most of a short conversation', () => {
+  // 4 turns, keep 3: one turn summarized, three kept verbatim.
+  const four = selectTailTurns(buildTurns(4), 3)
+  expect(four.kept).toHaveLength(15)
+  expect(four.summarizedCount).toBe(5)
   expect(selectTailTurns(buildTurns(5), 3).kept).toHaveLength(15)
 })
 

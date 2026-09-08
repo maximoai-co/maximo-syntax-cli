@@ -1,10 +1,10 @@
-// React hook for hold-to-talk voice input using Anthropic voice_stream STT.
+// React hook for hold-to-talk voice input using Smallest.ai Pulse STT.
 //
-// Hold the keybinding to record; release to stop and submit.  Auto-repeat
+// Hold the keybinding to record; release to stop and submit. Auto-repeat
 // key events reset an internal timer — when no keypress arrives within
-// RELEASE_TIMEOUT_MS the recording stops automatically.  Uses the native
-// audio module (macOS) or SoX for recording, and Anthropic's voice_stream
-// endpoint (conversation_engine) for STT.
+// RELEASE_TIMEOUT_MS the recording stops automatically. Uses the native
+// audio module (macOS) or SoX for recording, and the Maximo/MyTabulon backend
+// proxy for Smallest.ai streaming transcription.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetVoiceState } from "../context/voice.js";
@@ -31,14 +31,9 @@ import { sleep } from "../utils/sleep.js";
 
 const DEFAULT_STT_LANGUAGE = "en";
 
-// Maps language names (English and native) to BCP-47 codes supported by
-// the voice_stream Deepgram backend.  Keys must be lowercase.
-//
-// This list must be a SUBSET of the server-side supported_language_codes
-// allowlist (GrowthBook: speech_to_text_voice_stream_config).
-// If the CLI sends a code the server rejects, the WebSocket closes with
-// 1008 "Unsupported language" and voice breaks.  Unsupported languages
-// fall back to DEFAULT_STT_LANGUAGE so recording still works.
+// Maps language names (English and native) to language codes supported by
+// Smallest.ai Pulse. Keys must be lowercase.
+// Unsupported languages fall back to DEFAULT_STT_LANGUAGE so recording still works.
 const LANGUAGE_NAME_TO_CODE: Record<string, string> = {
   english: "en",
   spanish: "es",
@@ -61,63 +56,59 @@ const LANGUAGE_NAME_TO_CODE: Record<string, string> = {
   hindi: "hi",
   हिन्दी: "hi",
   हिंदी: "hi",
-  indonesian: "id",
-  "bahasa indonesia": "id",
-  bahasa: "id",
   russian: "ru",
   русский: "ru",
-  polish: "pl",
-  polski: "pl",
-  turkish: "tr",
-  türkçe: "tr",
-  turkce: "tr",
   dutch: "nl",
   nederlands: "nl",
-  ukrainian: "uk",
-  українська: "uk",
-  greek: "el",
-  ελληνικά: "el",
-  czech: "cs",
-  čeština: "cs",
-  cestina: "cs",
-  danish: "da",
-  dansk: "da",
-  swedish: "sv",
-  svenska: "sv",
-  norwegian: "no",
-  norsk: "no",
+  bengali: "bn",
+  বাংলা: "bn",
+  gujarati: "gu",
+  ગુજરાતી: "gu",
+  marathi: "mr",
+  मराठी: "mr",
+  odia: "or",
+  oriya: "or",
+  tamil: "ta",
+  தமிழ்: "ta",
+  telugu: "te",
+  తెలుగు: "te",
+  kannada: "kn",
+  ಕನ್ನಡ: "kn",
+  malayalam: "ml",
+  മലയാളം: "ml",
+  chinese: "zh",
+  mandarin: "zh",
+  cantonese: "yue",
 };
 
-// Subset of the GrowthBook speech_to_text_voice_stream_config allowlist.
-// Sending a code not in the server allowlist closes the connection.
 const SUPPORTED_LANGUAGE_CODES = new Set([
   "en",
-  "es",
-  "fr",
-  "ja",
-  "de",
-  "pt",
-  "it",
-  "ko",
   "hi",
-  "id",
+  "de",
+  "es",
   "ru",
-  "pl",
-  "tr",
+  "it",
+  "fr",
   "nl",
-  "uk",
-  "el",
-  "cs",
-  "da",
-  "sv",
-  "no",
+  "pt",
+  "zh",
+  "yue",
+  "ja",
+  "ko",
+  "gu",
+  "mr",
+  "or",
+  "bn",
+  "ta",
+  "te",
+  "kn",
+  "ml",
 ]);
 
 // Normalize a language preference string (from settings.language) to a
-// BCP-47 code supported by the voice_stream endpoint.  Returns the
-// default language if the input cannot be resolved.  When the input is
-// non-empty but unsupported, fellBackFrom is set to the original input so
-// callers can surface a warning.
+// language code supported by Smallest.ai Pulse. Returns the default language
+// if the input cannot be resolved. When the input is non-empty but unsupported,
+// fellBackFrom is set to the original input so callers can surface a warning.
 export function normalizeLanguageForSTT(language: string | undefined): {
   code: string;
   fellBackFrom?: string;
@@ -238,11 +229,9 @@ export function useVoice({
   // True if the early-error retry fired during this session.
   // Tracked for the tengu_voice_recording_completed analytics event.
   const retryUsedRef = useRef(false);
-  // Full audio captured this session, kept for silent-drop replay. ~1% of
-  // sessions get a sticky-broken CE pod that accepts audio but returns zero
-  // transcripts (anthropics/anthropic#287008 session-sticky variant); when
-  // finalize() resolves via no_data_timeout with hadAudioSignal=true, we
-  // replay the buffer on a fresh WS once. Bounded: 32KB/s × ~60s max ≈ 2MB.
+  // Full audio captured this session, kept for a single retry when the
+  // transcription backend accepts audio but returns no transcript. Bounded:
+  // 32KB/s × ~60s max ≈ 2MB.
   const fullAudioRef = useRef<Buffer[]>([]);
   const silentDropRetriedRef = useRef(false);
   // Bumped when the early-error retry is scheduled. Captured per
@@ -633,7 +622,7 @@ export function useVoice({
     };
   }, [enabled, focusMode, isFocused]);
 
-  // ── Start a new recording session (voice_stream connect + audio) ──
+  // ── Start a new recording session (Smallest.ai stream + audio) ──
   async function startRecordingSession(): Promise<void> {
     if (!voiceModule) {
       onErrorRef.current?.(
@@ -762,14 +751,9 @@ export function useVoice({
         getSystemLocaleLanguage() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     });
 
-    // Retry once if the connection errors before delivering any transcript.
-    // The conversation-engine proxy can reject rapid reconnects (~1/N_pods
-    // same-pod collision) or CE's Deepgram upstream can fail during its own
-    // teardown window (anthropics/anthropic#287008 surfaces this as
-    // TranscriptError instead of silent-drop). A 250ms backoff clears both.
-    // Audio captured during the retry window routes to audioBuffer (via the
-    // connectionRef.current null check in the recording callback above) and
-    // is flushed by the second onReady.
+    // Retry once if the transcription proxy errors before delivering any
+    // transcript. Audio captured during the retry window routes to audioBuffer
+    // and is flushed by the second connection.
     let sawTranscript = false;
 
     // Connect WebSocket in parallel with audio recording.
@@ -824,10 +808,8 @@ export function useVoice({
                 });
               }
             } else if (!isFinal) {
-              // Active interim speech resets the focus silence timer.
-              // Nova 3 disables auto-finalize so isFinal is never true
-              // mid-stream — without this, the 5s timer fires during
-              // active speech and tears down the session.
+              // Active interim speech resets the focus silence timer so the
+              // session stays open while the user is speaking.
               if (focusTriggeredRef.current) {
                 armFocusSilenceTimer();
               }
@@ -859,14 +841,11 @@ export function useVoice({
               );
               return;
             }
-            // Early-failure retry: server error before any transcript =
-            // likely a transient upstream race (CE rejection, Deepgram
-            // not ready). Clear connectionRef so audio re-buffers, back
-            // off, reconnect. Skip if the user has already released the
-            // key (state left 'recording') — no point retrying a session
-            // they've ended. Fatal errors (Cloudflare bot challenge, auth
-            // rejection) are the same failure on every retry attempt, so
-            // fall through to surface the message.
+            // Early-failure retry: an upstream proxy error before any
+            // transcript may be transient. Clear connectionRef so audio
+            // re-buffers, back off, and reconnect. Skip if the user has
+            // already released the key; there is no session left to retry.
+            // Fatal errors are surfaced without retrying.
             if (
               !opts?.fatal &&
               !sawTranscript &&
@@ -875,7 +854,7 @@ export function useVoice({
               if (!retryUsedRef.current) {
                 retryUsedRef.current = true;
                 logForDebugging(
-                  `[voice] early voice_stream error (pre-transcript), retrying once: ${error}`
+                  `[voice] early Smallest.ai stream error (pre-transcript), retrying once: ${error}`
                 );
                 logEvent("tengu_voice_stream_early_retry", {});
                 connectionRef.current = null;
@@ -897,7 +876,7 @@ export function useVoice({
             // Surfacing — bump gen so this conn's trailing close-error
             // (ws fires error then close 1006) is swallowed above.
             attemptGenRef.current++;
-            logError(new Error(`[voice] voice_stream error: ${error}`));
+            logError(new Error(`[voice] Smallest.ai stream error: ${error}`));
             onErrorRef.current?.(`Voice stream error: ${error}`);
             // Clear the audio buffer on error to avoid memory leaks
             audioBuffer.length = 0;
@@ -993,10 +972,10 @@ export function useVoice({
         }
         if (!conn) {
           logForDebugging(
-            "[voice] Failed to connect to voice_stream (no OAuth token?)"
+            "[voice] Failed to connect to the Smallest.ai transcription stream"
           );
           onErrorRef.current?.(
-            "Voice mode requires a Maximo.ai account. Please run /login to sign in."
+            "Voice mode requires a Maximo AI or MyTabulon account with voice access."
           );
           // Clear the audio buffer on failure
           audioBuffer.length = 0;

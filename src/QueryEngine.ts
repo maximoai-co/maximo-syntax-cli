@@ -15,6 +15,7 @@ import type {
   SDKUserMessageReplay,
 } from "src/entrypoints/agentSdkTypes.js";
 import { accumulateUsage, updateUsage } from "src/services/api/maximo.js";
+import { releaseInitialAutoCompactSkip } from "src/services/compact/autoCompact.js";
 import type { NonNullableUsage } from "src/services/api/logging.js";
 import { EMPTY_USAGE } from "src/services/api/logging.js";
 import stripAnsi from "strip-ansi";
@@ -196,6 +197,27 @@ export class QueryEngine {
   // many turns in SDK mode.
   private discoveredSkillNames = new Set<string>();
   private loadedNestedMemoryPaths = new Set<string>();
+  // After a compact_boundary the query loop re-emits the summary + last N
+  // turns so the model keeps them. Those rows already exist in the client's
+  // transcript; re-yielding them dumps old chat into the current turn.
+  private compactRestoreBoundaryTimestamp: string | undefined;
+
+  private shouldSuppressCompactRestore(message: Message): boolean {
+    if (!this.compactRestoreBoundaryTimestamp) {
+      return false;
+    }
+    if (
+      message.type === "user" &&
+      (message.isCompactSummary || message.isVisibleInTranscriptOnly)
+    ) {
+      return true;
+    }
+    if (message.timestamp < this.compactRestoreBoundaryTimestamp) {
+      return true;
+    }
+    this.compactRestoreBoundaryTimestamp = undefined;
+    return false;
+  }
 
   constructor(config: QueryEngineConfig) {
     this.config = config;
@@ -562,8 +584,7 @@ export class QueryEngine {
           msg.type === "user" &&
           typeof msg.message.content === "string" &&
           (msg.message.content.includes(`<${LOCAL_COMMAND_STDOUT_TAG}>`) ||
-            msg.message.content.includes(`<${LOCAL_COMMAND_STDERR_TAG}>`) ||
-            msg.isCompactSummary)
+            msg.message.content.includes(`<${LOCAL_COMMAND_STDERR_TAG}>`))
         ) {
           yield {
             type: "user",
@@ -575,7 +596,7 @@ export class QueryEngine {
             parent_tool_use_id: null,
             uuid: msg.uuid,
             timestamp: msg.timestamp,
-            isReplay: !msg.isCompactSummary,
+            isReplay: true,
             isSynthetic: msg.isMeta || msg.isVisibleInTranscriptOnly,
           } as SDKUserMessageReplay;
         }
@@ -672,6 +693,7 @@ export class QueryEngine {
       ? countToolCalls(this.mutableMessages, SYNTHETIC_OUTPUT_TOOL_NAME)
       : 0;
 
+    try {
     for await (const message of query({
       messages,
       systemPrompt,
@@ -768,7 +790,9 @@ export class QueryEngine {
             lastStopReason = message.message.stop_reason;
           }
           this.mutableMessages.push(message);
-          yield* normalizeMessage(message);
+          if (!this.shouldSuppressCompactRestore(message)) {
+            yield* normalizeMessage(message);
+          }
           break;
         case "progress":
           this.mutableMessages.push(message);
@@ -785,7 +809,9 @@ export class QueryEngine {
           break;
         case "user":
           this.mutableMessages.push(message);
-          yield* normalizeMessage(message);
+          if (!this.shouldSuppressCompactRestore(message)) {
+            yield* normalizeMessage(message);
+          }
           break;
         case "stream_event":
           if (message.event.type === "message_start") {
@@ -934,6 +960,7 @@ export class QueryEngine {
               messages.splice(0, localBoundaryIdx);
             }
 
+            this.compactRestoreBoundaryTimestamp = message.timestamp;
             yield {
               type: "system",
               subtype: "compact_boundary" as const,
@@ -1171,6 +1198,11 @@ export class QueryEngine {
       ),
       uuid: randomUUID(),
     };
+    } finally {
+      // First-turn skip covers in-turn compact of this query. Arm autocompact
+      // for subsequent turns in this process (warm follow-ups).
+      releaseInitialAutoCompactSkip();
+    }
   }
 
   interrupt(): void {

@@ -4720,6 +4720,41 @@ export function getMessagesAfterCompactBoundary<
   return sliced;
 }
 
+/**
+ * Drop verbatim tail rows that compaction re-appended after the boundary.
+ * They already exist in scrollback; showing them again after the compact
+ * divider looks like the old conversation came back. Transcript mode keeps
+ * them so ctrl+o still has the preserved turns.
+ */
+export function hideReplayedCompactTail<
+  T extends Message | NormalizedMessage
+>(messages: T[], isTranscriptMode: boolean): T[] {
+  if (isTranscriptMode) {
+    return messages;
+  }
+  const boundaryIndex = findLastCompactBoundaryIndex(messages);
+  if (boundaryIndex === -1) {
+    return messages;
+  }
+  const boundary = messages[boundaryIndex];
+  const boundaryTimestamp = boundary?.timestamp;
+  if (!boundaryTimestamp) {
+    return messages;
+  }
+  return messages.filter((message, index) => {
+    if (index <= boundaryIndex) {
+      return true;
+    }
+    if (
+      message.type === "user" &&
+      (message.isCompactSummary || message.isVisibleInTranscriptOnly)
+    ) {
+      return false;
+    }
+    return message.timestamp >= boundaryTimestamp;
+  });
+}
+
 export function shouldShowUserMessage(
   message: NormalizedMessage,
   isTranscriptMode: boolean

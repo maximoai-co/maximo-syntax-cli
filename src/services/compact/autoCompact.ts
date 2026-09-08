@@ -96,9 +96,19 @@ export const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
 // BQ 2026-03-10: 1,279 sessions had 50+ consecutive failures (up to 3,272)
 // in a single session, wasting ~250K API calls/day globally.
 const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
-let skipInitialAutoCompact = isEnvTruthy(
-  process.env.MAXIMO_SYNTAX_SKIP_FIRST_AUTOCOMPACT,
-)
+const skipInitialAutoCompact =
+  isEnvTruthy(process.env.MAXIMO_SYNTAX_SKIP_FIRST_AUTOCOMPACT) ||
+  isEnvTruthy(process.env.MAXIMO_SYNTAX_DESKTOP)
+// When set, skip EVERY autocompact check (start-of-query and in-turn) until
+// the first SDK/desktop turn finishes. Releasing on the first assistant
+// message was too early: model-change and stop-then-follow-up resume a
+// process, skip the start-of-query check, then in-turn compact fires on the
+// same turn using the new response's full-conversation usage.
+let autoCompactArmed = !skipInitialAutoCompact
+
+export function releaseInitialAutoCompactSkip(): void {
+  autoCompactArmed = true
+}
 
 function getMaximoOutputRatio(model: string): number | undefined {
   const limits = getCachedMaximoModelLimits(model)
@@ -340,6 +350,16 @@ export async function shouldAutoCompact(
     }
   }
 
+  // Desktop resume / model-change / edit / stop-then-send spawn a new process
+  // with MAXIMO_SYNTAX_SKIP_FIRST_AUTOCOMPACT. Hold autocompact for the
+  // entire first turn of that process, including in-turn checks.
+  if (!autoCompactArmed) {
+    logForDebugging(
+      'autocompact: skipping until the first turn of this process completes',
+    )
+    return false
+  }
+
   const tokenCount = tokenCountWithEstimation(messages) - snipTokensFreed
   const threshold = getAutoCompactThreshold(model)
   const effectiveWindow = getEffectiveContextWindowSize(model)
@@ -383,10 +403,6 @@ export async function autoCompactIfNeeded(
   }
 
   const model = toolUseContext.options.mainLoopModel
-  if (skipInitialAutoCompact) {
-    skipInitialAutoCompact = false
-    return { wasCompacted: false }
-  }
   const shouldCompact = await shouldAutoCompact(
     messages,
     model,
