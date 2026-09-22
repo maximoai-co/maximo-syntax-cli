@@ -4,6 +4,13 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.43] - 2026-09-22
+
+### Changed
+
+- **Pandora 3.9 Nano is now the Maximo AI default**: `maximo-pandora-3.8-nano` is superseded by `maximo-pandora-3.9-nano` everywhere the CLI picks a Maximo AI model — provider defaults, `MAXIMO_AI_MODEL_DEFAULTS`, goal evaluator, OAuth/API-key login setup, and help/schema examples. Pandora 3.8 history stays readable.
+- **Atlas 1.4 is now the MyTabulon default**: `maximo-atlas-1.2`, `maximo-atlas-1.3` and their `atlas-*` aliases now resolve to `maximo-atlas-1.4` everywhere the CLI picks a MyTabulon model — saved `mytabulonDefaultModel` selections, provider fallbacks, and the default-model chooser. Existing Atlas 1.1–1.3 history stays readable.
+
 ## [0.1.42] - 2026-09-08
 
 ### Fixed

@@ -112,7 +112,7 @@ export type GoalRoundDecision =
   | { action: 'pause'; statusMessage: string }
   | { action: 'end_turn'; statusMessage?: string }
 
-export const GOAL_EVALUATOR_MODEL = 'maximo-pandora-3.8-nano'
+export const GOAL_EVALUATOR_MODEL = 'maximo-pandora-3.9-nano'
 export const GOAL_CLASSIFIER_MAX_RUNS_DEFAULT = 6
 export const GOAL_EVALUATOR_BLOCKER_STREAK = 3
 export const GOAL_STALL_THRESHOLD = 2

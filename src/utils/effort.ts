@@ -38,7 +38,7 @@ export function getSupportedEffortLevelsForModel(
   }
   // Provider catalog is the only source of per-model efforts. Do not invent
   // fallback lists for Atlas/Pandora/Opus/Sonnet — those go stale and can
-  // hide levels the API actually advertises (for example Pandora 3.8 nano max).
+  // hide levels the API actually advertises (for example Pandora 3.9 nano max).
   return providerConfig.supportedEfforts;
 }
 

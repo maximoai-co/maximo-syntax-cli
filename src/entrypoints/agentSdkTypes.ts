@@ -152,7 +152,7 @@ export function unstable_v2_resumeSession(
  * @example
  * ```typescript
  * const result = await unstable_v2_prompt("What files are here?", {
- *   model: 'maximo-pandora-3.8-nano'
+ *   model: 'maximo-pandora-3.9-nano'
  * })
  * ```
  */

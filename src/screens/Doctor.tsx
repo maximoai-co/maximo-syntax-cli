@@ -188,7 +188,7 @@ export function Doctor(t0) {
       {
         name: "MAXIMO_SYNTAX_MAX_OUTPUT_TOKENS",
         ...getModelMaxOutputTokens(
-          process.env.OPENAI_MODEL || "maximo-pandora-3.8-nano"
+          process.env.OPENAI_MODEL || "maximo-pandora-3.9-nano"
         ),
       },
     ];

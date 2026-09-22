@@ -87,7 +87,7 @@ function getOpenAIProviderDefaultModel(fallback: string): string {
       MYTABULON_DEFAULT_MODEL;
   }
   if (baseUrl.includes("maximoai.co")) {
-    return "maximo-pandora-3.8-nano";
+    return "maximo-pandora-3.9-nano";
   }
   if (baseUrl.includes("openrouter.ai/api/v1")) {
     return globalConfig.openAIModel || "openai/gpt-5.4";
@@ -146,7 +146,7 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
     const settings = getSettings_DEPRECATED() || {};
     // OPENAI_MODEL is set internally by the CLI's provider setup (Maximo AI
     // OAuth login, managedEnv maximoApiKey injection) to a hardcoded default
-    // like "maximo-pandora-3.8-nano". Treating it as a user override here
+    // like "maximo-pandora-3.9-nano". Treating it as a user override here
     // silently clobbers an explicit /model choice saved in settings.model on
     // every restart. Prefer the saved setting; only fall through to
     // OPENAI_MODEL when no explicit model is configured. ANTHROPIC_MODEL and
@@ -344,11 +344,20 @@ export function getDefaultMainLoopModel(): ModelName {
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase();
   // Maximo AI models - check first
+  if (name.includes("maximo-pandora-3.9-nano")) {
+    return "maximo-pandora-3.9-nano";
+  }
   if (name.includes("maximo-pandora-3.8-nano")) {
     return "maximo-pandora-3.8-nano";
   }
   if (name.includes("maximo-pandora-3.7-nano")) {
     return "maximo-pandora-3.7-nano";
+  }
+  if (name.includes("maximo-atlas-1.4")) {
+    return "maximo-atlas-1.4";
+  }
+  if (name.includes("maximo-atlas-1.3")) {
+    return "maximo-atlas-1.3";
   }
   if (name.includes("maximo-atlas-1.2")) {
     return "maximo-atlas-1.2";
@@ -462,7 +471,7 @@ export function getMaximoAiUserDefaultModelDescription(
         return `${nanoModel.label} · Fast & efficient`;
       }
       const defaultModel = getOpenAIProviderDefaultModel(
-        String(cachedOptions[0].value || "maximo-pandora-3.8-nano")
+        String(cachedOptions[0].value || "maximo-pandora-3.9-nano")
       );
       const preferredModel =
         cachedOptions.find((option) => option.value === defaultModel) ||
@@ -472,12 +481,12 @@ export function getMaximoAiUserDefaultModelDescription(
 
     // Fallback if cache is empty
     if (fastMode) {
-      return "Pandora 3.8 Nano · Fast & efficient";
+      return "Pandora 3.9 Nano · Fast & efficient";
     }
-    return getOpenAIProviderDefaultModel("maximo-pandora-3.8-nano") ===
+    return getOpenAIProviderDefaultModel("maximo-pandora-3.9-nano") ===
       MYTABULON_DEFAULT_MODEL
-      ? "Atlas 1.2 · Included with MyTabulon Coding Plan"
-      : "Pandora 3.8 Nano · Optimized for coding";
+      ? "Atlas 1.4 · Included with MyTabulon Coding Plan"
+      : "Pandora 3.9 Nano · Optimized for coding";
   }
   // Fall back to Anthropic model descriptions for non-Maximo providers
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {

@@ -198,7 +198,7 @@ export function applySafeConfigEnvironmentVariables(): void {
       } else if (baseUrl.includes("opencode.ai/zen/")) {
         process.env.OPENAI_MODEL = "deepseek-v4-flash";
       } else {
-        process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
+        process.env.OPENAI_MODEL = "maximo-pandora-3.9-nano";
       }
     }
   }

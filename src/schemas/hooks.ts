@@ -81,7 +81,7 @@ function buildHookSchemas() {
       .string()
       .optional()
       .describe(
-        'Model to use for this prompt hook (e.g., "maximo-pandora-3.8-nano"). If not specified, uses the active provider default.',
+        'Model to use for this prompt hook (e.g., "maximo-pandora-3.9-nano"). If not specified, uses the active provider default.',
       ),
     statusMessage: z
       .string()
@@ -149,7 +149,7 @@ function buildHookSchemas() {
       .string()
       .optional()
       .describe(
-        'Model to use for this agent hook (e.g., "maximo-pandora-3.8-nano"). If not specified, uses the active provider default.',
+        'Model to use for this agent hook (e.g., "maximo-pandora-3.9-nano"). If not specified, uses the active provider default.',
       ),
     statusMessage: z
       .string()

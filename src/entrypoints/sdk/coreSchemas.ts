@@ -1139,7 +1139,7 @@ export const AgentDefinitionSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          "Model ID from the active provider (e.g. 'maximo-pandora-3.8-nano') or 'inherit'. If omitted or 'inherit', uses the main model"
+          "Model ID from the active provider (e.g. 'maximo-pandora-3.9-nano') or 'inherit'. If omitted or 'inherit', uses the main model"
         ),
       mcpServers: z.array(AgentMcpServerSpecSchema()).optional(),
       criticalSystemReminder_EXPERIMENTAL: z

@@ -123,7 +123,7 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
     process.env.MAXIMO_SYNTAX_USE_OPENAI = "true";
     process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
     process.env.OPENAI_API_KEY = tokens.accessToken;
-    process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
+    process.env.OPENAI_MODEL = "maximo-pandora-3.9-nano";
   } else {
     // API key creation is critical for Console users — let it throw.
     const apiKey = await createAndStoreApiKey(tokens.accessToken);

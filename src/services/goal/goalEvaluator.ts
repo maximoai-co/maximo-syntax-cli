@@ -70,7 +70,7 @@ export function isMaximoFamilyProvider(): boolean {
 
 /**
  * Evaluator model selection:
- * - Maximo AI / MyTabulon login: try maximo-pandora-3.8-nano first (with
+ * - Maximo AI / MyTabulon login: try maximo-pandora-3.9-nano first (with
  *   user's selected effort), fall back to the active user model.
  * - Any other login method: use the active model only.
  */

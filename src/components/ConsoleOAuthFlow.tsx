@@ -840,7 +840,7 @@ function OAuthStatusMessage(t0: OAuthStatusMessageProps) {
                   process.env.MAXIMO_SYNTAX_USE_OPENAI = "1";
                   process.env.OPENAI_API_KEY = apiKey;
                   process.env.OPENAI_BASE_URL = "https://api.maximoai.co/v1";
-                  process.env.OPENAI_MODEL = "maximo-pandora-3.8-nano";
+                  process.env.OPENAI_MODEL = "maximo-pandora-3.9-nano";
                   // Save to global config
                   const { saveGlobalConfig } = require("../utils/config.js");
                   saveGlobalConfig((current: any) => ({
