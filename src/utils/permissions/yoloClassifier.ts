@@ -1185,6 +1185,9 @@ export async function classifyYoloAction(
       classifierType: "decisions",
       durationMs: result.durationMs,
     });
+    logForDebugging(
+      `[auto-mode] Decisions result: category=${result.decisionCategory ?? "unavailable"} permissionProbability=${result.permissionProbability ?? "unavailable"} outcome=${result.requiresManualApproval ? "manual_approval" : result.shouldBlock ? "blocked" : "allowed"}`
+    );
     return { ...result, promptLengths };
   }
 

@@ -348,6 +348,11 @@ export type YoloClassifierResult = {
   shouldBlock: boolean
   reason: string
   unavailable?: boolean
+  /** Decisions could not establish clear permission; show an approval prompt. */
+  requiresManualApproval?: boolean
+  /** Direct yes/no permission probability, separate from category confidence. */
+  permissionProbability?: number
+  decisionCategory?: string
   /**
    * API returned "prompt is too long" — the classifier transcript exceeded
    * the context window. Deterministic (same transcript → same error), so

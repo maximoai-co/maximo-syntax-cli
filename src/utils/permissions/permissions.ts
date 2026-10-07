@@ -107,6 +107,7 @@ import {
   classifyYoloAction,
   formatActionForClassifier,
 } from "./yoloClassifier.js";
+import { resolveDecisionsManualApproval } from "./decisionsClassifier.js";
 
 const CLASSIFIER_FAIL_CLOSED_REFRESH_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -730,6 +731,8 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
       // Log classifier decision for metrics (including overhead telemetry)
       const yoloDecision = classifierResult.unavailable
         ? "unavailable"
+        : classifierResult.requiresManualApproval
+        ? "manual_approval"
         : classifierResult.shouldBlock
         ? "blocked"
         : "allowed";
@@ -753,10 +756,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
           .id as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         classifierModel:
           classifierResult.model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        consecutiveDenials: classifierResult.shouldBlock
+        consecutiveDenials: classifierResult.shouldBlock && !classifierResult.requiresManualApproval
           ? denialState.consecutiveDenials + 1
           : 0,
-        totalDenials: classifierResult.shouldBlock
+        totalDenials: classifierResult.shouldBlock && !classifierResult.requiresManualApproval
           ? denialState.totalDenials + 1
           : denialState.totalDenials,
         // Overhead telemetry: token usage and latency for the classifier API call
@@ -828,6 +831,15 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
       }
 
       if (classifierResult.shouldBlock) {
+        const manualApproval = resolveDecisionsManualApproval(
+          result,
+          classifierResult,
+          Boolean(appState.toolPermissionContext.shouldAvoidPermissionPrompts),
+        );
+        if (manualApproval) {
+          logForDebugging("Decision classifier uncertain; resolving through manual permission handling");
+          return manualApproval;
+        }
         // Transcript exceeded the classifier's context window — deterministic
         // error, won't recover on retry. Skip iron_gate and fall back to
         // normal prompting so the user can approve/deny manually.

@@ -33,7 +33,7 @@ import {
 } from '../../utils/settings/settings.js'
 
 const USAGE_WARNING =
-  'Uses your active model as a safety classifier — extra API calls bill against the same Maximo AI / MyTabulon usage pool.'
+  'Uses Maximo Decisions 1 by default for safety checks — extra API calls bill against the same Maximo AI / MyTabulon usage pool. Your selected coding model handles the task.'
 
 const YOLO_WARNING =
   'No safety classifier. Tools run without permission prompts. Use only in a sandbox/VM. Deny rules and hooks still apply.'
