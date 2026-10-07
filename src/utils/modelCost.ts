@@ -142,6 +142,15 @@ function tokensToUSDCost(modelCosts: ModelCosts, usage: Usage): number {
 }
 
 export function getModelCosts(model: string, usage: Usage): ModelCosts {
+  if (model === "maximo-decisions-1") {
+    return {
+      inputTokens: 0.1,
+      outputTokens: 0,
+      promptCacheReadTokens: 0.1,
+      promptCacheWriteTokens: 0.1,
+      webSearchRequests: 0,
+    };
+  }
   const shortName = getCanonicalName(model);
 
   // Check if this is an Opus 4.6 model with fast mode active.

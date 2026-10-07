@@ -42,6 +42,13 @@ import {
   parseClassifierResponse,
 } from "./classifierShared.js";
 import { getMaximoTempDir } from "./filesystem.js";
+import { getMaximoAIBaseUrl, getMaximoApiKey } from "../../services/api/maximoModels.js";
+import { checkAndRefreshOAuthTokenIfNeeded, isMaximoAISubscriber } from "../auth.js";
+import {
+  DECISIONS_CLASSIFIER_MODEL,
+  buildDecisionsClassifierRequest,
+  requestDecisionsClassification,
+} from "./decisionsClassifier.js";
 
 // Dead code elimination: conditional imports for auto mode classifier prompts.
 // At build time, the bundler inlines .txt files as string literals. At test
@@ -1154,6 +1161,33 @@ export async function classifyYoloAction(
 
   const model = getClassifierModel();
 
+  if (model === DECISIONS_CLASSIFIER_MODEL) {
+    const body = buildDecisionsClassifierRequest({
+      policy: systemPrompt,
+      transcript: userContentBlocks.slice(0, -1).map((block) => block.text).join(""),
+      proposedAction: actionCompact,
+      projectInstructions: getCachedMaximoMdContent(),
+    });
+    setLastClassifierRequests([body]);
+    let result: YoloClassifierResult;
+    try {
+      if (isMaximoAISubscriber()) await checkAndRefreshOAuthTokenIfNeeded();
+      result = await requestDecisionsClassification({
+        baseUrl: process.env.OPENAI_BASE_URL || getMaximoAIBaseUrl(),
+        apiKey: process.env.OPENAI_API_KEY || getMaximoApiKey(),
+        body,
+        signal,
+      });
+    } catch {
+      result = { shouldBlock: true, unavailable: true, model, reason: "Decision classifier authentication unavailable" };
+    }
+    logAutoModeOutcome(result.unavailable ? "error" : "success", model, {
+      classifierType: "decisions",
+      durationMs: result.durationMs,
+    });
+    return { ...result, promptLengths };
+  }
+
   // Dispatch to 2-stage XML classifier if enabled via GrowthBook
   if (isTwoStageClassifierEnabled()) {
     return classifyYoloActionXml(
@@ -1378,10 +1412,11 @@ type AutoModeConfig = {
 /**
  * Get the model for the classifier.
  * Precedence: MAXIMO_SYNTAX_AUTO_MODE_MODEL / MAXIMO_AUTO_MODE_MODEL env →
- * GrowthBook JSON config override → the active main-loop model (same login).
+ * GrowthBook JSON config override → Decisions for external builds; the active
+ * main-loop model for internal builds. Explicit legacy overrides still work.
  *
- * Default is the user's currently selected model so classifier requests bill
- * against the same Maximo AI / MyTabulon usage pool as the main agent.
+ * Decisions uses the same connected account pool without changing the main
+ * agent model. Its dedicated path does not use generation controls or tools.
  */
 function getClassifierModel(): string {
   const envModel =
@@ -1395,7 +1430,7 @@ function getClassifierModel(): string {
   if (config?.model) {
     return config.model;
   }
-  return getMainLoopModel();
+  return process.env.USER_TYPE === "ant" ? getMainLoopModel() : DECISIONS_CLASSIFIER_MODEL;
 }
 
 /**
@@ -1429,6 +1464,7 @@ function isTwoStageClassifierEnabled(): boolean {
 }
 
 function isJsonlTranscriptEnabled(): boolean {
+  if (getClassifierModel() === DECISIONS_CLASSIFIER_MODEL) return true;
   if (process.env.USER_TYPE === "ant") {
     const env = process.env.MAXIMO_SYNTAX_JSONL_TRANSCRIPT;
     if (isEnvTruthy(env)) return true;

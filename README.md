@@ -253,7 +253,9 @@ Maximo Syntax can run with fewer (or no) permission prompts. There are **two dif
 ### Classifier auto mode
 
 - Available when you are logged in via **Maximo AI** or **MyTabulon**.
-- Uses your **currently selected model** as the classifier (same login credentials).
+- Uses **Maximo Decisions 1** for a single structured permission decision with your connected account. Your selected coding model handles the main task. Decisions is available on every MyTabulon Coding Plan tier, including Free.
+- Automatically approves only clear policy permission (at least 95% allow probability). Uncertain results, refusals, timeouts, and API errors return to the existing permission flow; they never grant permission themselves.
+- Legacy classifier overrides remain available through `MAXIMO_SYNTAX_AUTO_MODE_MODEL` / `MAXIMO_AUTO_MODE_MODEL`.
 - **Warning:** each classified tool call is an extra API request and **consumes additional usage-pool quota** beyond the main agent.
 - Deny rules and hooks still apply. Prefer a sandbox for long unattended runs.
 

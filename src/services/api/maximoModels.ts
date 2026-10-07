@@ -26,6 +26,7 @@ import type {
 // Response type from Maximo AI /v1/models endpoint
 export interface MaximoModel {
   id: string;
+  model_type?: string;
   name?: string;
   hugging_face_id: string;
   created: number;
@@ -586,6 +587,12 @@ export async function fetchMaximoModels({
           )
         : models;
 
+    // Decisions are used by auto-mode classification, not as a coding agent:
+    // they require questions and cannot run the main loop's tool protocol.
+    const agentModels = compatibleModels.filter((model) =>
+      model.id !== "maximo-decisions-1" && model.model_type !== "decision"
+    );
+
     if (provider === "opencode" && compatibleModels.length === 0) {
       throw new Error(
         `OpenCode ${openCodePlan === "go" ? "Go" : "Zen"} returned no models supported by its Chat Completions endpoint.`,
@@ -595,8 +602,8 @@ export async function fetchMaximoModels({
     // Sort models by name, prioritizing non-preview models
     const sortedModels =
       provider === "mytabulon" || provider === "openrouter" || provider === "opencode"
-        ? [...compatibleModels]
-        : [...compatibleModels].sort((a, b) => {
+        ? [...agentModels]
+        : [...agentModels].sort((a, b) => {
             // Prioritize Pandora models for coding
             const aIsPandora = a.id.includes("pandora");
             const bIsPandora = b.id.includes("pandora");

@@ -9,7 +9,7 @@ import { Dialog } from "./design-system/Dialog.js";
 // NOTE: Keep this accurate for Maximo open builds (classifier + usage). Legal review for enterprise copy.
 export const AUTO_MODE_DESCRIPTION =
   "Auto mode (with classifier) lets Maximo handle permission prompts automatically — Maximo checks many tool calls for risky actions and prompt injection before executing. Safe actions run; risky actions are blocked and Maximo may try a different approach. Ideal for long-running tasks. " +
-  "WARNING: This uses your currently selected model as the classifier and the same Maximo AI / MyTabulon login for side requests, so it consumes ADDITIONAL usage-pool quota beyond the main agent. " +
+  "WARNING: Auto mode uses Maximo Decisions 1 by default with your Maximo AI / MyTabulon login, so safety checks consume ADDITIONAL usage-pool quota beyond the main agent. Your selected coding model handles the main task. " +
   "Maximo can still make mistakes that allow harmful commands to run — use only in isolated environments when possible. " +
   "For full no-prompt mode with NO classifier, use /always-approve or --yolo instead (higher risk). Shift+Tab or /auto to change mode.";
 type Props = {
