@@ -8,6 +8,7 @@ import { GREP_TOOL_NAME } from '../../tools/GrepTool/prompt.js'
 import { LIST_MCP_RESOURCES_TOOL_NAME } from '../../tools/ListMcpResourcesTool/prompt.js'
 import { LSP_TOOL_NAME } from '../../tools/LSPTool/prompt.js'
 import { SEND_MESSAGE_TOOL_NAME } from '../../tools/SendMessageTool/constants.js'
+import { SKILL_TOOL_NAME } from '../../tools/SkillTool/constants.js'
 import { SLEEP_TOOL_NAME } from '../../tools/SleepTool/prompt.js'
 import { TASK_CREATE_TOOL_NAME } from '../../tools/TaskCreateTool/constants.js'
 import { TASK_GET_TOOL_NAME } from '../../tools/TaskGetTool/constants.js'
@@ -63,6 +64,9 @@ const SAFE_YOLO_ALLOWLISTED_TOOLS = new Set([
   TOOL_SEARCH_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
   'ReadMcpResourceTool', // no exported constant
+  // Loading a skill is orchestration, not approval for its actions. Inline
+  // commands and the tools used by the skill still pass their own checks.
+  SKILL_TOOL_NAME,
   // Task management (metadata only)
   TODO_WRITE_TOOL_NAME,
   TASK_CREATE_TOOL_NAME,
