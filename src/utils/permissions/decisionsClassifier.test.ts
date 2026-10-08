@@ -79,21 +79,50 @@ describe("Decisions permission classifier", () => {
       isBashSecurityCheckForMisparsing: true,
     };
     const uncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.9));
-    const interactive = resolveDecisionsManualApproval(pending, uncertain, false);
+    const interactive = resolveDecisionsManualApproval(pending, uncertain, false, false);
     expect(interactive?.behavior).toBe("ask");
-    expect(interactive?.message).toContain("manual approval required");
     if (interactive?.behavior === "ask") {
+      expect(interactive.message).toContain("manual approval required");
       expect(interactive.updatedInput).toBe(pending.updatedInput);
       expect(interactive.suggestions).toBe(pending.suggestions);
       expect(interactive.isBashSecurityCheckForMisparsing).toBe(true);
     }
-    expect(resolveDecisionsManualApproval(pending, uncertain, true)?.behavior).toBe("deny");
-    for (const result of [
+    for (const nonManual of [
       parseDecisionsClassifierResponse(payload()),
       parseDecisionsClassifierResponse(payload("destructive")),
       { ...uncertain, unavailable: true },
       { ...uncertain, model: "maximo-atlas-1.4" },
-    ]) expect(resolveDecisionsManualApproval(pending, result, false)).toBeUndefined();
+    ]) expect(resolveDecisionsManualApproval(pending, nonManual, false, false)).toBeUndefined();
+  });
+
+  test("headless full-auto resolves uncertainty without ever asking", () => {
+    const pending = {
+      behavior: "ask" as const,
+      message: "Approval needed",
+      updatedInput: { command: "ls -la" },
+      suggestions: [],
+    };
+    // Safe ALLOW-type categories auto-approve: no human exists to approve.
+    const safeUncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.9));
+    for (const avoid of [true, false]) {
+      const allowed = resolveDecisionsManualApproval(pending, safeUncertain, avoid, true);
+      expect(allowed?.behavior).toBe("allow");
+      if (allowed?.behavior === "allow") expect(allowed.decisionReason?.type).toBe("classifier");
+    }
+    const externalUncertain = parseDecisionsClassifierResponse(payload("authorized_external", 0.99, 0.8));
+    expect(resolveDecisionsManualApproval(pending, externalUncertain, true, false)?.behavior).toBe("allow");
+    // Anything else stays denied, with a reason that never asks for a human.
+    const unclear = parseDecisionsClassifierResponse(payload("unclear"));
+    for (const avoid of [true, false]) {
+      const denied = resolveDecisionsManualApproval(pending, unclear, avoid, true);
+      expect(denied?.behavior).toBe("deny");
+      if (denied?.behavior === "deny") {
+        expect(denied.message).toContain("denied automatically");
+        expect(denied.message).not.toContain("manual approval");
+      }
+    }
+    const destructive = parseDecisionsClassifierResponse(payload("destructive"));
+    expect(resolveDecisionsManualApproval(pending, destructive, false, false)).toBeUndefined();
   });
 
   test("missing, refused, and malformed yes/no scores never grant permission", () => {

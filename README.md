@@ -254,7 +254,7 @@ Maximo Syntax can run with fewer (or no) permission prompts. There are **two dif
 
 - Available when you are logged in via **Maximo AI** or **MyTabulon**.
 - Uses **Maximo Decisions 1** for one request containing a direct yes/no permission question and a policy-category question with your connected account. Your selected coding model handles the main task. Decisions is available on every MyTabulon Coding Plan tier, including Free.
-- Automatically approves only clear policy permission (at least 95% yes probability plus an allowed category). Category confidence alone does not measure permission. Uncertain results show a manual approval prompt when interactive approval is available; headless runs deny them. Prohibited actions remain blocked, and refusals, timeouts, and API errors never grant permission.
+- Automatically approves only clear policy permission (at least 95% yes probability plus an allowed category). Category confidence alone does not measure permission. Uncertain results show a manual approval prompt when interactive approval is available; headless runs resolve on their own — allowed-category actions auto-approve, everything else is denied — so fully automatic runs never stall waiting for a human. Prohibited actions remain blocked, and refusals, timeouts, and API errors never grant permission.
 - Legacy classifier overrides remain available through `MAXIMO_SYNTAX_AUTO_MODE_MODEL` / `MAXIMO_AUTO_MODE_MODEL`.
 - **Warning:** each classified tool call is an extra API request and **consumes additional usage-pool quota** beyond the main agent.
 - Deny rules and hooks still apply. Prefer a sandbox for long unattended runs.

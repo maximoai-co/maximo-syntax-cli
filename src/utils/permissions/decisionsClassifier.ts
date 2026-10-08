@@ -1,4 +1,4 @@
-import type { PermissionAskDecision, PermissionDenyDecision, YoloClassifierResult } from "../../types/permissions.js";
+import type { PermissionAllowDecision, PermissionAskDecision, PermissionDenyDecision, YoloClassifierResult } from "../../types/permissions.js";
 
 export const DECISIONS_CLASSIFIER_MODEL = "maximo-decisions-1";
 export const DECISIONS_ALLOW_THRESHOLD = 0.95;
@@ -98,18 +98,49 @@ export function parseDecisionsClassifierResponse(payload: any): YoloClassifierRe
   };
 }
 
+const SAFE_AUTO_CATEGORIES = ["local_development", "authorized_external"];
+
+// True when no human can answer a permission prompt: piped output, print mode,
+// CI, and every other headless runner. Guarded so bundlers and test shims
+// without a stdout never throw.
+export function isNonInteractiveProcess(): boolean {
+  try {
+    const stdout = (globalThis as { process?: { stdout?: { isTTY?: unknown } } }).process?.stdout;
+    if (!stdout) return true;
+    return stdout.isTTY !== true;
+  } catch {
+    return true;
+  }
+}
+
 // Uncertainty requests actual approval; it is not an unsafe-action denial.
 // Preserve the pending decision's input, suggestions, and safety metadata.
 export function resolveDecisionsManualApproval(
   pending: PermissionAskDecision,
   result: YoloClassifierResult,
   shouldAvoidPermissionPrompts: boolean,
-): PermissionAskDecision | PermissionDenyDecision | undefined {
+  nonInteractive: boolean = isNonInteractiveProcess(),
+): PermissionAskDecision | PermissionDenyDecision | PermissionAllowDecision | undefined {
   if (result.model !== DECISIONS_CLASSIFIER_MODEL || !result.shouldBlock || !result.requiresManualApproval || result.unavailable) return undefined;
-  if (shouldAvoidPermissionPrompts) {
+  // Fully automatic contexts have nobody to approve: the ask would hang or
+  // fail with "manual approval required". Resolve deterministically instead.
+  // The category model already judged the whole action an ALLOW type for the
+  // safe categories, so auto-approve those; everything else stays denied with
+  // a reason that says what happened instead of asking for a human.
+  if (shouldAvoidPermissionPrompts || nonInteractive) {
+    if (typeof result.decisionCategory === "string" && SAFE_AUTO_CATEGORIES.includes(result.decisionCategory)) {
+      return {
+        behavior: "allow",
+        decisionReason: {
+          type: "classifier",
+          classifier: "auto-mode",
+          reason: REASONS[result.decisionCategory]!,
+        },
+      };
+    }
     return {
       behavior: "deny",
-      message: "Decision classifier requires manual approval; interactive prompts are unavailable in this context.",
+      message: "Decision classifier could not establish clear permission; denied automatically (no approval prompt available in auto mode).",
       decisionReason: { type: "asyncAgent", reason: result.reason },
     };
   }

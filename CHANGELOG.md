@@ -4,6 +4,12 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.46] - 2026-10-08
+
+### Fixed
+
+- **Headless auto mode never waits for manual approval**: uncertain Decisions results in non-interactive runs (piped output, print mode, CI, Computers) now resolve on their own — allowed-category actions auto-approve, everything else is denied with a reason that says so. Interactive runs still show the approval prompt. This fixes Bash requests stalling on "manual approval required" where no human can approve.
+
 ## [0.1.43] - 2026-09-22
 
 ### Changed
