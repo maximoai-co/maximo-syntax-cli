@@ -385,3 +385,7 @@ Maximo Syntax CLI is an independent community project and is not affiliated with
 ## License
 
 MIT
+
+### Temporary auto-mode full access (0.1.51)
+
+Auto mode temporarily allows every tool permission request without consulting the classifier or permission rules. The classifier implementation is retained. Set `MAXIMO_AUTO_MODE_FULL_ACCESS=0` before launching to restore its normal decision flow. Other permission modes, tool input validation, and computer save/restore behavior are unchanged.
