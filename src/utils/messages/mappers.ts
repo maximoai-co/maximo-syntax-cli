@@ -1,3 +1,4 @@
+import type { PermissionUserTurn } from "../permissions/permissionContext.js";
 import type { BetaContentBlock } from "@anthropic-ai/sdk/resources/beta/messages/messages.mjs";
 import { randomUUID, type UUID } from "crypto";
 import { getSessionId } from "src/bootstrap/state.js";
@@ -82,8 +83,10 @@ export function toSDKCompactMetadata(
   const extra = meta as CompactMetadata & {
     compactSummary?: string;
     postTokens?: number;
+    permissionUserTurns?: PermissionUserTurn[];
   };
   return {
+    ...(extra.permissionUserTurns ? { permission_user_turns: extra.permissionUserTurns } : {}),
     trigger: meta.trigger,
     pre_tokens: meta.preTokens,
     ...(seg && {
@@ -112,6 +115,9 @@ export function fromSDKCompactMetadata(
   return {
     trigger: meta.trigger,
     preTokens: meta.pre_tokens,
+    ...((meta as SDKCompactMetadata & { permission_user_turns?: PermissionUserTurn[] }).permission_user_turns
+      ? { permissionUserTurns: (meta as SDKCompactMetadata & { permission_user_turns?: PermissionUserTurn[] }).permission_user_turns }
+      : {}),
     ...(seg && {
       preservedSegment: {
         headUuid: seg.head_uuid,

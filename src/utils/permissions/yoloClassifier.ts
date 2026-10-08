@@ -1,4 +1,5 @@
 import { feature } from "bun:bundle";
+import { collectPermissionUserTurns } from "./permissionContext.js";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolUnion } from "@anthropic-ai/sdk/resources/beta/messages.js";
 import { mkdir, writeFile } from "fs/promises";
@@ -309,45 +310,15 @@ export type TranscriptEntry = {
  * and emitted as user turns.
  */
 export function buildTranscriptEntries(messages: Message[]): TranscriptEntry[] {
-  const transcript: TranscriptEntry[] = [];
+  const transcript: TranscriptEntry[] = collectPermissionUserTurns(messages).flatMap(turn => [
+    ...(turn.precedingToolCalls?.length ? [{
+      role: "assistant" as const,
+      content: turn.precedingToolCalls.map(call => ({type: "tool_use" as const, ...call})),
+    }] : []),
+    { role: "user" as const, content: [{ type: "text" as const, text: turn.text }] },
+  ]);
   for (const msg of messages) {
-    if (msg.type === "attachment" && msg.attachment.type === "queued_command") {
-      const prompt = msg.attachment.prompt;
-      let text: string | null = null;
-      if (typeof prompt === "string") {
-        text = prompt;
-      } else if (Array.isArray(prompt)) {
-        text =
-          prompt
-            .filter(
-              (block): block is { type: "text"; text: string } =>
-                block.type === "text"
-            )
-            .map((block) => block.text)
-            .join("\n") || null;
-      }
-      if (text !== null) {
-        transcript.push({
-          role: "user",
-          content: [{ type: "text", text }],
-        });
-      }
-    } else if (msg.type === "user") {
-      const content = msg.message.content;
-      const textBlocks: TranscriptBlock[] = [];
-      if (typeof content === "string") {
-        textBlocks.push({ type: "text", text: content });
-      } else if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === "text") {
-            textBlocks.push({ type: "text", text: block.text });
-          }
-        }
-      }
-      if (textBlocks.length > 0) {
-        transcript.push({ role: "user", content: textBlocks });
-      }
-    } else if (msg.type === "assistant") {
+    if (msg.type === "assistant") {
       const blocks: TranscriptBlock[] = [];
       for (const block of msg.message.content) {
         // Only include tool_use blocks — assistant text is model-authored

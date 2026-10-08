@@ -1,3 +1,4 @@
+import { preservePermissionUserTurns } from "../../utils/permissions/permissionContext.js";
 /**
  * EXPERIMENT: Session memory compaction
  */
@@ -450,6 +451,7 @@ function createCompactionResultFromSessionMemory(
     preCompactTokenCount ?? 0,
     messages[messages.length - 1]?.uuid,
   )
+  preservePermissionUserTurns(boundaryMarker, messages)
   const preCompactDiscovered = extractDiscoveredToolNames(messages)
   if (preCompactDiscovered.size > 0) {
     boundaryMarker.compactMetadata.preCompactDiscoveredTools = [

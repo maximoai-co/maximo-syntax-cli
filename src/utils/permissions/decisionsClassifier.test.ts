@@ -125,6 +125,16 @@ describe("Decisions permission classifier", () => {
     expect(resolveDecisionsManualApproval(pending, destructive, false, false)).toBeUndefined();
   });
 
+  test("a negative permission score cannot be auto-approved by a safe category", () => {
+    for (const category of ["local_development", "authorized_external"]) {
+      const denied = parseDecisionsClassifierResponse(payload(category, 0.99, 0.02));
+      expect(denied.shouldBlock).toBe(true);
+      expect(denied.requiresManualApproval).toBeUndefined();
+      expect(denied.reason).toContain("does not permit");
+      expect(resolveDecisionsManualApproval({behavior:"ask",message:"Approval needed"}, denied, true, true)).toBeUndefined();
+    }
+  });
+
   test("chaining, inspection, and routine deletion read as ordinary development", () => {
     const instructions = body.questions.allowed.instructions;
     expect(instructions).toContain("innocent connectors");

@@ -1,3 +1,4 @@
+import { preservePermissionUserTurns } from "../../utils/permissions/permissionContext.js";
 import { feature } from 'bun:bundle'
 import type { UUID } from 'crypto'
 import uniqBy from 'lodash-es/uniqBy.js'
@@ -637,6 +638,7 @@ export async function compactConversation(
     // Carry loaded-tool state — the summary doesn't preserve tool_reference
     // blocks, so the post-compact schema filter needs this to keep sending
     // already-loaded deferred tool schemas to the API.
+    preservePermissionUserTurns(boundaryMarker, messages)
     const preCompactDiscovered = extractDiscoveredToolNames(messages)
     if (preCompactDiscovered.size > 0) {
       boundaryMarker.compactMetadata.preCompactDiscoveredTools = [
@@ -1091,6 +1093,7 @@ export async function partialCompactConversation(
     )
     // allMessages not just messagesToSummarize — set union is idempotent,
     // simpler than tracking which half each tool lived in.
+    preservePermissionUserTurns(boundaryMarker, allMessages)
     const preCompactDiscovered = extractDiscoveredToolNames(allMessages)
     if (preCompactDiscovered.size > 0) {
       boundaryMarker.compactMetadata.preCompactDiscoveredTools = [

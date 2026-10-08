@@ -4,6 +4,13 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 0.1.48
+
+- Preserve verbatim human requests and the tool calls referenced by approvals across automatic, manual, partial, and session-memory compaction and resumed sessions. Exclude synthetic messages, summaries, teammate messages, and tool results from human authorization evidence.
+- Give human intent a separate bounded classifier projection so long tool runs cannot displace it. Keep approvals valid for their ongoing task, with later revocations and scope restrictions taking precedence.
+- Treat public HTTP reads and header probes consistently with read-only fetch tools. Retain credential extraction, private-data exfiltration, destructive-action, custom-policy, and missing external-write approval checks.
+- Validate repeated probes through the actual auto-mode CLI and live Decisions API, plus compaction, trust-boundary, and permission regressions.
+
 ## [0.1.47] - 2026-10-08
 
 ### Fixed
