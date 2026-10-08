@@ -4,6 +4,13 @@ All notable changes to Maximo Syntax CLI will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.47] - 2026-10-08
+
+### Fixed
+
+- **Far fewer false-positive denials**: the Decisions classifier instructions now judge chained commands by effects (connectors are innocent), treat read-only inspection of local files and harness internals as ordinary development, and treat routine `rm` deletion as ordinary development. Recursive directory wipes, credential stores and keys, exfiltration, and platform-file modification stay blocked.
+- **Kydanet platform tooling auto-allows**: driving the shared browser, running the owner's kydanet CLI utilities, and routine use of configured MCP tools read as ordinary development. Reading public content through purpose-built fetch tools (WebFetch, WebSearch, MCP fetch) is ordinary development; raw shell network (curl, wget, ssh, remote-piped shells) without a matching user request stays gated.
+
 ## [0.1.46] - 2026-10-08
 
 ### Fixed

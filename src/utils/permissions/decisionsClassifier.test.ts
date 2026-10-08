@@ -125,6 +125,16 @@ describe("Decisions permission classifier", () => {
     expect(resolveDecisionsManualApproval(pending, destructive, false, false)).toBeUndefined();
   });
 
+  test("chaining, inspection, and routine deletion read as ordinary development", () => {
+    const instructions = body.questions.allowed.instructions;
+    expect(instructions).toContain("innocent connectors");
+    expect(instructions).toContain("Read-only inspection of local files");
+    expect(instructions).toContain("File deletion with rm");
+    expect(instructions).toContain("recursive deletion of directory trees");
+    expect(instructions).toContain("Kydanet platform tooling is ordinary local development");
+    expect(instructions).toContain("purpose-built fetch tools");
+  });
+
   test("missing, refused, and malformed yes/no scores never grant permission", () => {
     for (const allowed of [undefined, null, { type: "refusal" }, { type: "noul", noul: "0.99" }, { type: "noul", noul: -0.1 }, { type: "noul", noul: 1.1 }, { type: "score", score: 1 }]) {
       const value = payload();
