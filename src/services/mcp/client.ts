@@ -1,4 +1,5 @@
 import { feature } from "bun:bundle";
+import { mcpToolInputToAutoClassifierInput } from "./autoClassifierInput.js";
 import type {
   Base64ImageSource,
   ContentBlockParam,
@@ -1760,15 +1761,7 @@ const MCP_FETCH_CACHE_SIZE = 20;
  * Exported so the auto-mode eval scripts can mirror production encoding
  * for `mcp__*` tool stubs without duplicating this logic.
  */
-export function mcpToolInputToAutoClassifierInput(
-  input: Record<string, unknown>,
-  toolName: string
-): string {
-  const keys = Object.keys(input);
-  return keys.length > 0
-    ? keys.map((k) => `${k}=${String(input[k])}`).join(" ")
-    : toolName;
-}
+export { mcpToolInputToAutoClassifierInput } from "./autoClassifierInput.js";
 
 export const fetchToolsForClient = memoizeWithLRU(
   async (client: MCPServerConnection): Promise<Tool[]> => {

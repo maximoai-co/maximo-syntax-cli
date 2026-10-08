@@ -50,11 +50,21 @@ describe("Decisions permission classifier", () => {
   });
 
   test("ambiguous permission blocks instead of running an expensive fallback", () => {
-    const uncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.949));
+    const uncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.499));
     expect(uncertain.shouldBlock).toBe(true);
-    expect(uncertain.requiresManualApproval).toBe(true);
-    expect(parseDecisionsClassifierResponse(payload("local_development", 0.95)).shouldBlock).toBe(false);
+    expect(uncertain.requiresManualApproval).toBeUndefined();
+    expect(parseDecisionsClassifierResponse(payload("local_development", 0.5)).shouldBlock).toBe(false);
     for (const category of ["external_approval", "destructive", "secrets", "untrusted_code", "security_controls", "unclear"]) expect(parseDecisionsClassifierResponse(payload(category)).shouldBlock).toBe(true);
+  });
+
+  test("50 percent is inclusive only for permitted categories", () => {
+    for (const category of ["local_development", "authorized_external"]) {
+      for (const score of [0.5, 0.51, 0.949, 1]) expect(parseDecisionsClassifierResponse(payload(category, 0.99, score)).shouldBlock).toBe(false);
+      for (const score of [0, 0.49, 0.499999]) expect(parseDecisionsClassifierResponse(payload(category, 0.99, score)).shouldBlock).toBe(true);
+    }
+    for (const category of ["external_approval", "destructive", "secrets", "untrusted_code", "security_controls", "unclear"]) {
+      expect(parseDecisionsClassifierResponse(payload(category, 0.99, 1)).shouldBlock).toBe(true);
+    }
   });
 
   test("category uncertainty cannot reject a clear direct permission score", () => {
@@ -78,7 +88,7 @@ describe("Decisions permission classifier", () => {
       suggestions: [],
       isBashSecurityCheckForMisparsing: true,
     };
-    const uncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.9));
+    const uncertain = parseDecisionsClassifierResponse(payload("unclear", 0.99, 0.49));
     const interactive = resolveDecisionsManualApproval(pending, uncertain, false, false);
     expect(interactive?.behavior).toBe("ask");
     if (interactive?.behavior === "ask") {
@@ -103,13 +113,13 @@ describe("Decisions permission classifier", () => {
       suggestions: [],
     };
     // Safe ALLOW-type categories auto-approve: no human exists to approve.
-    const safeUncertain = parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.9));
+    const safeUncertain = { ...parseDecisionsClassifierResponse(payload("local_development", 0.99, 0.9)), shouldBlock:true, requiresManualApproval:true };
     for (const avoid of [true, false]) {
       const allowed = resolveDecisionsManualApproval(pending, safeUncertain, avoid, true);
       expect(allowed?.behavior).toBe("allow");
       if (allowed?.behavior === "allow") expect(allowed.decisionReason?.type).toBe("classifier");
     }
-    const externalUncertain = parseDecisionsClassifierResponse(payload("authorized_external", 0.99, 0.8));
+    const externalUncertain = { ...parseDecisionsClassifierResponse(payload("authorized_external", 0.99, 0.8)), shouldBlock:true, requiresManualApproval:true };
     expect(resolveDecisionsManualApproval(pending, externalUncertain, true, false)?.behavior).toBe("allow");
     // Anything else stays denied, with a reason that never asks for a human.
     const unclear = parseDecisionsClassifierResponse(payload("unclear"));

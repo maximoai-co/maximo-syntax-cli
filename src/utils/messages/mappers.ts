@@ -84,9 +84,11 @@ export function toSDKCompactMetadata(
     compactSummary?: string;
     postTokens?: number;
     permissionUserTurns?: PermissionUserTurn[];
+    permissionRecentEvidence?: import("../permissions/permissionContext.js").PermissionEvidence[];
   };
   return {
     ...(extra.permissionUserTurns ? { permission_user_turns: extra.permissionUserTurns } : {}),
+    ...(extra.permissionRecentEvidence ? { permission_recent_evidence: extra.permissionRecentEvidence } : {}),
     trigger: meta.trigger,
     pre_tokens: meta.preTokens,
     ...(seg && {
@@ -112,7 +114,9 @@ export function fromSDKCompactMetadata(
   meta: SDKCompactMetadata
 ): CompactMetadata {
   const seg = meta.preserved_segment;
+  const evidence = (meta as SDKCompactMetadata & { permission_recent_evidence?: import("../permissions/permissionContext.js").PermissionEvidence[] }).permission_recent_evidence;
   return {
+    ...(evidence ? {permissionRecentEvidence:evidence} : {}),
     trigger: meta.trigger,
     preTokens: meta.pre_tokens,
     ...((meta as SDKCompactMetadata & { permission_user_turns?: PermissionUserTurn[] }).permission_user_turns

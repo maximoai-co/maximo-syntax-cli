@@ -1,5 +1,5 @@
 import { feature } from "bun:bundle";
-import { collectPermissionUserTurns } from "./permissionContext.js";
+import { collectPermissionContext, type PermissionEvidence } from "./permissionContext.js";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolUnion } from "@anthropic-ai/sdk/resources/beta/messages.js";
 import { mkdir, writeFile } from "fs/promises";
@@ -296,7 +296,7 @@ const YOLO_CLASSIFIER_TOOL_SCHEMA: BetaToolUnion = {
 
 type TranscriptBlock =
   | { type: "text"; text: string }
-  | { type: "tool_use"; name: string; input: unknown };
+  | PermissionEvidence;
 
 export type TranscriptEntry = {
   role: "user" | "assistant";
@@ -305,37 +305,20 @@ export type TranscriptEntry = {
 
 /**
  * Build transcript entries from messages.
- * Includes user text messages and assistant tool_use blocks (excluding assistant text).
+ * Human intent and bounded assistant/tool observations retain their provenance.
  * Queued user messages (attachment messages with queued_command type) are extracted
  * and emitted as user turns.
  */
 export function buildTranscriptEntries(messages: Message[]): TranscriptEntry[] {
-  const transcript: TranscriptEntry[] = collectPermissionUserTurns(messages).flatMap(turn => [
-    ...(turn.precedingToolCalls?.length ? [{
+  const context = collectPermissionContext(messages);
+  const transcript: TranscriptEntry[] = context.turns.flatMap(turn => [
+    ...(turn.precedingContext?.length || turn.precedingToolCalls?.length ? [{
       role: "assistant" as const,
-      content: turn.precedingToolCalls.map(call => ({type: "tool_use" as const, ...call})),
+      content: turn.precedingContext ?? turn.precedingToolCalls!.map(call => ({type: "tool_use" as const, ...call})),
     }] : []),
     { role: "user" as const, content: [{ type: "text" as const, text: turn.text }] },
   ]);
-  for (const msg of messages) {
-    if (msg.type === "assistant") {
-      const blocks: TranscriptBlock[] = [];
-      for (const block of msg.message.content) {
-        // Only include tool_use blocks — assistant text is model-authored
-        // and could be crafted to influence the classifier's decision.
-        if (block.type === "tool_use") {
-          blocks.push({
-            type: "tool_use",
-            name: block.name,
-            input: block.input,
-          });
-        }
-      }
-      if (blocks.length > 0) {
-        transcript.push({ role: "assistant", content: blocks });
-      }
-    }
-  }
+  if (context.recentEvidence.length) transcript.push({role:"assistant",content:context.recentEvidence});
   return transcript;
 }
 
@@ -399,6 +382,10 @@ function toCompactBlock(
     return isJsonlTranscriptEnabled()
       ? jsonStringify({ user: block.text }) + "\n"
       : `User: ${block.text}\n`;
+  }
+  if (block.type === "assistant_text" || block.type === "tool_result") {
+    // A separate key prevents even quoted JSON from becoming human approval.
+    return jsonStringify({ untrusted_observation: block }) + "\n";
   }
   return "";
 }
